@@ -55,13 +55,13 @@
 | Drag-drop cards | 🟢 | Claude | dnd-kit with custom collision |
 | Board API endpoints | 🟢 | Claude | CRUD + reorder |
 
-### 1.5 Task Card (Basic) 🔴
+### 1.5 Task Card (Basic) 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
 | Task card compact view | 🟢 | Claude | CardCompact component |
-| Task card full view (modal) | 🔴 | - | |
-| Card description | 🔴 | - | |
-| Story points | 🟢 | Claude | Display in compact view |
+| Task card full view (modal) | 🟢 | Claude | CardModal component |
+| Card description | 🟢 | Claude | In CardModal |
+| Story points | 🟢 | Claude | Fibonacci buttons (1,2,3,5,8,13,21) |
 | Assignees display | 🟢 | Claude | Avatars in compact view |
 
 ---
@@ -221,6 +221,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2025-01-27 | 1.5 | Completed Task Card Basic with modal, description, Fibonacci story points | Claude |
 | 2025-01-27 | 1.4 | Completed Board UI with lists, cards, and drag-drop | Claude |
 | 2025-01-27 | 1.1, 1.2, 1.3 | Completed project setup, schema, and auth | Claude |
 | 2025-01-26 | - | Initial roadmap created | Claude |
