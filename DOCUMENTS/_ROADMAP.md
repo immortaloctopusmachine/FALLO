@@ -69,17 +69,17 @@
 ## Phase 2: Card Types & Relationships
 **Target**: Full card type implementation with connections
 
-### 2.1 Task Card (Complete) 🔴
+### 2.1 Task Card (Complete) 🟡
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Attachments with comments | 🔴 | - | |
-| Todo checklist | 🔴 | - | |
-| Feedback checklist | 🔴 | - | |
-| Card chat | 🔴 | - | |
-| User assignment | 🔴 | - | |
-| Deadline | 🔴 | - | |
-| Card color option | 🔴 | - | |
-| Feature image | 🔴 | - | |
+| Attachments with comments | 🔴 | - | Deferred |
+| Todo checklist | 🟢 | Claude | ChecklistSection component |
+| Feedback checklist | 🟢 | Claude | ChecklistSection component |
+| Card chat | 🟢 | Claude | CommentsSection component |
+| User assignment | 🟢 | Claude | AssigneePicker component |
+| Deadline | 🟢 | Claude | DeadlinePicker with calendar |
+| Card color option | 🟢 | Claude | ColorPicker (8 colors) |
+| Feature image | 🟢 | Claude | URL input |
 
 ### 2.2 User Story Card 🔴
 | Task | Status | Owner | Notes |
@@ -221,6 +221,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2025-01-27 | 2.1 | Task Card Complete: checklists, comments, assignment, deadline, color, image | Claude |
 | 2025-01-27 | 1.5 | Completed Task Card Basic with modal, description, Fibonacci story points | Claude |
 | 2025-01-27 | 1.4 | Completed Board UI with lists, cards, and drag-drop | Claude |
 | 2025-01-27 | 1.1, 1.2, 1.3 | Completed project setup, schema, and auth | Claude |
