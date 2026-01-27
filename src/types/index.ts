@@ -58,7 +58,8 @@ export interface UserStoryCard extends BaseCard {
 
 // Epic Card
 export interface EpicCardData {
-  // Mostly computed fields
+  // Reserved for future epic-specific stored data
+  _placeholder?: never;
 }
 
 export interface EpicCard extends BaseCard {

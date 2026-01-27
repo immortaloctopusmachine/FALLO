@@ -20,7 +20,15 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(powershell -Command \"Stop-Process -Id 87936 -Force\")",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run build:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]\\items",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\comments"
     ]
   }
 }

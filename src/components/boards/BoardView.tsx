@@ -13,8 +13,6 @@ import {
   closestCenter,
   pointerWithin,
   rectIntersection,
-  getFirstCollision,
-  UniqueIdentifier,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -32,9 +30,10 @@ import type { Board, Card, CardType } from '@/types';
 
 interface BoardViewProps {
   board: Board;
+  currentUserId?: string;
 }
 
-export function BoardView({ board: initialBoard }: BoardViewProps) {
+export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps) {
   const router = useRouter();
   const [board, setBoard] = useState(initialBoard);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
@@ -62,17 +61,6 @@ export function BoardView({ board: initialBoard }: BoardViewProps) {
     });
     return map;
   }, [board.lists]);
-
-  // Get list ID from a draggable/droppable ID
-  const getListIdFromId = useCallback((id: UniqueIdentifier): string | null => {
-    const strId = String(id);
-    // Check if it's a list ID
-    if (board.lists.some((l) => l.id === strId)) {
-      return strId;
-    }
-    // Check if it's a card ID
-    return cardToListMap.get(strId) || null;
-  }, [board.lists, cardToListMap]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -450,6 +438,7 @@ export function BoardView({ board: initialBoard }: BoardViewProps) {
         onClose={() => setSelectedCard(null)}
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
+        currentUserId={currentUserId}
       />
     </DndContext>
   );

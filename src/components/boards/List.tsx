@@ -25,7 +25,7 @@ interface ListProps {
   onDeleteList: (listId: string) => Promise<void>;
 }
 
-export function List({ id, name, cards, boardId, onAddCard, onCardClick, onDeleteList }: ListProps) {
+export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);

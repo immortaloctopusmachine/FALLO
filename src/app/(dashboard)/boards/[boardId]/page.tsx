@@ -161,7 +161,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
     <div className="flex h-screen flex-col bg-background">
       <BoardHeader name={board.name} memberCount={board.members.length} />
       <div className="flex-1 overflow-hidden">
-        <BoardView board={board} />
+        <BoardView board={board} currentUserId={session.user.id} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckSquare, BookOpen, Layers, FileText, Trash2, User } from 'lucide-react';
+import { CheckSquare, BookOpen, Layers, FileText, Trash2, Image, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { Card, TaskCard } from '@/types';
+import { ChecklistSection } from './ChecklistSection';
+import { CommentsSection } from './CommentsSection';
+import { AssigneePicker } from './AssigneePicker';
+import { DeadlinePicker } from './DeadlinePicker';
+import { ColorPicker } from './ColorPicker';
+import type { Card, TaskCard, Checklist, CardAssignee } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface CardModalProps {
@@ -23,6 +27,7 @@ interface CardModalProps {
   onClose: () => void;
   onUpdate: (card: Card) => void;
   onDelete: (cardId: string) => void;
+  currentUserId?: string;
 }
 
 const cardTypeConfig = {
@@ -34,10 +39,15 @@ const cardTypeConfig = {
 
 const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13, 21];
 
-export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }: CardModalProps) {
+export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, currentUserId }: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storyPoints, setStoryPoints] = useState<number | null>(null);
+  const [deadline, setDeadline] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>(null);
+  const [featureImage, setFeatureImage] = useState<string | null>(null);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [assignees, setAssignees] = useState<CardAssignee[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -46,11 +56,20 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
     if (card) {
       setTitle(card.title);
       setDescription(card.description || '');
+      setColor(card.color);
+      setFeatureImage(card.featureImage);
+
       if (card.type === 'TASK') {
-        const taskData = card.taskData as { storyPoints?: number | null } | null;
-        setStoryPoints(taskData?.storyPoints ?? null);
+        const taskCard = card as TaskCard;
+        setStoryPoints(taskCard.taskData?.storyPoints ?? null);
+        setDeadline(taskCard.taskData?.deadline ?? null);
+        setChecklists(taskCard.checklists || []);
+        setAssignees(taskCard.assignees || []);
       } else {
         setStoryPoints(null);
+        setDeadline(null);
+        setChecklists([]);
+        setAssignees([]);
       }
     }
   }, [card]);
@@ -66,12 +85,15 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
       const updates: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || null,
+        color,
+        featureImage,
       };
 
       if (card.type === 'TASK') {
         updates.taskData = {
           ...(card.taskData as object || {}),
-          storyPoints: storyPoints,
+          storyPoints,
+          deadline,
         };
       }
 
@@ -83,7 +105,13 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
 
       const data = await response.json();
       if (data.success) {
-        onUpdate(data.data);
+        // Merge updated card with local state for checklists and assignees
+        const updatedCard = {
+          ...data.data,
+          checklists,
+          assignees,
+        };
+        onUpdate(updatedCard);
       }
     } catch (error) {
       console.error('Failed to save card:', error);
@@ -112,22 +140,54 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
     }
   };
 
+  const handleChecklistsUpdate = (updatedChecklists: Checklist[]) => {
+    setChecklists(updatedChecklists);
+    // Also update the parent card
+    onUpdate({
+      ...card,
+      checklists: updatedChecklists,
+    } as Card);
+  };
+
+  const handleAssigneesUpdate = (updatedAssignees: CardAssignee[]) => {
+    setAssignees(updatedAssignees);
+    // Also update the parent card
+    onUpdate({
+      ...card,
+      assignees: updatedAssignees,
+    } as Card);
+  };
+
   const hasChanges =
     title !== card.title ||
     description !== (card.description || '') ||
-    (card.type === 'TASK' && storyPoints !== ((card.taskData as { storyPoints?: number | null } | null)?.storyPoints ?? null));
+    color !== card.color ||
+    featureImage !== card.featureImage ||
+    (card.type === 'TASK' && (
+      storyPoints !== ((card as TaskCard).taskData?.storyPoints ?? null) ||
+      deadline !== ((card as TaskCard).taskData?.deadline ?? null)
+    ));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[720px] gap-0 p-0">
+      <DialogContent className="max-h-[90vh] max-w-[800px] gap-0 overflow-hidden p-0">
         {/* Feature Image */}
-        {card.featureImage && (
-          <div className="relative h-40 w-full overflow-hidden rounded-t-lg">
+        {featureImage && (
+          <div className="relative h-40 w-full overflow-hidden bg-surface-hover">
             <img
-              src={card.featureImage}
+              src={featureImage}
               alt=""
               className="h-full w-full object-cover"
             />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute right-2 top-2"
+              onClick={() => setFeatureImage(null)}
+            >
+              <X className="mr-1 h-4 w-4" />
+              Remove
+            </Button>
           </div>
         )}
 
@@ -154,9 +214,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
         </DialogHeader>
 
         {/* Content */}
-        <div className="flex">
+        <div className="flex max-h-[calc(90vh-180px)] overflow-hidden">
           {/* Main Content Area */}
-          <div className="flex-1 space-y-6 p-6">
+          <div className="flex-1 space-y-6 overflow-y-auto p-6">
             {/* Description */}
             <div className="space-y-2">
               <Label className="text-caption font-medium text-text-secondary">
@@ -171,59 +231,69 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
               />
             </div>
 
-            {/* Checklists placeholder */}
+            {/* Todo Checklist */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
                 <Label className="text-caption font-medium text-text-secondary">
-                  Checklists
+                  Todo Checklist
                 </Label>
-                <div className="rounded-md border border-dashed border-border p-4 text-center text-caption text-text-tertiary">
-                  Checklists coming in Phase 2
-                </div>
+                <ChecklistSection
+                  checklists={checklists}
+                  boardId={boardId}
+                  cardId={card.id}
+                  type="todo"
+                  onUpdate={handleChecklistsUpdate}
+                />
               </div>
             )}
 
-            {/* Comments placeholder */}
+            {/* Feedback Checklist */}
+            {card.type === 'TASK' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Feedback
+                </Label>
+                <ChecklistSection
+                  checklists={checklists}
+                  boardId={boardId}
+                  cardId={card.id}
+                  type="feedback"
+                  onUpdate={handleChecklistsUpdate}
+                />
+              </div>
+            )}
+
+            {/* Comments */}
             <div className="space-y-2">
               <Label className="text-caption font-medium text-text-secondary">
                 Comments
               </Label>
-              <div className="rounded-md border border-dashed border-border p-4 text-center text-caption text-text-tertiary">
-                Comments coming in Phase 2
-              </div>
+              <CommentsSection
+                boardId={boardId}
+                cardId={card.id}
+                currentUserId={currentUserId}
+              />
             </div>
           </div>
 
           {/* Sidebar */}
-          <div className="w-[200px] space-y-4 border-l border-border bg-background p-4">
+          <div className="w-[220px] space-y-4 border-l border-border bg-background overflow-y-auto p-4">
             {/* Assignees */}
-            <div className="space-y-2">
-              <Label className="text-caption font-medium text-text-secondary">
-                Assignees
-              </Label>
-              {card.type === 'TASK' && (card as TaskCard).assignees && (card as TaskCard).assignees!.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {(card as TaskCard).assignees!.map((assignee) => (
-                    <div key={assignee.id} className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={assignee.user.image || undefined} />
-                        <AvatarFallback className="text-[10px]">
-                          {assignee.user.name?.[0] || assignee.user.email[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-caption">{assignee.user.name || assignee.user.email}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <Button variant="ghost" size="sm" className="w-full justify-start text-text-tertiary">
-                  <User className="mr-2 h-4 w-4" />
-                  Add assignee
-                </Button>
-              )}
-            </div>
+            {card.type === 'TASK' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Assignees
+                </Label>
+                <AssigneePicker
+                  assignees={assignees}
+                  boardId={boardId}
+                  cardId={card.id}
+                  onUpdate={handleAssigneesUpdate}
+                />
+              </div>
+            )}
 
-            {/* Story Points (Task only) - Fibonacci buttons */}
+            {/* Story Points (Task only) */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
                 <Label className="text-caption font-medium text-text-secondary">
@@ -248,20 +318,65 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete }
               </div>
             )}
 
-            {/* Deadline placeholder */}
+            {/* Deadline */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
                 <Label className="text-caption font-medium text-text-secondary">
                   Deadline
                 </Label>
-                <Button variant="ghost" size="sm" className="w-full justify-start text-text-tertiary">
-                  Set deadline
-                </Button>
+                <DeadlinePicker
+                  deadline={deadline}
+                  onChange={setDeadline}
+                />
               </div>
             )}
 
+            {/* Color */}
+            <div className="space-y-2">
+              <Label className="text-caption font-medium text-text-secondary">
+                Color
+              </Label>
+              <ColorPicker color={color} onChange={setColor} />
+            </div>
+
+            {/* Feature Image URL */}
+            <div className="space-y-2">
+              <Label className="text-caption font-medium text-text-secondary">
+                Feature Image
+              </Label>
+              {!featureImage ? (
+                <Input
+                  placeholder="Image URL..."
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      setFeatureImage(e.target.value.trim());
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const value = e.currentTarget.value.trim();
+                      if (value) {
+                        setFeatureImage(value);
+                        e.currentTarget.value = '';
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-text-tertiary"
+                  onClick={() => setFeatureImage(null)}
+                >
+                  <Image className="mr-2 h-4 w-4" />
+                  Change image
+                </Button>
+              )}
+            </div>
+
             {/* Actions */}
-            <div className="space-y-2 pt-4">
+            <div className="space-y-2 pt-4 border-t border-border">
               <Label className="text-caption font-medium text-text-secondary">
                 Actions
               </Label>
