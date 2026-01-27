@@ -6,7 +6,21 @@
       "Bash(npm install:*)",
       "Bash(npm run type-check:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: complete Phase 1.1-1.3 project foundation\n\n- Set up Next.js 15 with App Router and TypeScript\n- Configure Tailwind CSS with design tokens from GDD.md\n- Add shadcn/ui base components \\(button, dialog, input, etc.\\)\n- Create Prisma schema with all card types and relationships\n- Set up NextAuth.js with credentials provider\n- Configure Vitest for testing\n- Add Zustand UI store for client state\n- Create basic app structure with login and boards pages\n\nReady for Supabase database connection.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: complete Phase 1.1-1.3 project foundation\n\n- Set up Next.js 15 with App Router and TypeScript\n- Configure Tailwind CSS with design tokens from GDD.md\n- Add shadcn/ui base components \\(button, dialog, input, etc.\\)\n- Create Prisma schema with all card types and relationships\n- Set up NextAuth.js with credentials provider\n- Configure Vitest for testing\n- Add Zustand UI store for client state\n- Create basic app structure with login and boards pages\n\nReady for Supabase database connection.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(node -e:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npx prisma migrate diff:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma db pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(npx tsx:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell -Command \"Stop-Process -Id 87936 -Force\")",
+      "Bash(npx tsc:*)"
     ]
   }
 }

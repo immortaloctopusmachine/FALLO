@@ -44,23 +44,25 @@
 | Protected routes | 🟢 | Claude | Basic redirect |
 | Permission middleware | 🔴 | - | Phase 2 |
 
-### 1.4 Board UI 🔴
+### 1.4 Board UI 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Board layout component | 🔴 | - | |
-| List component | 🔴 | - | Header with counts |
-| List header (card count, SP sum) | 🔴 | - | |
-| Add list functionality | 🔴 | - | |
-| Drag-drop lists | 🔴 | - | dnd-kit |
+| Board layout component | 🟢 | Claude | BoardView, BoardHeader |
+| List component | 🟢 | Claude | Header with counts |
+| List header (card count, SP sum) | 🟢 | Claude | |
+| Add list functionality | 🟢 | Claude | |
+| Drag-drop lists | 🔴 | - | Deferred (cards work) |
+| Drag-drop cards | 🟢 | Claude | dnd-kit with custom collision |
+| Board API endpoints | 🟢 | Claude | CRUD + reorder |
 
 ### 1.5 Task Card (Basic) 🔴
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Task card compact view | 🔴 | - | |
+| Task card compact view | 🟢 | Claude | CardCompact component |
 | Task card full view (modal) | 🔴 | - | |
 | Card description | 🔴 | - | |
-| Story points | 🔴 | - | |
-| Drag-drop cards | 🔴 | - | |
+| Story points | 🟢 | Claude | Display in compact view |
+| Assignees display | 🟢 | Claude | Avatars in compact view |
 
 ---
 
@@ -219,6 +221,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2025-01-27 | 1.4 | Completed Board UI with lists, cards, and drag-drop | Claude |
 | 2025-01-27 | 1.1, 1.2, 1.3 | Completed project setup, schema, and auth | Claude |
 | 2025-01-26 | - | Initial roadmap created | Claude |
 

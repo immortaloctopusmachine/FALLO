@@ -31,10 +31,14 @@ export interface TaskCardData {
 export interface TaskCard extends BaseCard {
   type: 'TASK';
   taskData: TaskCardData;
-  assignees: CardAssignee[];
-  attachments: Attachment[];
-  checklists: Checklist[];
-  comments: Comment[];
+  assignees?: CardAssignee[];
+  attachments?: Attachment[];
+  checklists?: Checklist[];
+  comments?: Comment[];
+  _count?: {
+    attachments: number;
+    comments: number;
+  };
 }
 
 // User Story Card
