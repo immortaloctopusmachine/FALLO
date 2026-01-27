@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { List } from './List';
 import { CardCompact } from '@/components/cards/CardCompact';
+import { CardModal } from '@/components/cards/CardModal';
 import type { Board, Card, CardType } from '@/types';
 
 interface BoardViewProps {
@@ -41,6 +42,7 @@ export function BoardView({ board: initialBoard }: BoardViewProps) {
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -282,8 +284,28 @@ export function BoardView({ board: initialBoard }: BoardViewProps) {
   }, [board.id]);
 
   const handleCardClick = useCallback((card: Card) => {
-    // TODO: Open card modal
-    console.log('Card clicked:', card);
+    setSelectedCard(card);
+  }, []);
+
+  const handleCardUpdate = useCallback((updatedCard: Card) => {
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) => ({
+        ...list,
+        cards: list.cards.map((c) => (c.id === updatedCard.id ? updatedCard : c)),
+      })),
+    }));
+    setSelectedCard(updatedCard);
+  }, []);
+
+  const handleCardDelete = useCallback((cardId: string) => {
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) => ({
+        ...list,
+        cards: list.cards.filter((c) => c.id !== cardId),
+      })),
+    }));
   }, []);
 
   const handleDeleteList = useCallback(async (listId: string) => {
@@ -420,6 +442,15 @@ export function BoardView({ board: initialBoard }: BoardViewProps) {
           </div>
         )}
       </DragOverlay>
+
+      <CardModal
+        card={selectedCard}
+        boardId={board.id}
+        isOpen={!!selectedCard}
+        onClose={() => setSelectedCard(null)}
+        onUpdate={handleCardUpdate}
+        onDelete={handleCardDelete}
+      />
     </DndContext>
   );
 }

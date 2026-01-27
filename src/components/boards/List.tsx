@@ -118,30 +118,9 @@ export function List({ id, name, cards, boardId, onAddCard, onCardClick, onDelet
       {/* Divider */}
       <div className="mx-2 border-t border-border-subtle" />
 
-      {/* Cards Container */}
-      <div className="flex-1 space-y-2 overflow-y-auto p-2">
-        {cards.map((card) => (
-          <CardCompact
-            key={card.id}
-            card={card}
-            onClick={() => onCardClick(card)}
-          />
-        ))}
-
-        {/* Empty state drop zone */}
-        {cards.length === 0 && (
-          <div className={cn(
-            'flex h-20 items-center justify-center rounded-md border-2 border-dashed text-caption text-text-tertiary transition-colors',
-            isOver ? 'border-card-task bg-card-task/5' : 'border-border-subtle'
-          )}>
-            Drop cards here
-          </div>
-        )}
-      </div>
-
-      {/* Add Card Form (shown at bottom when adding) */}
+      {/* Add Card Form (shown below header when adding) */}
       {isAddingCard && (
-        <div className="p-2 pt-0">
+        <div className="p-2">
           <div className="space-y-2">
             <Input
               value={newCardTitle}
@@ -174,6 +153,27 @@ export function List({ id, name, cards, boardId, onAddCard, onCardClick, onDelet
           </div>
         </div>
       )}
+
+      {/* Cards Container */}
+      <div className="flex-1 space-y-2 overflow-y-auto p-2">
+        {cards.map((card) => (
+          <CardCompact
+            key={card.id}
+            card={card}
+            onClick={() => onCardClick(card)}
+          />
+        ))}
+
+        {/* Empty state drop zone */}
+        {cards.length === 0 && !isAddingCard && (
+          <div className={cn(
+            'flex h-20 items-center justify-center rounded-md border-2 border-dashed text-caption text-text-tertiary transition-colors',
+            isOver ? 'border-card-task bg-card-task/5' : 'border-border-subtle'
+          )}>
+            Drop cards here
+          </div>
+        )}
+      </div>
     </div>
   );
 }
