@@ -1,0 +1,298 @@
+// Fallo - Project Management Application
+// Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============== ENUMS ==============
+
+enum UserRole {
+  VIEWER
+  MEMBER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum CardType {
+  TASK
+  USER_STORY
+  EPIC
+  UTILITY
+}
+
+enum UtilitySubtype {
+  LINK
+  NOTE
+  MILESTONE
+  BLOCKER
+}
+
+enum UserStoryFlag {
+  COMPLEX
+  HIGH_RISK
+  MISSING_DOCS
+  BLOCKED
+  NEEDS_REVIEW
+}
+
+// ============== MODELS ==============
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  image         String?
+  passwordHash  String?       // For credentials auth
+  role          UserRole      @default(MEMBER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  boardMembers  BoardMember[]
+  assignedCards CardUser[]
+  comments      Comment[]
+  activities    Activity[]
+
+  // NextAuth relations
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+// NextAuth Account model
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// NextAuth Verification Token model
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Board {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  isTemplate  Boolean   @default(false)
+  settings    Json      @default("{}") // LLM settings, etc.
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  // Relations
+  members    BoardMember[]
+  lists      List[]
+  activities Activity[]
+
+  @@map("boards")
+}
+
+model BoardMember {
+  id       String   @id @default(cuid())
+  role     UserRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  // Relations
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, boardId])
+  @@map("board_members")
+}
+
+model List {
+  id        String   @id @default(cuid())
+  name      String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards   Card[]
+
+  @@index([boardId])
+  @@map("lists")
+}
+
+model Card {
+  id           String    @id @default(cuid())
+  type         CardType
+  title        String
+  description  String?
+  position     Int
+  color        String? // Hex color
+  featureImage String? // URL
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  archivedAt   DateTime?
+
+  // Relations
+  listId      String
+  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  assignees   CardUser[]
+  comments    Comment[]
+  attachments Attachment[]
+  checklists  Checklist[]
+
+  // Hierarchy relations
+  parentId String?
+  parent   Card?   @relation("CardHierarchy", fields: [parentId], references: [id])
+  children Card[]  @relation("CardHierarchy")
+
+  // Type-specific data (JSON for flexibility)
+  taskData      Json? // TaskCardData
+  userStoryData Json? // UserStoryCardData
+  epicData      Json? // EpicCardData
+  utilityData   Json? // UtilityCardData
+
+  @@index([listId])
+  @@index([parentId])
+  @@index([type])
+  @@map("cards")
+}
+
+model CardUser {
+  id         String   @id @default(cuid())
+  assignedAt DateTime @default(now())
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@map("card_users")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  cardId   String
+  card     Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  // For attachment comments
+  attachmentId String?
+  attachment   Attachment? @relation(fields: [attachmentId], references: [id])
+
+  @@index([cardId])
+  @@map("comments")
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  type      String // MIME type
+  size      Int // bytes
+  createdAt DateTime @default(now())
+
+  // Relations
+  cardId   String
+  card     Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@index([cardId])
+  @@map("attachments")
+}
+
+model Checklist {
+  id        String          @id @default(cuid())
+  name      String
+  type      String // "todo", "feedback"
+  position  Int
+  createdAt DateTime        @default(now())
+
+  // Relations
+  cardId String
+  card   Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items  ChecklistItem[]
+
+  @@index([cardId])
+  @@map("checklists")
+}
+
+model ChecklistItem {
+  id         String   @id @default(cuid())
+  content    String
+  isComplete Boolean  @default(false)
+  position   Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  checklistId String
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId])
+  @@map("checklist_items")
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  action    String // "created", "moved", "updated", etc.
+  entity    String // "card", "list", "board"
+  entityId  String
+  data      Json // Additional context
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([entityId])
+  @@map("activities")
+}
