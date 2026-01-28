@@ -164,8 +164,9 @@ model Card {
   title        String
   description  String?
   position     Int
-  color        String? // Hex color
-  featureImage String? // URL
+  color                String? // Hex color
+  featureImage         String? // URL
+  featureImagePosition Int     @default(50) // 0-100 vertical position %
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   archivedAt   DateTime?

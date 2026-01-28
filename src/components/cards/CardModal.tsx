@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckSquare, BookOpen, Layers, FileText, Trash2, Image, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CheckSquare, BookOpen, Layers, FileText, Trash2, Image, X, Upload, Paperclip, ChevronUp, ChevronDown, ChevronRight, ListChecks, AlignLeft, AlertTriangle, Zap, FileQuestion, Ban, Eye, Link2, Link, StickyNote, Milestone, Calendar, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,12 +12,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ChecklistSection } from './ChecklistSection';
+import { SimpleChecklist } from './SimpleChecklist';
 import { CommentsSection } from './CommentsSection';
 import { AssigneePicker } from './AssigneePicker';
 import { DeadlinePicker } from './DeadlinePicker';
 import { ColorPicker } from './ColorPicker';
-import type { Card, TaskCard, Checklist, CardAssignee } from '@/types';
+import { AttachmentSection } from './AttachmentSection';
+import { ConnectionPicker } from './ConnectionPicker';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface CardModalProps {
@@ -27,6 +29,7 @@ interface CardModalProps {
   onClose: () => void;
   onUpdate: (card: Card) => void;
   onDelete: (cardId: string) => void;
+  onRefreshBoard?: () => void;
   currentUserId?: string;
 }
 
@@ -39,17 +42,53 @@ const cardTypeConfig = {
 
 const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13, 21];
 
-export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, currentUserId }: CardModalProps) {
+const USER_STORY_FLAGS: { value: UserStoryFlag; label: string; icon: typeof AlertTriangle; color: string }[] = [
+  { value: 'COMPLEX', label: 'Complex', icon: Zap, color: 'text-warning bg-warning/10 border-warning/30' },
+  { value: 'HIGH_RISK', label: 'High Risk', icon: AlertTriangle, color: 'text-error bg-error/10 border-error/30' },
+  { value: 'MISSING_DOCS', label: 'Missing Docs', icon: FileQuestion, color: 'text-orange-500 bg-orange-500/10 border-orange-500/30' },
+  { value: 'BLOCKED', label: 'Blocked', icon: Ban, color: 'text-error bg-error/10 border-error/30' },
+  { value: 'NEEDS_REVIEW', label: 'Needs Review', icon: Eye, color: 'text-purple-500 bg-purple-500/10 border-purple-500/30' },
+];
+
+const UTILITY_SUBTYPES: { value: UtilitySubtype; label: string; icon: typeof Link; color: string }[] = [
+  { value: 'LINK', label: 'Link', icon: Link, color: 'text-blue-500 bg-blue-500/10 border-blue-500/30' },
+  { value: 'NOTE', label: 'Note', icon: StickyNote, color: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30' },
+  { value: 'MILESTONE', label: 'Milestone', icon: Milestone, color: 'text-green-500 bg-green-500/10 border-green-500/30' },
+  { value: 'BLOCKER', label: 'Blocker', icon: Ban, color: 'text-error bg-error/10 border-error/30' },
+];
+
+export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, currentUserId }: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storyPoints, setStoryPoints] = useState<number | null>(null);
   const [deadline, setDeadline] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [featureImage, setFeatureImage] = useState<string | null>(null);
+  const [featureImagePosition, setFeatureImagePosition] = useState(50);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [assignees, setAssignees] = useState<CardAssignee[]>([]);
+  const [attachmentCount, setAttachmentCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUploadingFeatureImage, setIsUploadingFeatureImage] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(true);
+  const [todoExpanded, setTodoExpanded] = useState(true);
+  const [feedbackExpanded, setFeedbackExpanded] = useState(true);
+  const [flags, setFlags] = useState<UserStoryFlag[]>([]);
+  const [connectedTasks, setConnectedTasks] = useState<TaskCard[]>([]);
+  const [connectedUserStories, setConnectedUserStories] = useState<UserStoryCard[]>([]);
+  const [utilitySubtype, setUtilitySubtype] = useState<UtilitySubtype>('NOTE');
+  const [utilityUrl, setUtilityUrl] = useState('');
+  const [utilityContent, setUtilityContent] = useState('');
+  const [utilityDate, setUtilityDate] = useState<string | null>(null);
+  const [linkedUserStoryId, setLinkedUserStoryId] = useState<string | null>(null);
+  const [linkedEpicId, setLinkedEpicId] = useState<string | null>(null);
+  const [linkedUserStory, setLinkedUserStory] = useState<UserStoryCard | null>(null);
+  const [linkedEpic, setLinkedEpic] = useState<EpicCard | null>(null);
+  const [isCreatingLinkedCard, setIsCreatingLinkedCard] = useState(false);
+  const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
+  const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
+  const featureImageInputRef = useRef<HTMLInputElement>(null);
 
   // Reset form when card changes
   useEffect(() => {
@@ -58,21 +97,117 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
       setDescription(card.description || '');
       setColor(card.color);
       setFeatureImage(card.featureImage);
+      setFeatureImagePosition(card.featureImagePosition ?? 50);
 
       if (card.type === 'TASK') {
         const taskCard = card as TaskCard;
         setStoryPoints(taskCard.taskData?.storyPoints ?? null);
         setDeadline(taskCard.taskData?.deadline ?? null);
+        setLinkedUserStoryId(taskCard.taskData?.linkedUserStoryId ?? null);
+        setLinkedEpicId(taskCard.taskData?.linkedEpicId ?? null);
         setChecklists(taskCard.checklists || []);
         setAssignees(taskCard.assignees || []);
+        setFlags([]);
+        setConnectedTasks([]);
+      } else if (card.type === 'USER_STORY') {
+        const userStoryCard = card as UserStoryCard;
+        setFlags(userStoryCard.userStoryData?.flags || []);
+        setConnectedTasks(userStoryCard.connectedTasks || []);
+        setLinkedEpicId(userStoryCard.userStoryData?.linkedEpicId ?? null);
+        setLinkedUserStoryId(null);
+        setConnectedUserStories([]);
+        setStoryPoints(null);
+        setDeadline(null);
+        setChecklists([]);
+        setAssignees([]);
+      } else if (card.type === 'EPIC') {
+        const epicCard = card as EpicCard;
+        setConnectedUserStories(epicCard.connectedUserStories || []);
+        setFlags([]);
+        setConnectedTasks([]);
+        setStoryPoints(null);
+        setDeadline(null);
+        setChecklists([]);
+        setAssignees([]);
+      } else if (card.type === 'UTILITY') {
+        const utilityCard = card as UtilityCard;
+        setUtilitySubtype(utilityCard.utilityData?.subtype || 'NOTE');
+        setUtilityUrl(utilityCard.utilityData?.url || '');
+        setUtilityContent(utilityCard.utilityData?.content || '');
+        setUtilityDate(utilityCard.utilityData?.date || null);
+        setStoryPoints(null);
+        setDeadline(null);
+        setChecklists([]);
+        setAssignees([]);
+        setFlags([]);
+        setConnectedTasks([]);
+        setConnectedUserStories([]);
       } else {
         setStoryPoints(null);
         setDeadline(null);
         setChecklists([]);
         setAssignees([]);
+        setFlags([]);
+        setConnectedTasks([]);
+        setConnectedUserStories([]);
+        setUtilitySubtype('NOTE');
+        setUtilityUrl('');
+        setUtilityContent('');
+        setUtilityDate(null);
       }
     }
   }, [card]);
+
+  // Fetch linked user story data when linkedUserStoryId changes (for Tasks)
+  useEffect(() => {
+    if (card?.type === 'TASK' && linkedUserStoryId) {
+      // Fetch the user story to get its epic info
+      fetch(`/api/boards/${boardId}/cards/${linkedUserStoryId}`, { cache: 'no-store' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setLinkedUserStory(data.data);
+            // Auto-inherit the epic from the user story
+            const storyEpicId = data.data.userStoryData?.linkedEpicId;
+            if (storyEpicId) {
+              setLinkedEpicId(storyEpicId);
+              // Fetch epic details
+              fetch(`/api/boards/${boardId}/cards/${storyEpicId}`, { cache: 'no-store' })
+                .then(res => res.json())
+                .then(epicData => {
+                  if (epicData.success) {
+                    setLinkedEpic(epicData.data);
+                  }
+                });
+            } else {
+              setLinkedEpicId(null);
+              setLinkedEpic(null);
+            }
+          }
+        })
+        .catch(console.error);
+    } else if (card?.type === 'TASK' && !linkedUserStoryId) {
+      setLinkedUserStory(null);
+      setLinkedEpicId(null);
+      setLinkedEpic(null);
+    }
+  }, [card?.type, linkedUserStoryId, boardId]);
+
+  // Fetch linked epic data when linkedEpicId changes (for User Story)
+  useEffect(() => {
+    if (card?.type === 'USER_STORY' && linkedEpicId) {
+      fetch(`/api/boards/${boardId}/cards/${linkedEpicId}`, { cache: 'no-store' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setLinkedEpic(data.data);
+          }
+        })
+        .catch(console.error);
+    } else if (card?.type === 'USER_STORY' && !linkedEpicId) {
+      setLinkedEpic(null);
+    }
+  }, [card?.type, linkedEpicId, boardId]);
 
   if (!card) return null;
 
@@ -87,6 +222,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         description: description.trim() || null,
         color,
         featureImage,
+        featureImagePosition,
       };
 
       if (card.type === 'TASK') {
@@ -94,6 +230,21 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
           ...(card.taskData as object || {}),
           storyPoints,
           deadline,
+          linkedUserStoryId,
+          // Epic is inherited from User Story, not stored directly on Task
+        };
+      } else if (card.type === 'USER_STORY') {
+        updates.userStoryData = {
+          ...((card as UserStoryCard).userStoryData as object || {}),
+          flags,
+          linkedEpicId,
+        };
+      } else if (card.type === 'UTILITY') {
+        updates.utilityData = {
+          subtype: utilitySubtype,
+          url: utilityUrl || undefined,
+          content: utilityContent || undefined,
+          date: utilityDate || undefined,
         };
       }
 
@@ -112,6 +263,15 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
           assignees,
         };
         onUpdate(updatedCard);
+
+        // Refresh board if connections changed (to update connected tasks/stories counts)
+        const connectionChanged =
+          (card.type === 'TASK' && linkedUserStoryId !== ((card as TaskCard).taskData?.linkedUserStoryId ?? null)) ||
+          (card.type === 'USER_STORY' && linkedEpicId !== ((card as UserStoryCard).userStoryData?.linkedEpicId ?? null));
+
+        if (connectionChanged && onRefreshBoard) {
+          onRefreshBoard();
+        }
       }
     } catch (error) {
       console.error('Failed to save card:', error);
@@ -140,6 +300,53 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     }
   };
 
+  const handleCreateLinkedCard = async () => {
+    if (!newLinkedCardTitle.trim() || !card) return;
+
+    setIsCreatingLinkedCardLoading(true);
+    try {
+      // Determine the card type and linked field based on current card type
+      const newCardType = card.type === 'EPIC' ? 'USER_STORY' : 'TASK';
+      const linkedData = card.type === 'EPIC'
+        ? { userStoryData: { linkedEpicId: card.id } }
+        : { taskData: { linkedUserStoryId: card.id } };
+
+      const response = await fetch(`/api/boards/${boardId}/cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newLinkedCardTitle.trim(),
+          type: newCardType,
+          listId: card.listId,
+          ...linkedData,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Add to connected cards list locally
+        if (card.type === 'EPIC') {
+          setConnectedUserStories(prev => [...prev, data.data]);
+        } else if (card.type === 'USER_STORY') {
+          setConnectedTasks(prev => [...prev, data.data]);
+        }
+
+        // Clear the input
+        setNewLinkedCardTitle('');
+        setIsCreatingLinkedCard(false);
+
+        // Refresh board to update all counts
+        if (onRefreshBoard) {
+          onRefreshBoard();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create linked card:', error);
+    } finally {
+      setIsCreatingLinkedCardLoading(false);
+    }
+  };
+
   const handleChecklistsUpdate = (updatedChecklists: Checklist[]) => {
     setChecklists(updatedChecklists);
     // Also update the parent card
@@ -158,31 +365,104 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     } as Card);
   };
 
+  const handleFeatureImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate it's an image
+    if (!file.type.startsWith('image/')) {
+      console.error('Please select an image file');
+      return;
+    }
+
+    setIsUploadingFeatureImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'feature_image');
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setFeatureImage(data.data.url);
+      } else {
+        console.error('Upload failed:', data.error);
+      }
+    } catch (error) {
+      console.error('Failed to upload feature image:', error);
+    } finally {
+      setIsUploadingFeatureImage(false);
+      if (featureImageInputRef.current) {
+        featureImageInputRef.current.value = '';
+      }
+    }
+  };
+
   const hasChanges =
     title !== card.title ||
     description !== (card.description || '') ||
     color !== card.color ||
     featureImage !== card.featureImage ||
+    featureImagePosition !== (card.featureImagePosition ?? 50) ||
     (card.type === 'TASK' && (
       storyPoints !== ((card as TaskCard).taskData?.storyPoints ?? null) ||
-      deadline !== ((card as TaskCard).taskData?.deadline ?? null)
+      deadline !== ((card as TaskCard).taskData?.deadline ?? null) ||
+      linkedUserStoryId !== ((card as TaskCard).taskData?.linkedUserStoryId ?? null)
+    )) ||
+    (card.type === 'USER_STORY' && (
+      JSON.stringify(flags.sort()) !== JSON.stringify(((card as UserStoryCard).userStoryData?.flags || []).sort()) ||
+      linkedEpicId !== ((card as UserStoryCard).userStoryData?.linkedEpicId ?? null)
+    )) ||
+    (card.type === 'UTILITY' && (
+      utilitySubtype !== ((card as UtilityCard).utilityData?.subtype || 'NOTE') ||
+      utilityUrl !== ((card as UtilityCard).utilityData?.url || '') ||
+      utilityContent !== ((card as UtilityCard).utilityData?.content || '') ||
+      utilityDate !== ((card as UtilityCard).utilityData?.date || null)
     ));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-[800px] gap-0 overflow-hidden p-0">
+      <DialogContent className="max-h-[90vh] max-w-[800px] gap-0 overflow-hidden p-0 flex flex-col">
         {/* Feature Image */}
         {featureImage && (
-          <div className="relative h-40 w-full overflow-hidden bg-surface-hover">
+          <div className="relative h-40 w-full overflow-hidden bg-surface-hover group">
             <img
               src={featureImage}
               alt=""
               className="h-full w-full object-cover"
+              style={{ objectPosition: `center ${featureImagePosition}%` }}
             />
+            {/* Position Controls - visible on hover */}
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setFeatureImagePosition(Math.max(0, featureImagePosition - 10))}
+                disabled={featureImagePosition <= 0}
+                title="Move image up"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setFeatureImagePosition(Math.min(100, featureImagePosition + 10))}
+                disabled={featureImagePosition >= 100}
+                title="Move image down"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </div>
             <Button
               variant="secondary"
               size="sm"
-              className="absolute right-2 top-2"
+              className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={() => setFeatureImage(null)}
             >
               <X className="mr-1 h-4 w-4" />
@@ -214,52 +494,361 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         </DialogHeader>
 
         {/* Content */}
-        <div className="flex max-h-[calc(90vh-180px)] overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Main Content Area */}
-          <div className="flex-1 space-y-6 overflow-y-auto p-6">
+          <div className="flex-1 space-y-4 overflow-y-auto p-6">
             {/* Description */}
             <div className="space-y-2">
-              <Label className="text-caption font-medium text-text-secondary">
+              <button
+                onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                className="flex w-full items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                {descriptionExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                <AlignLeft className="h-4 w-4" />
                 Description
-              </Label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add a description..."
-                rows={4}
-                className="resize-none"
-              />
+              </button>
+              {descriptionExpanded && (
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Add a description..."
+                  rows={3}
+                  className="resize-none"
+                />
+              )}
             </div>
+
+            {/* Utility Card Content */}
+            {card.type === 'UTILITY' && (
+              <div className="space-y-4">
+                {/* Link URL (for LINK subtype) */}
+                {utilitySubtype === 'LINK' && (
+                  <div className="space-y-2">
+                    <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                      <Link className="h-4 w-4" />
+                      URL
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={utilityUrl}
+                        onChange={(e) => setUtilityUrl(e.target.value)}
+                        placeholder="https://example.com"
+                        className="flex-1"
+                      />
+                      {utilityUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => window.open(utilityUrl, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Note Content (for NOTE subtype) */}
+                {utilitySubtype === 'NOTE' && (
+                  <div className="space-y-2">
+                    <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                      <StickyNote className="h-4 w-4" />
+                      Note Content
+                    </Label>
+                    <Textarea
+                      value={utilityContent}
+                      onChange={(e) => setUtilityContent(e.target.value)}
+                      placeholder="Write your note here..."
+                      rows={6}
+                      className="resize-none"
+                    />
+                  </div>
+                )}
+
+                {/* Milestone Date (for MILESTONE subtype) */}
+                {utilitySubtype === 'MILESTONE' && (
+                  <div className="space-y-2">
+                    <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Target Date
+                    </Label>
+                    <DeadlinePicker
+                      deadline={utilityDate}
+                      onChange={setUtilityDate}
+                    />
+                  </div>
+                )}
+
+                {/* Blocker Info (for BLOCKER subtype) */}
+                {utilitySubtype === 'BLOCKER' && (
+                  <div className="space-y-2">
+                    <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                      <Ban className="h-4 w-4 text-error" />
+                      Blocker Details
+                    </Label>
+                    <Textarea
+                      value={utilityContent}
+                      onChange={(e) => setUtilityContent(e.target.value)}
+                      placeholder="Describe what is blocked and why..."
+                      rows={4}
+                      className="resize-none border-error/30"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Todo Checklist */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
-                <Label className="text-caption font-medium text-text-secondary">
+                <button
+                  onClick={() => setTodoExpanded(!todoExpanded)}
+                  className="flex w-full items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  {todoExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <CheckSquare className="h-4 w-4" />
                   Todo Checklist
-                </Label>
-                <ChecklistSection
-                  checklists={checklists}
-                  boardId={boardId}
-                  cardId={card.id}
-                  type="todo"
-                  onUpdate={handleChecklistsUpdate}
-                />
+                </button>
+                {todoExpanded && (
+                  <SimpleChecklist
+                    checklists={checklists}
+                    boardId={boardId}
+                    cardId={card.id}
+                    type="todo"
+                    onUpdate={handleChecklistsUpdate}
+                  />
+                )}
               </div>
             )}
 
             {/* Feedback Checklist */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
-                <Label className="text-caption font-medium text-text-secondary">
+                <button
+                  onClick={() => setFeedbackExpanded(!feedbackExpanded)}
+                  className="flex w-full items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  {feedbackExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <ListChecks className="h-4 w-4" />
                   Feedback
+                </button>
+                {feedbackExpanded && (
+                  <SimpleChecklist
+                    checklists={checklists}
+                    boardId={boardId}
+                    cardId={card.id}
+                    type="feedback"
+                    onUpdate={handleChecklistsUpdate}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Connected Tasks (User Story only) */}
+            {card.type === 'USER_STORY' && (
+              <div className="space-y-2">
+                {/* Create Linked Task Button/Input */}
+                {isCreatingLinkedCard ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newLinkedCardTitle}
+                      onChange={(e) => setNewLinkedCardTitle(e.target.value)}
+                      placeholder="Enter task title..."
+                      autoFocus
+                      disabled={isCreatingLinkedCardLoading}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreateLinkedCard();
+                        if (e.key === 'Escape') {
+                          setIsCreatingLinkedCard(false);
+                          setNewLinkedCardTitle('');
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleCreateLinkedCard}
+                      disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim()}
+                    >
+                      {isCreatingLinkedCardLoading ? 'Creating...' : 'Add'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsCreatingLinkedCard(false);
+                        setNewLinkedCardTitle('');
+                      }}
+                      disabled={isCreatingLinkedCardLoading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-card-task border-card-task/30 hover:bg-card-task/10"
+                    onClick={() => setIsCreatingLinkedCard(true)}
+                  >
+                    <CheckSquare className="mr-2 h-4 w-4" />
+                    Create Linked Task
+                  </Button>
+                )}
+
+                <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                  <Link2 className="h-4 w-4" />
+                  Connected Tasks
+                  {connectedTasks.length > 0 && (
+                    <span className="text-xs text-text-tertiary">({connectedTasks.length})</span>
+                  )}
                 </Label>
-                <ChecklistSection
-                  checklists={checklists}
-                  boardId={boardId}
-                  cardId={card.id}
-                  type="feedback"
-                  onUpdate={handleChecklistsUpdate}
-                />
+                {connectedTasks.length > 0 ? (
+                  <div className="space-y-2">
+                    {connectedTasks.map((task) => {
+                      const isComplete = task.checklists?.every(cl =>
+                        cl.items.every(i => i.isComplete)
+                      ) ?? false;
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body"
+                        >
+                          <CheckSquare className={cn(
+                            'h-4 w-4 shrink-0',
+                            isComplete ? 'text-success' : 'text-card-task'
+                          )} />
+                          <span className={cn(
+                            'flex-1 truncate',
+                            isComplete && 'text-text-tertiary line-through'
+                          )}>
+                            {task.title}
+                          </span>
+                          {task.taskData?.storyPoints && (
+                            <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
+                              {task.taskData.storyPoints}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-caption text-text-tertiary italic">
+                    No tasks connected yet. Link tasks from their card modal.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Connected User Stories (Epic only) */}
+            {card.type === 'EPIC' && (
+              <div className="space-y-2">
+                {/* Create Linked User Story Button/Input */}
+                {isCreatingLinkedCard ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newLinkedCardTitle}
+                      onChange={(e) => setNewLinkedCardTitle(e.target.value)}
+                      placeholder="Enter user story title..."
+                      autoFocus
+                      disabled={isCreatingLinkedCardLoading}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCreateLinkedCard();
+                        if (e.key === 'Escape') {
+                          setIsCreatingLinkedCard(false);
+                          setNewLinkedCardTitle('');
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleCreateLinkedCard}
+                      disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim()}
+                    >
+                      {isCreatingLinkedCardLoading ? 'Creating...' : 'Add'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsCreatingLinkedCard(false);
+                        setNewLinkedCardTitle('');
+                      }}
+                      disabled={isCreatingLinkedCardLoading}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-card-story border-card-story/30 hover:bg-card-story/10"
+                    onClick={() => setIsCreatingLinkedCard(true)}
+                  >
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Create Linked User Story
+                  </Button>
+                )}
+
+                <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                  <Link2 className="h-4 w-4" />
+                  Connected User Stories
+                  {connectedUserStories.length > 0 && (
+                    <span className="text-xs text-text-tertiary">({connectedUserStories.length})</span>
+                  )}
+                </Label>
+                {connectedUserStories.length > 0 ? (
+                  <div className="space-y-2">
+                    {connectedUserStories.map((story) => {
+                      const storyFlags = (story.userStoryData as { flags?: UserStoryFlag[] })?.flags || [];
+                      return (
+                        <div
+                          key={story.id}
+                          className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body"
+                        >
+                          <BookOpen className="h-4 w-4 shrink-0 text-card-story" />
+                          <span className="flex-1 truncate">{story.title}</span>
+                          {storyFlags.length > 0 && (
+                            <div className="flex gap-0.5">
+                              {storyFlags.slice(0, 2).map((flag) => {
+                                const flagDef = USER_STORY_FLAGS.find(f => f.value === flag);
+                                if (!flagDef) return null;
+                                const FlagIcon = flagDef.icon;
+                                return (
+                                  <span key={flag} title={flagDef.label}>
+                                    <FlagIcon
+                                      className={cn('h-3 w-3', flagDef.color.split(' ')[0])}
+                                    />
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-caption text-text-tertiary italic">
+                    No user stories connected yet. Link stories from their card modal.
+                  </p>
+                )}
               </div>
             )}
 
@@ -277,7 +866,10 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
           </div>
 
           {/* Sidebar */}
-          <div className="w-[220px] space-y-4 border-l border-border bg-background overflow-y-auto p-4">
+          <div
+            className="w-[220px] shrink-0 space-y-4 border-l border-border overflow-y-auto p-4"
+            style={{ backgroundColor: color ? `${color}10` : undefined }}
+          >
             {/* Assignees */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
@@ -331,6 +923,176 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
               </div>
             )}
 
+            {/* Link to User Story (Task only) */}
+            {card.type === 'TASK' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Link to User Story
+                </Label>
+                <ConnectionPicker
+                  type="USER_STORY"
+                  boardId={boardId}
+                  currentCardId={card.id}
+                  selectedId={linkedUserStoryId}
+                  selectedCard={linkedUserStory}
+                  onChange={setLinkedUserStoryId}
+                />
+                {/* Show inherited Epic info for Tasks */}
+                {linkedUserStoryId && (
+                  <div className="mt-2 text-caption">
+                    {linkedEpic ? (
+                      <div className="flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface p-2">
+                        <Layers className="h-3.5 w-3.5 text-card-epic" />
+                        <span className="text-text-tertiary">Epic:</span>
+                        <span className="truncate text-text-primary">{linkedEpic.title}</span>
+                      </div>
+                    ) : (
+                      <p className="text-text-tertiary italic">
+                        No Epic linked to this User Story
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Link to Epic (User Story only) */}
+            {card.type === 'USER_STORY' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Link to Epic
+                </Label>
+                <ConnectionPicker
+                  type="EPIC"
+                  boardId={boardId}
+                  currentCardId={card.id}
+                  selectedId={linkedEpicId}
+                  selectedCard={linkedEpic}
+                  onChange={setLinkedEpicId}
+                />
+              </div>
+            )}
+
+            {/* User Story Flags */}
+            {card.type === 'USER_STORY' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Flags
+                </Label>
+                <div className="flex flex-wrap gap-1">
+                  {USER_STORY_FLAGS.map((flag) => {
+                    const isActive = flags.includes(flag.value);
+                    const FlagIcon = flag.icon;
+                    return (
+                      <Button
+                        key={flag.value}
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          'h-7 gap-1 text-xs border',
+                          isActive && flag.color
+                        )}
+                        onClick={() => {
+                          if (isActive) {
+                            setFlags(flags.filter(f => f !== flag.value));
+                          } else {
+                            setFlags([...flags, flag.value]);
+                          }
+                        }}
+                      >
+                        <FlagIcon className="h-3 w-3" />
+                        {flag.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* User Story Progress Stats */}
+            {card.type === 'USER_STORY' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Progress
+                </Label>
+                <div className="space-y-2 rounded-md border border-border-subtle bg-surface p-3">
+                  <div className="flex items-center justify-between text-body">
+                    <span className="text-text-tertiary">Completion</span>
+                    <span className="font-medium text-card-story">
+                      {(card as UserStoryCard).completionPercentage ?? 0}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                    <div
+                      className="h-full rounded-full bg-card-story transition-all"
+                      style={{ width: `${(card as UserStoryCard).completionPercentage ?? 0}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-body text-text-tertiary">
+                    <span>Tasks: {connectedTasks.length}</span>
+                    <span>SP: {(card as UserStoryCard).totalStoryPoints ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Epic Progress Stats */}
+            {card.type === 'EPIC' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Progress
+                </Label>
+                <div className="space-y-2 rounded-md border border-border-subtle bg-surface p-3">
+                  <div className="flex items-center justify-between text-body">
+                    <span className="text-text-tertiary">Overall</span>
+                    <span className="font-medium text-card-epic">
+                      {(card as EpicCard).overallProgress ?? 0}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                    <div
+                      className="h-full rounded-full bg-card-epic transition-all"
+                      style={{ width: `${(card as EpicCard).overallProgress ?? 0}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-body text-text-tertiary">
+                    <span>Stories: {connectedUserStories.length}</span>
+                    <span>SP: {(card as EpicCard).totalStoryPoints ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Utility Subtype Selector */}
+            {card.type === 'UTILITY' && (
+              <div className="space-y-2">
+                <Label className="text-caption font-medium text-text-secondary">
+                  Type
+                </Label>
+                <div className="flex flex-wrap gap-1">
+                  {UTILITY_SUBTYPES.map((subtype) => {
+                    const isActive = utilitySubtype === subtype.value;
+                    const SubtypeIcon = subtype.icon;
+                    return (
+                      <Button
+                        key={subtype.value}
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          'h-7 gap-1 text-xs border',
+                          isActive && subtype.color
+                        )}
+                        onClick={() => setUtilitySubtype(subtype.value)}
+                      >
+                        <SubtypeIcon className="h-3 w-3" />
+                        {subtype.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Color */}
             <div className="space-y-2">
               <Label className="text-caption font-medium text-text-secondary">
@@ -339,40 +1101,66 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
               <ColorPicker color={color} onChange={setColor} />
             </div>
 
-            {/* Feature Image URL */}
+            {/* Feature Image */}
             <div className="space-y-2">
               <Label className="text-caption font-medium text-text-secondary">
                 Feature Image
               </Label>
+              <input
+                ref={featureImageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFeatureImageUpload}
+                className="hidden"
+              />
               {!featureImage ? (
-                <Input
-                  placeholder="Image URL..."
-                  onBlur={(e) => {
-                    if (e.target.value.trim()) {
-                      setFeatureImage(e.target.value.trim());
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const value = e.currentTarget.value.trim();
-                      if (value) {
-                        setFeatureImage(value);
-                        e.currentTarget.value = '';
-                      }
-                    }
-                  }}
-                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => featureImageInputRef.current?.click()}
+                  disabled={isUploadingFeatureImage}
+                >
+                  {isUploadingFeatureImage ? (
+                    <>
+                      <Upload className="mr-2 h-4 w-4 animate-pulse" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Image className="mr-2 h-4 w-4" />
+                      Add image
+                    </>
+                  )}
+                </Button>
               ) : (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start text-text-tertiary"
-                  onClick={() => setFeatureImage(null)}
+                  onClick={() => featureImageInputRef.current?.click()}
+                  disabled={isUploadingFeatureImage}
                 >
                   <Image className="mr-2 h-4 w-4" />
-                  Change image
+                  {isUploadingFeatureImage ? 'Uploading...' : 'Change image'}
                 </Button>
               )}
+            </div>
+
+            {/* Attachments */}
+            <div className="space-y-2">
+              <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                <Paperclip className="h-4 w-4" />
+                Attachments
+                {attachmentCount > 0 && (
+                  <span className="text-xs text-text-tertiary">({attachmentCount})</span>
+                )}
+              </Label>
+              <AttachmentSection
+                boardId={boardId}
+                cardId={card.id}
+                onAttachmentCountChange={setAttachmentCount}
+              />
             </div>
 
             {/* Actions */}

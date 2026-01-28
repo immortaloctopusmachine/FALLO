@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -42,6 +42,12 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
   const [newListName, setNewListName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Prevent hydration mismatch with dnd-kit
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -296,6 +302,23 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
     }));
   }, []);
 
+  const handleRefreshBoard = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/boards/${board.id}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setBoard(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to refresh board:', error);
+    }
+  }, [board.id]);
+
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
       return;
@@ -343,6 +366,36 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
       setIsLoading(false);
     }
   };
+
+  // Prevent hydration mismatch - show static version until mounted
+  if (!isMounted) {
+    return (
+      <div className="flex h-full gap-4 overflow-x-auto p-4">
+        {board.lists.map((list) => (
+          <List
+            key={list.id}
+            id={list.id}
+            name={list.name}
+            cards={list.cards}
+            boardId={board.id}
+            onAddCard={handleAddCard}
+            onCardClick={handleCardClick}
+            onDeleteList={handleDeleteList}
+          />
+        ))}
+        <div className="w-[280px] shrink-0">
+          <Button
+            variant="ghost"
+            className="w-full justify-start bg-surface/50 hover:bg-surface"
+            onClick={() => setIsAddingList(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add List
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DndContext
@@ -438,6 +491,7 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
         onClose={() => setSelectedCard(null)}
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
+        onRefreshBoard={handleRefreshBoard}
         currentUserId={currentUserId}
       />
     </DndContext>

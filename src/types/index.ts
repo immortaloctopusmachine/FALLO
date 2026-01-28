@@ -13,6 +13,7 @@ export interface BaseCard {
   position: number;
   color: string | null;
   featureImage: string | null;
+  featureImagePosition: number;
   listId: string;
   parentId: string | null;
   createdAt: string;

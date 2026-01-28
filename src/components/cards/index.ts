@@ -1,7 +1,10 @@
 export { CardCompact } from './CardCompact';
 export { CardModal } from './CardModal';
 export { ChecklistSection } from './ChecklistSection';
+export { SimpleChecklist } from './SimpleChecklist';
 export { CommentsSection } from './CommentsSection';
 export { AssigneePicker } from './AssigneePicker';
 export { DeadlinePicker } from './DeadlinePicker';
 export { ColorPicker } from './ColorPicker';
+export { AttachmentSection } from './AttachmentSection';
+export { ConnectionPicker } from './ConnectionPicker';

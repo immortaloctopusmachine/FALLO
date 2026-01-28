@@ -81,45 +81,47 @@
 | Card color option | 🟢 | Claude | ColorPicker (8 colors) |
 | Feature image | 🟢 | Claude | URL input |
 
-### 2.2 User Story Card 🔴
+### 2.2 User Story Card 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Compact view | 🔴 | - | |
-| Full view modal | 🔴 | - | |
-| Connected tasks display | 🔴 | - | |
-| Completion percentage | 🔴 | - | Auto-calculated |
-| Optional todo checklist | 🔴 | - | |
-| Chat | 🔴 | - | |
-| Deadline display (from tasks) | 🔴 | - | |
-| Story point sum display | 🔴 | - | |
-| Flags (complex, high-risk, missing-docs) | 🔴 | - | |
+| Compact view | 🟢 | Claude | With progress bar, flags, SP sum |
+| Full view modal | 🟢 | Claude | Connected tasks display |
+| Connected tasks display | 🟢 | Claude | Auto-computed from linked tasks |
+| Completion percentage | 🟢 | Claude | Based on task checklist completion |
+| Optional todo checklist | 🔴 | - | Deferred |
+| Chat | 🟢 | Claude | Uses CommentsSection |
+| Deadline display (from tasks) | 🔴 | - | Deferred |
+| Story point sum display | 🟢 | Claude | Auto-computed |
+| Flags (complex, high-risk, missing-docs) | 🟢 | Claude | 5 flag types with toggle UI |
 
-### 2.3 Epic Card 🔴
+### 2.3 Epic Card 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Compact view | 🔴 | - | |
-| Full view modal | 🔴 | - | |
-| Connected user stories | 🔴 | - | |
-| Progress overview | 🔴 | - | |
-| Optional todo checklist | 🔴 | - | |
-| Chat | 🔴 | - | |
-| Story point sum display | 🔴 | - | |
+| Compact view | 🟢 | Claude | With progress bar, story count |
+| Full view modal | 🟢 | Claude | Connected user stories display |
+| Connected user stories | 🟢 | Claude | Auto-computed from linked stories |
+| Progress overview | 🟢 | Claude | Based on connected tasks completion |
+| Optional todo checklist | 🔴 | - | Deferred |
+| Chat | 🟢 | Claude | Uses CommentsSection |
+| Story point sum display | 🟢 | Claude | Auto-computed |
 
-### 2.4 Utility Card 🔴
+### 2.4 Utility Card 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Link subtype | 🔴 | - | |
-| Note subtype | 🔴 | - | |
-| Milestone subtype | 🔴 | - | |
-| Blocker subtype | 🔴 | - | |
+| Link subtype | 🟢 | Claude | URL input with external link button |
+| Note subtype | 🟢 | Claude | Content textarea |
+| Milestone subtype | 🟢 | Claude | Date picker |
+| Blocker subtype | 🟢 | Claude | Details textarea |
 
-### 2.5 Card Connections 🔴
+### 2.5 Card Connections 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Link task to user story | 🔴 | - | |
-| Link user story to epic | 🔴 | - | |
-| Link task to epic (direct) | 🔴 | - | |
-| Connection UI in modals | 🔴 | - | |
+| Link task to user story | 🟢 | Claude | ConnectionPicker component |
+| Link user story to epic | 🟢 | Claude | ConnectionPicker component |
+| Auto-inherit epic from user story | 🟢 | Claude | Tasks inherit Epic via linked User Story |
+| Connection UI in modals | 🟢 | Claude | Searchable dropdown |
+| Create linked card from modal | 🟢 | Claude | Quick-create linked Task/Story from parent |
+| Connected cards on page load | 🟢 | Claude | Server-side computed stats |
 
 ---
 
@@ -221,6 +223,8 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2025-01-28 | 2.5 | Create linked card from modal; Epic inheritance for Tasks; Server-side connected card stats | Claude |
+| 2025-01-28 | 2.2-2.5 | User Story, Epic, Utility cards complete; Card Connections with ConnectionPicker | Claude |
 | 2025-01-27 | 2.1 | Task Card Complete: checklists, comments, assignment, deadline, color, image | Claude |
 | 2025-01-27 | 1.5 | Completed Task Card Basic with modal, description, Fibonacci story points | Claude |
 | 2025-01-27 | 1.4 | Completed Board UI with lists, cards, and drag-drop | Claude |

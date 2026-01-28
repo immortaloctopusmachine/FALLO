@@ -85,7 +85,99 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: board });
+    // Collect all cards across all lists
+    const allCards = board.lists.flatMap(list => list.cards);
+
+    // Create a map of user story ID -> connected tasks for computing stats
+    const tasksByUserStory = new Map<string, typeof allCards>();
+    const userStoriesByEpic = new Map<string, typeof allCards>();
+
+    allCards.forEach(card => {
+      if (card.type === 'TASK') {
+        const taskData = card.taskData as { linkedUserStoryId?: string } | null;
+        if (taskData?.linkedUserStoryId) {
+          const existing = tasksByUserStory.get(taskData.linkedUserStoryId) || [];
+          existing.push(card);
+          tasksByUserStory.set(taskData.linkedUserStoryId, existing);
+        }
+      }
+      if (card.type === 'USER_STORY') {
+        const userStoryData = card.userStoryData as { linkedEpicId?: string } | null;
+        if (userStoryData?.linkedEpicId) {
+          const existing = userStoriesByEpic.get(userStoryData.linkedEpicId) || [];
+          existing.push(card);
+          userStoriesByEpic.set(userStoryData.linkedEpicId, existing);
+        }
+      }
+    });
+
+    // Helper function to check if a task is complete (all checklist items done)
+    const isTaskComplete = (task: typeof allCards[0]) => {
+      const checklistItems = task.checklists?.flatMap(cl => cl.items) || [];
+      return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
+    };
+
+    // Enhance cards with computed stats
+    const enhancedLists = board.lists.map(list => ({
+      ...list,
+      cards: list.cards.map(card => {
+        if (card.type === 'USER_STORY') {
+          const connectedTasks = tasksByUserStory.get(card.id) || [];
+          const totalTasks = connectedTasks.length;
+          const completedTasks = connectedTasks.filter(isTaskComplete).length;
+          const completionPercentage = totalTasks > 0
+            ? Math.round((completedTasks / totalTasks) * 100)
+            : 0;
+          const totalStoryPoints = connectedTasks.reduce((sum, task) => {
+            const taskData = task.taskData as { storyPoints?: number } | null;
+            return sum + (taskData?.storyPoints || 0);
+          }, 0);
+
+          return {
+            ...card,
+            connectedTasks,
+            completionPercentage,
+            totalStoryPoints,
+          };
+        }
+
+        if (card.type === 'EPIC') {
+          const connectedUserStories = userStoriesByEpic.get(card.id) || [];
+          // Get all tasks from connected user stories
+          const allConnectedTasks = connectedUserStories.flatMap(
+            story => tasksByUserStory.get(story.id) || []
+          );
+          const totalTasks = allConnectedTasks.length;
+          const completedTasks = allConnectedTasks.filter(isTaskComplete).length;
+          const overallProgress = totalTasks > 0
+            ? Math.round((completedTasks / totalTasks) * 100)
+            : 0;
+          const totalStoryPoints = allConnectedTasks.reduce((sum, task) => {
+            const taskData = task.taskData as { storyPoints?: number } | null;
+            return sum + (taskData?.storyPoints || 0);
+          }, 0);
+
+          return {
+            ...card,
+            connectedUserStories,
+            storyCount: connectedUserStories.length,
+            overallProgress,
+            totalStoryPoints,
+          };
+        }
+
+        return card;
+      }),
+    }));
+
+    return NextResponse.json(
+      { success: true, data: { ...board, lists: enhancedLists } },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     console.error('Failed to fetch board:', error);
     return NextResponse.json(

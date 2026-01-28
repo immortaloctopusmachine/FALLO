@@ -35,7 +35,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { title, type, listId, description } = body;
+    const { title, type, listId, description, taskData, userStoryData, epicData, utilityData } = body;
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return NextResponse.json(
@@ -71,16 +71,30 @@ export async function POST(
 
     const cardType: CardType = type || 'TASK';
 
-    // Initialize type-specific data
+    // Initialize type-specific data with defaults, merged with any provided data
     const typeData: Record<string, unknown> = {};
     if (cardType === 'TASK') {
-      typeData.taskData = { storyPoints: null, deadline: null, linkedUserStoryId: null, linkedEpicId: null };
+      typeData.taskData = {
+        storyPoints: null,
+        deadline: null,
+        linkedUserStoryId: null,
+        linkedEpicId: null,
+        ...taskData,
+      };
     } else if (cardType === 'USER_STORY') {
-      typeData.userStoryData = { linkedEpicId: null, flags: [] };
+      typeData.userStoryData = {
+        linkedEpicId: null,
+        flags: [],
+        ...userStoryData,
+      };
     } else if (cardType === 'EPIC') {
-      typeData.epicData = {};
+      typeData.epicData = { ...epicData };
     } else if (cardType === 'UTILITY') {
-      typeData.utilityData = { subtype: 'NOTE', content: '' };
+      typeData.utilityData = {
+        subtype: 'NOTE',
+        content: '',
+        ...utilityData,
+      };
     }
 
     const card = await prisma.card.create({

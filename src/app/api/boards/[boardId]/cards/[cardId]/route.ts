@@ -100,7 +100,159 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: card });
+    // For User Story cards, fetch connected tasks and compute stats
+    if (card.type === 'USER_STORY') {
+      const connectedTasks = await prisma.card.findMany({
+        where: {
+          type: 'TASK',
+          archivedAt: null,
+          list: { boardId },
+          taskData: {
+            path: ['linkedUserStoryId'],
+            equals: cardId,
+          },
+        },
+        include: {
+          assignees: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                },
+              },
+            },
+          },
+          checklists: {
+            include: {
+              items: true,
+            },
+          },
+        },
+        orderBy: { position: 'asc' },
+      });
+
+      // Calculate completion percentage based on task completion
+      const totalTasks = connectedTasks.length;
+      const completedTasks = connectedTasks.filter(task => {
+        // A task is "complete" if it has checklists and all items are done,
+        // OR if it's in a "done" list (we'd need list info for that)
+        // For now, use checklist completion
+        const checklistItems = task.checklists?.flatMap(cl => cl.items) || [];
+        return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
+      }).length;
+
+      const completionPercentage = totalTasks > 0
+        ? Math.round((completedTasks / totalTasks) * 100)
+        : 0;
+
+      // Calculate total story points
+      const totalStoryPoints = connectedTasks.reduce((sum, task) => {
+        const taskData = task.taskData as { storyPoints?: number } | null;
+        return sum + (taskData?.storyPoints || 0);
+      }, 0);
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            ...card,
+            connectedTasks,
+            completionPercentage,
+            totalStoryPoints,
+          }
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      );
+    }
+
+    // For Epic cards, fetch connected user stories and compute stats
+    if (card.type === 'EPIC') {
+      const connectedUserStories = await prisma.card.findMany({
+        where: {
+          type: 'USER_STORY',
+          archivedAt: null,
+          list: { boardId },
+          userStoryData: {
+            path: ['linkedEpicId'],
+            equals: cardId,
+          },
+        },
+        orderBy: { position: 'asc' },
+      });
+
+      // Get all tasks connected to these user stories
+      const storyIds = new Set(connectedUserStories.map(s => s.id));
+      const allTasks = storyIds.size > 0 ? await prisma.card.findMany({
+        where: {
+          type: 'TASK',
+          archivedAt: null,
+          list: { boardId },
+        },
+        include: {
+          checklists: {
+            include: {
+              items: true,
+            },
+          },
+        },
+      }) : [];
+
+      // Filter to tasks linked to our user stories
+      const connectedTasks = allTasks.filter(task => {
+        const taskData = task.taskData as { linkedUserStoryId?: string } | null;
+        return taskData?.linkedUserStoryId && storyIds.has(taskData.linkedUserStoryId);
+      });
+
+      // Calculate overall progress
+      const totalTasks = connectedTasks.length;
+      const completedTasks = connectedTasks.filter(task => {
+        const checklistItems = task.checklists?.flatMap(cl => cl.items) || [];
+        return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
+      }).length;
+
+      const overallProgress = totalTasks > 0
+        ? Math.round((completedTasks / totalTasks) * 100)
+        : 0;
+
+      // Calculate total story points
+      const totalStoryPoints = connectedTasks.reduce((sum, task) => {
+        const taskData = task.taskData as { storyPoints?: number } | null;
+        return sum + (taskData?.storyPoints || 0);
+      }, 0);
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            ...card,
+            connectedUserStories,
+            storyCount: connectedUserStories.length,
+            overallProgress,
+            totalStoryPoints,
+          }
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      );
+    }
+
+    return NextResponse.json(
+      { success: true, data: card },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     console.error('Failed to fetch card:', error);
     return NextResponse.json(
@@ -142,7 +294,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, description, position, listId, color, taskData, userStoryData, epicData, utilityData } = body;
+    const { title, description, position, listId, color, featureImage, featureImagePosition, taskData, userStoryData, epicData, utilityData } = body;
 
     const card = await prisma.card.update({
       where: { id: cardId },
@@ -152,6 +304,8 @@ export async function PATCH(
         ...(position !== undefined && { position }),
         ...(listId && { listId }),
         ...(color !== undefined && { color }),
+        ...(featureImage !== undefined && { featureImage }),
+        ...(featureImagePosition !== undefined && { featureImagePosition }),
         ...(taskData && { taskData }),
         ...(userStoryData && { userStoryData }),
         ...(epicData && { epicData }),

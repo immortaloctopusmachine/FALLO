@@ -34,43 +34,33 @@ export function ColorPicker({ color, onChange }: ColorPickerProps) {
     setIsOpen(false);
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange(null);
-  };
-
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={color ? 'outline' : 'ghost'}
-          size="sm"
-          className="w-full justify-start text-text-tertiary"
-        >
-          {color ? (
-            <>
-              <div
-                className="mr-2 h-4 w-4 rounded-sm"
-                style={{ backgroundColor: color }}
-              />
-              <span className="flex-1 text-left text-text-primary">
-                {COLORS.find((c) => c.value === color)?.label || 'Custom'}
-              </span>
-              <button
-                onClick={handleClear}
-                className="ml-1 rounded p-0.5 hover:bg-surface-hover"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </>
-          ) : (
-            <>
-              <Palette className="mr-2 h-4 w-4" />
-              Set color
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
+    <div className="flex items-center gap-1">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant={color ? 'outline' : 'ghost'}
+            size="sm"
+            className={cn('flex-1 justify-start text-text-tertiary', color && 'pr-2')}
+          >
+            {color ? (
+              <>
+                <div
+                  className="mr-2 h-4 w-4 rounded-sm"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="flex-1 text-left text-text-primary">
+                  {COLORS.find((c) => c.value === color)?.label || 'Custom'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Palette className="mr-2 h-4 w-4" />
+                Set color
+              </>
+            )}
+          </Button>
+        </PopoverTrigger>
       <PopoverContent className="w-[200px] p-2" align="start">
         <div className="grid grid-cols-4 gap-2">
           {COLORS.map((c) => (
@@ -104,6 +94,17 @@ export function ColorPicker({ color, onChange }: ColorPickerProps) {
           </Button>
         )}
       </PopoverContent>
-    </Popover>
+      </Popover>
+      {color && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-text-tertiary hover:text-text-primary"
+          onClick={() => onChange(null)}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
   );
 }

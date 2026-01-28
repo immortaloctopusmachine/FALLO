@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,10 +10,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { CardCompact } from '@/components/cards/CardCompact';
 import type { Card, CardType } from '@/types';
 import { cn } from '@/lib/utils';
+
+const CARD_TYPES: { value: CardType; label: string; icon: typeof CheckSquare; color: string }[] = [
+  { value: 'TASK', label: 'Task', icon: CheckSquare, color: 'text-card-task' },
+  { value: 'USER_STORY', label: 'User Story', icon: BookOpen, color: 'text-card-story' },
+  { value: 'EPIC', label: 'Epic', icon: Layers, color: 'text-card-epic' },
+  { value: 'UTILITY', label: 'Utility', icon: FileText, color: 'text-card-utility' },
+];
 
 interface ListProps {
   id: string;
@@ -25,10 +39,41 @@ interface ListProps {
   onDeleteList: (listId: string) => Promise<void>;
 }
 
+// Get subtle background color based on list name
+function getListColor(listName: string): string {
+  const name = listName.toLowerCase();
+
+  // Done/Complete - subtle green
+  if (name.includes('done') || name.includes('complete') || name.includes('finished')) {
+    return 'bg-green-500/5';
+  }
+
+  // Review/QA - subtle purple
+  if (name.includes('review') || name.includes('qa') || name.includes('testing')) {
+    return 'bg-purple-500/5';
+  }
+
+  // In Progress/Doing - subtle orange
+  if (name.includes('progress') || name.includes('doing') || name.includes('working')) {
+    return 'bg-orange-500/5';
+  }
+
+  // To Do/Backlog - subtle teal
+  if (name.includes('to do') || name.includes('todo') || name.includes('backlog') || name.includes('planned')) {
+    return 'bg-teal-500/5';
+  }
+
+  // Default - no extra color
+  return '';
+}
+
 export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
+  const [newCardType, setNewCardType] = useState<CardType>('TASK');
   const [isLoading, setIsLoading] = useState(false);
+
+  const listColor = getListColor(name);
 
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -43,8 +88,9 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
 
     setIsLoading(true);
     try {
-      await onAddCard(id, newCardTitle.trim(), 'TASK');
+      await onAddCard(id, newCardTitle.trim(), newCardType);
       setNewCardTitle('');
+      setNewCardType('TASK');
       setIsAddingCard(false);
     } finally {
       setIsLoading(false);
@@ -58,6 +104,7 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
     } else if (e.key === 'Escape') {
       setIsAddingCard(false);
       setNewCardTitle('');
+      setNewCardType('TASK');
     }
   };
 
@@ -77,6 +124,7 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
       ref={setNodeRef}
       className={cn(
         'flex h-full w-[280px] shrink-0 flex-col rounded-lg bg-surface transition-colors',
+        listColor,
         isOver && 'ring-2 ring-card-task ring-opacity-50'
       )}
     >
@@ -130,6 +178,24 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
               autoFocus
               disabled={isLoading}
             />
+            <Select value={newCardType} onValueChange={(value) => setNewCardType(value as CardType)}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CARD_TYPES.map((type) => {
+                  const Icon = type.icon;
+                  return (
+                    <SelectItem key={type.value} value={type.value}>
+                      <div className="flex items-center gap-2">
+                        <Icon className={cn('h-4 w-4', type.color)} />
+                        <span>{type.label}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -144,6 +210,7 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
                 onClick={() => {
                   setIsAddingCard(false);
                   setNewCardTitle('');
+                  setNewCardType('TASK');
                 }}
                 disabled={isLoading}
               >

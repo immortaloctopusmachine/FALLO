@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { cardId } = await context.params;
     const body = await request.json();
-    const { content } = body;
+    const { content, attachmentId } = body;
 
     if (!content?.trim()) {
       return NextResponse.json(
@@ -63,6 +63,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         content: content.trim(),
         authorId: session.user.id,
         cardId,
+        ...(attachmentId && { attachmentId }),
       },
       include: {
         author: {

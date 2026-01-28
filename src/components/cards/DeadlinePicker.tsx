@@ -28,51 +28,50 @@ export function DeadlinePicker({ deadline, onChange }: DeadlinePickerProps) {
     }
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange(null);
-  };
-
   const isOverdue = date && date < new Date();
   const isUpcoming = date && !isOverdue && date < new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={date ? 'outline' : 'ghost'}
-          size="sm"
-          className={cn(
-            'w-full justify-start',
-            !date && 'text-text-tertiary',
-            isOverdue && 'border-error text-error',
-            isUpcoming && 'border-warning text-warning'
-          )}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? (
-            <>
+    <div className="flex items-center gap-1">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant={date ? 'outline' : 'ghost'}
+            size="sm"
+            className={cn(
+              'flex-1 justify-start',
+              !date && 'text-text-tertiary',
+              isOverdue && 'border-error text-error',
+              isUpcoming && 'border-warning text-warning'
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {date ? (
               <span className="flex-1 text-left">{format(date, 'MMM d, yyyy')}</span>
-              <button
-                onClick={handleClear}
-                className="ml-1 rounded p-0.5 hover:bg-surface-hover"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </>
-          ) : (
-            'Set deadline'
-          )}
+            ) : (
+              'Set deadline'
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={handleSelect}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
+      {date && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-text-tertiary hover:text-text-primary"
+          onClick={() => onChange(null)}
+        >
+          <X className="h-4 w-4" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={handleSelect}
-          initialFocus
-        />
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
