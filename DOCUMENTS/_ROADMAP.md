@@ -128,12 +128,18 @@
 ## Phase 3: Board Modes & Views
 **Target**: Multiple board views and project overview
 
-### 3.1 Board Modes 🔴
+### 3.1 Board Modes 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Tasks & User Stories view | 🔴 | - | Default |
-| Epics & Project Data view | 🔴 | - | |
-| View switcher UI | 🔴 | - | |
+| Tasks View (Artist view) | 🟢 | Claude | TasksView component with sidebar |
+| Planning View (Lead/PO view) | 🟢 | Claude | PlanningView with epics sidebar |
+| View switcher UI | 🟢 | Claude | Toggle in BoardHeader |
+| Quick filters (All/Mine/Unassigned) | 🟢 | Claude | In Tasks view |
+| Burn-up chart | 🟢 | Claude | SVG chart with sprint lines |
+| Statistics dashboard | 🟢 | Claude | In Planning view header |
+| Epic health indicator | 🟢 | Claude | on_track/at_risk/behind |
+| List templates (Standard Slot, Branded Game) | 🟢 | Claude | In list-templates.ts |
+| View-specific list types | 🟢 | Claude | TASKS vs PLANNING lists |
 
 ### 3.2 Board Management 🔴
 | Task | Status | Owner | Notes |
@@ -223,6 +229,8 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2025-01-30 | 3.1 | Bug fixes: Planning lists immediate display, view state sync, linked card list selection, API error handling, accessibility improvements | Claude |
+| 2025-01-30 | 3.1 | Board Modes complete: Tasks/Planning views, burn-up chart, statistics, epic health, list templates | Claude |
 | 2025-01-28 | 2.5 | Create linked card from modal; Epic inheritance for Tasks; Server-side connected card stats | Claude |
 | 2025-01-28 | 2.2-2.5 | User Story, Epic, Utility cards complete; Card Connections with ConnectionPicker | Claude |
 | 2025-01-27 | 2.1 | Task Card Complete: checklists, comments, assignment, deadline, color, image | Claude |

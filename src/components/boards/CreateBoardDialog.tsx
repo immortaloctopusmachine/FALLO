@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -65,6 +66,9 @@ export function CreateBoardDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create New Board</DialogTitle>
+          <DialogDescription>
+            Create a new board to organize your project.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (

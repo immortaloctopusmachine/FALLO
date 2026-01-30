@@ -1,9 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { BoardHeader } from '@/components/boards/BoardHeader';
-import { BoardView } from '@/components/boards/BoardView';
-import type { Board, Card, List } from '@/types';
+import { BoardViewWrapper } from '@/components/boards/BoardViewWrapper';
+import type { Board, Card, List, WeeklyProgress } from '@/types';
 
 // Disable caching to ensure fresh data on each load
 export const dynamic = 'force-dynamic';
@@ -20,65 +19,73 @@ export default async function BoardPage({ params }: BoardPageProps) {
     redirect('/login');
   }
 
-  const boardData = await prisma.board.findFirst({
-    where: {
-      id: boardId,
-      members: {
-        some: {
-          userId: session.user.id,
-        },
-      },
-    },
-    include: {
-      members: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-              role: true,
-            },
+  // Fetch board data with all lists and cards
+  const [boardData, weeklyProgressData] = await Promise.all([
+    prisma.board.findFirst({
+      where: {
+        id: boardId,
+        members: {
+          some: {
+            userId: session.user.id,
           },
         },
       },
-      lists: {
-        orderBy: { position: 'asc' },
-        include: {
-          cards: {
-            where: { archivedAt: null },
-            orderBy: { position: 'asc' },
-            include: {
-              assignees: {
-                include: {
-                  user: {
-                    select: {
-                      id: true,
-                      name: true,
-                      email: true,
-                      image: true,
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+                role: true,
+              },
+            },
+          },
+        },
+        lists: {
+          orderBy: { position: 'asc' },
+          include: {
+            cards: {
+              where: { archivedAt: null },
+              orderBy: { position: 'asc' },
+              include: {
+                assignees: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                      },
                     },
                   },
                 },
-              },
-              _count: {
-                select: {
-                  attachments: true,
-                  comments: true,
+                _count: {
+                  select: {
+                    attachments: true,
+                    comments: true,
+                  },
                 },
-              },
-              checklists: {
-                include: {
-                  items: true,
+                checklists: {
+                  include: {
+                    items: true,
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-  });
+    }),
+    // Fetch weekly progress data for burn-up charts
+    prisma.weeklyProgress.findMany({
+      where: { boardId },
+      orderBy: { weekStartDate: 'asc' },
+    }),
+  ]);
 
   if (!boardData) {
     notFound();
@@ -146,6 +153,13 @@ export default async function BoardPage({ params }: BoardPageProps) {
       boardId: list.boardId,
       createdAt: list.createdAt.toISOString(),
       updatedAt: list.updatedAt.toISOString(),
+      // View-specific fields
+      viewType: list.viewType as 'TASKS' | 'PLANNING',
+      phase: list.phase as 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE' | null,
+      color: list.color,
+      startDate: list.startDate?.toISOString() || null,
+      endDate: list.endDate?.toISOString() || null,
+      durationWeeks: list.durationWeeks,
       cards: list.cards.map((card) => {
         // Base card data
         const baseCard = {
@@ -244,12 +258,27 @@ export default async function BoardPage({ params }: BoardPageProps) {
     })) as List[],
   };
 
+  // Transform weekly progress data
+  const weeklyProgress: WeeklyProgress[] = weeklyProgressData.map((wp) => ({
+    id: wp.id,
+    weekStartDate: wp.weekStartDate.toISOString(),
+    totalStoryPoints: wp.totalStoryPoints,
+    completedPoints: wp.completedPoints,
+    tasksCompleted: wp.tasksCompleted,
+    tasksTotal: wp.tasksTotal,
+    createdAt: wp.createdAt.toISOString(),
+  }));
+
+  // Check if current user is admin
+  const currentMember = boardData.members.find((m) => m.userId === session.user.id);
+  const isAdmin = currentMember?.role === 'ADMIN' || currentMember?.role === 'SUPER_ADMIN';
+
   return (
-    <div className="flex h-screen flex-col bg-background">
-      <BoardHeader name={board.name} memberCount={board.members.length} />
-      <div className="flex-1 overflow-hidden">
-        <BoardView board={board} currentUserId={session.user.id} />
-      </div>
-    </div>
+    <BoardViewWrapper
+      board={board}
+      currentUserId={session.user.id}
+      weeklyProgress={weeklyProgress}
+      isAdmin={isAdmin}
+    />
   );
 }

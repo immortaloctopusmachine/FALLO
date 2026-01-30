@@ -9,7 +9,45 @@ interface RouteContext {
 // GET /api/boards/[boardId]/cards/[cardId]/comments
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const { cardId } = await context.params;
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { status: 401 }
+      );
+    }
+
+    const { boardId, cardId } = await context.params;
+
+    // Verify membership
+    const membership = await prisma.boardMember.findFirst({
+      where: {
+        boardId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
+        { status: 403 }
+      );
+    }
+
+    // Verify card exists and belongs to this board
+    const card = await prisma.card.findFirst({
+      where: {
+        id: cardId,
+        list: { boardId },
+      },
+    });
+
+    if (!card) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Card not found' } },
+        { status: 404 }
+      );
+    }
 
     const comments = await prisma.comment.findMany({
       where: { cardId, attachmentId: null },

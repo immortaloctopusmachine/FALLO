@@ -5,6 +5,7 @@ import { CheckSquare, BookOpen, Layers, FileText, Trash2, Image, X, Upload, Pape
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -19,8 +20,15 @@ import { DeadlinePicker } from './DeadlinePicker';
 import { ColorPicker } from './ColorPicker';
 import { AttachmentSection } from './AttachmentSection';
 import { ConnectionPicker } from './ConnectionPicker';
-import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype } from '@/types';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List } from '@/types';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface CardModalProps {
   card: Card | null;
@@ -31,6 +39,8 @@ interface CardModalProps {
   onDelete: (cardId: string) => void;
   onRefreshBoard?: () => void;
   currentUserId?: string;
+  taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
+  planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
 }
 
 const cardTypeConfig = {
@@ -57,7 +67,7 @@ const UTILITY_SUBTYPES: { value: UtilitySubtype; label: string; icon: typeof Lin
   { value: 'BLOCKER', label: 'Blocker', icon: Ban, color: 'text-error bg-error/10 border-error/30' },
 ];
 
-export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, currentUserId }: CardModalProps) {
+export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, currentUserId, taskLists = [], planningLists = [] }: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storyPoints, setStoryPoints] = useState<number | null>(null);
@@ -87,6 +97,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const [linkedEpic, setLinkedEpic] = useState<EpicCard | null>(null);
   const [isCreatingLinkedCard, setIsCreatingLinkedCard] = useState(false);
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
+  const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
   const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
   const featureImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -163,9 +174,15 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     if (card?.type === 'TASK' && linkedUserStoryId) {
       // Fetch the user story to get its epic info
       fetch(`/api/boards/${boardId}/cards/${linkedUserStoryId}`, { cache: 'no-store' })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            console.warn(`Failed to fetch user story ${linkedUserStoryId}: ${res.status}`);
+            return null;
+          }
+          return res.json();
+        })
         .then(data => {
-          if (data.success) {
+          if (data?.success) {
             setLinkedUserStory(data.data);
             // Auto-inherit the epic from the user story
             const storyEpicId = data.data.userStoryData?.linkedEpicId;
@@ -173,12 +190,16 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
               setLinkedEpicId(storyEpicId);
               // Fetch epic details
               fetch(`/api/boards/${boardId}/cards/${storyEpicId}`, { cache: 'no-store' })
-                .then(res => res.json())
+                .then(res => {
+                  if (!res.ok) return null;
+                  return res.json();
+                })
                 .then(epicData => {
-                  if (epicData.success) {
+                  if (epicData?.success) {
                     setLinkedEpic(epicData.data);
                   }
-                });
+                })
+                .catch(console.error);
             } else {
               setLinkedEpicId(null);
               setLinkedEpic(null);
@@ -197,9 +218,15 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   useEffect(() => {
     if (card?.type === 'USER_STORY' && linkedEpicId) {
       fetch(`/api/boards/${boardId}/cards/${linkedEpicId}`, { cache: 'no-store' })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            console.warn(`Failed to fetch epic ${linkedEpicId}: ${res.status}`);
+            return null;
+          }
+          return res.json();
+        })
         .then(data => {
-          if (data.success) {
+          if (data?.success) {
             setLinkedEpic(data.data);
           }
         })
@@ -303,6 +330,20 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const handleCreateLinkedCard = async () => {
     if (!newLinkedCardTitle.trim() || !card) return;
 
+    // Determine the target list:
+    // - For creating Task from User Story: use selected taskList or first taskList
+    // - For creating User Story from Epic: use selected planningList or first planningList
+    // - Fallback to same list if no lists provided
+    let targetListId = card.listId;
+
+    if (card.type === 'USER_STORY') {
+      // Creating a Task - should go in TASKS view
+      targetListId = newLinkedCardListId || taskLists[0]?.id || card.listId;
+    } else if (card.type === 'EPIC') {
+      // Creating a User Story - should go in PLANNING view
+      targetListId = newLinkedCardListId || planningLists[0]?.id || card.listId;
+    }
+
     setIsCreatingLinkedCardLoading(true);
     try {
       // Determine the card type and linked field based on current card type
@@ -317,7 +358,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         body: JSON.stringify({
           title: newLinkedCardTitle.trim(),
           type: newCardType,
-          listId: card.listId,
+          listId: targetListId,
           ...linkedData,
         }),
       });
@@ -331,8 +372,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
           setConnectedTasks(prev => [...prev, data.data]);
         }
 
-        // Clear the input
+        // Clear the input and list selection
         setNewLinkedCardTitle('');
+        setNewLinkedCardListId('');
         setIsCreatingLinkedCard(false);
 
         // Refresh board to update all counts
@@ -483,6 +525,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                   placeholder="Card title"
                 />
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                Edit {config.label.toLowerCase()} card details
+              </DialogDescription>
             </div>
             <div className={cn('flex items-center gap-1.5 rounded-md px-2 py-1', config.bg)}>
               <Icon className={cn('h-4 w-4', config.color)} />
@@ -662,7 +707,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
               <div className="space-y-2">
                 {/* Create Linked Task Button/Input */}
                 {isCreatingLinkedCard ? (
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <Input
                       value={newLinkedCardTitle}
                       onChange={(e) => setNewLinkedCardTitle(e.target.value)}
@@ -670,32 +715,54 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                       autoFocus
                       disabled={isCreatingLinkedCardLoading}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleCreateLinkedCard();
+                        if (e.key === 'Enter' && newLinkedCardListId) handleCreateLinkedCard();
                         if (e.key === 'Escape') {
                           setIsCreatingLinkedCard(false);
                           setNewLinkedCardTitle('');
+                          setNewLinkedCardListId('');
                         }
                       }}
-                      className="flex-1"
                     />
-                    <Button
-                      size="sm"
-                      onClick={handleCreateLinkedCard}
-                      disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim()}
-                    >
-                      {isCreatingLinkedCardLoading ? 'Creating...' : 'Add'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setIsCreatingLinkedCard(false);
-                        setNewLinkedCardTitle('');
-                      }}
-                      disabled={isCreatingLinkedCardLoading}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    {taskLists.length > 0 && (
+                      <Select
+                        value={newLinkedCardListId}
+                        onValueChange={setNewLinkedCardListId}
+                        disabled={isCreatingLinkedCardLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select list..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {taskLists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleCreateLinkedCard}
+                        disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim() || (taskLists.length > 0 && !newLinkedCardListId)}
+                        className="flex-1"
+                      >
+                        {isCreatingLinkedCardLoading ? 'Creating...' : 'Add Task'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsCreatingLinkedCard(false);
+                          setNewLinkedCardTitle('');
+                          setNewLinkedCardListId('');
+                        }}
+                        disabled={isCreatingLinkedCardLoading}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <Button
@@ -759,7 +826,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
               <div className="space-y-2">
                 {/* Create Linked User Story Button/Input */}
                 {isCreatingLinkedCard ? (
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <Input
                       value={newLinkedCardTitle}
                       onChange={(e) => setNewLinkedCardTitle(e.target.value)}
@@ -767,32 +834,54 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                       autoFocus
                       disabled={isCreatingLinkedCardLoading}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleCreateLinkedCard();
+                        if (e.key === 'Enter' && (planningLists.length === 0 || newLinkedCardListId)) handleCreateLinkedCard();
                         if (e.key === 'Escape') {
                           setIsCreatingLinkedCard(false);
                           setNewLinkedCardTitle('');
+                          setNewLinkedCardListId('');
                         }
                       }}
-                      className="flex-1"
                     />
-                    <Button
-                      size="sm"
-                      onClick={handleCreateLinkedCard}
-                      disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim()}
-                    >
-                      {isCreatingLinkedCardLoading ? 'Creating...' : 'Add'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setIsCreatingLinkedCard(false);
-                        setNewLinkedCardTitle('');
-                      }}
-                      disabled={isCreatingLinkedCardLoading}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    {planningLists.length > 0 && (
+                      <Select
+                        value={newLinkedCardListId}
+                        onValueChange={setNewLinkedCardListId}
+                        disabled={isCreatingLinkedCardLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select list..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {planningLists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleCreateLinkedCard}
+                        disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim() || (planningLists.length > 0 && !newLinkedCardListId)}
+                        className="flex-1"
+                      >
+                        {isCreatingLinkedCardLoading ? 'Creating...' : 'Add User Story'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsCreatingLinkedCard(false);
+                          setNewLinkedCardTitle('');
+                          setNewLinkedCardListId('');
+                        }}
+                        disabled={isCreatingLinkedCardLoading}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <Button

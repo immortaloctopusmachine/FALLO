@@ -33,6 +33,10 @@ export function CommentsSection({ boardId, cardId, currentUserId }: CommentsSect
       try {
         setIsFetching(true);
         const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/comments`);
+        if (!response.ok) {
+          console.warn(`Failed to fetch comments: ${response.status}`);
+          return;
+        }
         const data = await response.json();
         if (data.success) {
           setComments(data.data);

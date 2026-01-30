@@ -4,6 +4,12 @@ export type UtilitySubtype = 'LINK' | 'NOTE' | 'MILESTONE' | 'BLOCKER';
 export type UserStoryFlag = 'COMPLEX' | 'HIGH_RISK' | 'MISSING_DOCS' | 'BLOCKED' | 'NEEDS_REVIEW';
 export type UserRole = 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN';
 
+// View Types
+export type ListViewType = 'TASKS' | 'PLANNING';
+export type ListPhase = 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE';
+export type BoardViewMode = 'tasks' | 'planning';
+export type ListTemplateType = 'STANDARD_SLOT' | 'BRANDED_GAME';
+
 // Base Card
 export interface BaseCard {
   id: string;
@@ -148,6 +154,13 @@ export interface List {
   cards: Card[];
   createdAt: string;
   updatedAt: string;
+  // View-specific fields
+  viewType: ListViewType;
+  phase?: ListPhase | null;
+  color?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  durationWeeks?: number | null;
 }
 
 export interface Board {
@@ -163,10 +176,42 @@ export interface Board {
   archivedAt: string | null;
 }
 
+export interface ProjectLink {
+  label: string;
+  url: string;
+  isDefault?: boolean;
+}
+
 export interface BoardSettings {
+  // LLM settings
   llmEnabled?: boolean;
   llmProvider?: 'anthropic';
-  // Add more as needed
+
+  // Project settings
+  projectStartDate?: string;           // ISO date string
+  lastDayStaticArt?: string;           // ISO date string
+  lastDayAnimationTweaks?: string;     // ISO date string
+  listTemplate?: ListTemplateType;     // Which list template is used
+
+  // Project links
+  projectLinks?: {
+    gameSpecification?: string;
+    gameOverviewPlanning?: string;
+    animationDocument?: string;
+    gameSheetInfo?: string;
+    gameNameBrainstorming?: string;
+  };
+}
+
+// Weekly progress for burn-up charts
+export interface WeeklyProgress {
+  id: string;
+  weekStartDate: string;
+  totalStoryPoints: number;
+  completedPoints: number;
+  tasksCompleted: number;
+  tasksTotal: number;
+  createdAt: string;
 }
 
 export interface BoardMember {

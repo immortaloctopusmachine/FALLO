@@ -41,6 +41,20 @@ enum UserStoryFlag {
   NEEDS_REVIEW
 }
 
+enum ListViewType {
+  TASKS      // Lists for Tasks view (artist view)
+  PLANNING   // Lists for Planning view (Epics & User Stories)
+}
+
+enum ListPhase {
+  BACKLOG
+  SPINE_PROTOTYPE
+  CONCEPT
+  PRODUCTION
+  TWEAK
+  DONE
+}
+
 // ============== MODELS ==============
 
 model User {
@@ -114,15 +128,16 @@ model Board {
   name        String
   description String?
   isTemplate  Boolean   @default(false)
-  settings    Json      @default("{}") // LLM settings, etc.
+  settings    Json      @default("{}") // LLM settings, project dates, links, etc.
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
 
   // Relations
-  members    BoardMember[]
-  lists      List[]
-  activities Activity[]
+  members         BoardMember[]
+  lists           List[]
+  activities      Activity[]
+  weeklyProgress  WeeklyProgress[]
 
   @@map("boards")
 }
@@ -149,12 +164,21 @@ model List {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // View-specific fields
+  viewType   ListViewType @default(TASKS)    // Which view this list belongs to
+  phase      ListPhase?                       // For planning lists: phase type
+  color      String?                          // Hex color for list header
+  startDate  DateTime?                        // Start date for planning lists
+  endDate    DateTime?                        // End date for planning lists
+  durationWeeks Int?                          // Default duration in weeks
+
   // Relations
   boardId String
   board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards   Card[]
 
   @@index([boardId])
+  @@index([viewType])
   @@map("lists")
 }
 
@@ -296,4 +320,23 @@ model Activity {
   @@index([boardId])
   @@index([entityId])
   @@map("activities")
+}
+
+// Weekly progress snapshot for burn-up charts
+model WeeklyProgress {
+  id                String   @id @default(cuid())
+  weekStartDate     DateTime // Monday of the week
+  totalStoryPoints  Int      // Total SP in the project
+  completedPoints   Int      // SP completed (tasks in Done list)
+  tasksCompleted    Int      // Number of tasks completed
+  tasksTotal        Int      // Total number of tasks
+  createdAt         DateTime @default(now())
+
+  // Relations
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, weekStartDate])
+  @@index([boardId])
+  @@map("weekly_progress")
 }

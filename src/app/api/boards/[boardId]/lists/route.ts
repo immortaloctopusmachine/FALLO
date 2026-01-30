@@ -34,7 +34,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name } = body;
+    const { name, viewType, phase, color, durationWeeks, startDate, endDate } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -43,9 +43,20 @@ export async function POST(
       );
     }
 
-    // Get the highest position
+    // Validate viewType if provided
+    const validViewTypes = ['TASKS', 'PLANNING'];
+    const listViewType = viewType && validViewTypes.includes(viewType) ? viewType : 'TASKS';
+
+    // Validate phase if provided
+    const validPhases = ['BACKLOG', 'SPINE_PROTOTYPE', 'CONCEPT', 'PRODUCTION', 'TWEAK', 'DONE'];
+    const listPhase = phase && validPhases.includes(phase) ? phase : null;
+
+    // Get the highest position for this view type
     const lastList = await prisma.list.findFirst({
-      where: { boardId },
+      where: {
+        boardId,
+        viewType: listViewType,
+      },
       orderBy: { position: 'desc' },
     });
 
@@ -54,6 +65,12 @@ export async function POST(
         name: name.trim(),
         position: (lastList?.position ?? -1) + 1,
         boardId,
+        viewType: listViewType,
+        phase: listPhase,
+        color: color || null,
+        durationWeeks: durationWeeks || null,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
       },
     });
 

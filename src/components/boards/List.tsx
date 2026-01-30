@@ -37,6 +37,12 @@ interface ListProps {
   onAddCard: (listId: string, title: string, type: CardType) => Promise<void>;
   onCardClick: (card: Card) => void;
   onDeleteList: (listId: string) => Promise<void>;
+  cardTypeFilter?: CardType; // Only show cards of this type
+  listColor?: string | null; // Custom list header color
+  showDateRange?: boolean; // Show date range in header
+  startDate?: string | null;
+  endDate?: string | null;
+  donePoints?: number; // Story points of completed tasks (for planning view)
 }
 
 // Get subtle background color based on list name
@@ -67,13 +73,37 @@ function getListColor(listName: string): string {
   return '';
 }
 
-export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: ListProps) {
+export function List({
+  id,
+  name,
+  cards,
+  onAddCard,
+  onCardClick,
+  onDeleteList,
+  cardTypeFilter,
+  listColor: customListColor,
+  showDateRange,
+  startDate,
+  endDate,
+  donePoints,
+}: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardType, setNewCardType] = useState<CardType>('TASK');
+  const [newCardType, setNewCardType] = useState<CardType>(cardTypeFilter || 'TASK');
   const [isLoading, setIsLoading] = useState(false);
 
-  const listColor = getListColor(name);
+  const listColor = customListColor ? '' : getListColor(name);
+
+  // Format date range
+  const formatDateRange = () => {
+    if (!showDateRange || !startDate || !endDate) return null;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+    return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
+  };
+
+  const dateRange = formatDateRange();
 
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -119,6 +149,11 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
     return sum;
   }, 0);
 
+  // Custom header color style
+  const headerStyle = customListColor
+    ? { borderTop: `3px solid ${customListColor}` }
+    : undefined;
+
   return (
     <div
       ref={setNodeRef}
@@ -127,16 +162,22 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
         listColor,
         isOver && 'ring-2 ring-card-task ring-opacity-50'
       )}
+      style={headerStyle}
     >
       {/* List Header */}
       <div className="flex items-center justify-between px-2 py-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-title font-semibold text-text-primary">{name}</h3>
-          <span className="text-caption text-text-tertiary">{cards.length}</span>
-          {totalStoryPoints > 0 && (
-            <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
-              {totalStoryPoints} SP
-            </span>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <h3 className="text-title font-semibold text-text-primary">{name}</h3>
+            <span className="text-caption text-text-tertiary">{cards.length}</span>
+            {totalStoryPoints > 0 && (
+              <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
+                {donePoints !== undefined ? `${donePoints}/${totalStoryPoints}` : totalStoryPoints} SP
+              </span>
+            )}
+          </div>
+          {dateRange && (
+            <span className="text-tiny text-text-tertiary">{dateRange}</span>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -178,24 +219,26 @@ export function List({ id, name, cards, onAddCard, onCardClick, onDeleteList }: 
               autoFocus
               disabled={isLoading}
             />
-            <Select value={newCardType} onValueChange={(value) => setNewCardType(value as CardType)}>
-              <SelectTrigger className="h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CARD_TYPES.map((type) => {
-                  const Icon = type.icon;
-                  return (
-                    <SelectItem key={type.value} value={type.value}>
-                      <div className="flex items-center gap-2">
-                        <Icon className={cn('h-4 w-4', type.color)} />
-                        <span>{type.label}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            {!cardTypeFilter && (
+              <Select value={newCardType} onValueChange={(value) => setNewCardType(value as CardType)}>
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CARD_TYPES.map((type) => {
+                    const Icon = type.icon;
+                    return (
+                      <SelectItem key={type.value} value={type.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className={cn('h-4 w-4', type.color)} />
+                          <span>{type.label}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex gap-2">
               <Button
                 size="sm"
