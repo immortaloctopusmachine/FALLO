@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { BOARD_TEMPLATES } from '@/lib/list-templates';
+import type { BoardTemplateType, ListViewType, ListPhase } from '@/types';
 
 // GET /api/boards - Get all boards for current user
 export async function GET() {
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, template = 'BLANK' } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
@@ -80,11 +82,40 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get template configuration
+    const templateType = template as BoardTemplateType;
+    const templateConfig = BOARD_TEMPLATES[templateType] || BOARD_TEMPLATES.BLANK;
+
+    // Build list creation data from template
+    const listsToCreate = [
+      ...templateConfig.taskLists.map((list) => ({
+        name: list.name,
+        position: list.position,
+        viewType: list.viewType as ListViewType,
+        phase: list.phase as ListPhase | undefined,
+        color: list.color,
+        durationWeeks: list.durationWeeks,
+      })),
+      ...templateConfig.planningLists.map((list, idx) => ({
+        name: list.name,
+        position: templateConfig.taskLists.length + idx,
+        viewType: list.viewType as ListViewType,
+        phase: list.phase as ListPhase | undefined,
+        color: list.color,
+        durationWeeks: list.durationWeeks,
+      })),
+    ];
+
+    // Store which template was used in settings (for non-BLANK templates)
+    const settings = templateType !== 'BLANK'
+      ? { listTemplate: templateType }
+      : {};
+
     const board = await prisma.board.create({
       data: {
         name: name.trim(),
         description: description?.trim() || null,
-        settings: {},
+        settings,
         members: {
           create: {
             userId: session.user.id,
@@ -92,11 +123,7 @@ export async function POST(request: Request) {
           },
         },
         lists: {
-          create: [
-            { name: 'To Do', position: 0 },
-            { name: 'In Progress', position: 1 },
-            { name: 'Done', position: 2 },
-          ],
+          create: listsToCreate,
         },
       },
       include: {

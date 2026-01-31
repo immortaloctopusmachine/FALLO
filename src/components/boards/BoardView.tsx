@@ -492,6 +492,7 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
         onRefreshBoard={handleRefreshBoard}
+        onCardClick={setSelectedCard}
         currentUserId={currentUserId}
       />
     </DndContext>

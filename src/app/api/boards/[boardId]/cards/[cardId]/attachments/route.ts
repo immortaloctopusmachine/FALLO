@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 interface RouteContext {
@@ -13,6 +14,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const attachments = await prisma.attachment.findMany({
       where: { cardId },
       include: {
+        uploader: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
         comments: {
           include: {
             author: {
@@ -43,6 +52,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 // POST /api/boards/[boardId]/cards/[cardId]/attachments
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const session = await auth();
     const { cardId } = await context.params;
     const body = await request.json();
     const { name, url, type, size } = body;
@@ -61,8 +71,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
         type,
         size: size || 0,
         cardId,
+        uploaderId: session?.user?.id || null,
       },
       include: {
+        uploader: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
         comments: true,
       },
     });

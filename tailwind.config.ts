@@ -59,7 +59,7 @@ const config: Config = {
         'modal-sidebar': '200px',
       },
       maxWidth: {
-        'modal': '720px',
+        'modal': '1200px',
       },
       borderRadius: {
         'card': '6px',

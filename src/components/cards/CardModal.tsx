@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { CheckSquare, BookOpen, Layers, FileText, Trash2, Image, X, Upload, Paperclip, ChevronUp, ChevronDown, ChevronRight, ListChecks, AlignLeft, AlertTriangle, Zap, FileQuestion, Ban, Eye, Link2, Link, StickyNote, Milestone, Calendar, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { CheckSquare, BookOpen, Layers, FileText, Trash2, X, Paperclip, ChevronUp, ChevronDown, ChevronRight, ListChecks, AlignLeft, AlertTriangle, Zap, FileQuestion, Ban, Eye, Link2, Link, StickyNote, Milestone, Calendar, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import { DeadlinePicker } from './DeadlinePicker';
 import { ColorPicker } from './ColorPicker';
 import { AttachmentSection } from './AttachmentSection';
 import { ConnectionPicker } from './ConnectionPicker';
-import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List } from '@/types';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List, Attachment } from '@/types';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -38,6 +38,7 @@ interface CardModalProps {
   onUpdate: (card: Card) => void;
   onDelete: (cardId: string) => void;
   onRefreshBoard?: () => void;
+  onCardClick?: (card: Card) => void;  // Open another card (e.g., a connected task)
   currentUserId?: string;
   taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
   planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
@@ -67,7 +68,7 @@ const UTILITY_SUBTYPES: { value: UtilitySubtype; label: string; icon: typeof Lin
   { value: 'BLOCKER', label: 'Blocker', icon: Ban, color: 'text-error bg-error/10 border-error/30' },
 ];
 
-export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, currentUserId, taskLists = [], planningLists = [] }: CardModalProps) {
+export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, onCardClick, currentUserId, taskLists = [], planningLists = [] }: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storyPoints, setStoryPoints] = useState<number | null>(null);
@@ -78,9 +79,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [assignees, setAssignees] = useState<CardAssignee[]>([]);
   const [attachmentCount, setAttachmentCount] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [highlightedAttachmentId, setHighlightedAttachmentId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isUploadingFeatureImage, setIsUploadingFeatureImage] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(true);
   const [todoExpanded, setTodoExpanded] = useState(true);
   const [feedbackExpanded, setFeedbackExpanded] = useState(true);
@@ -99,7 +100,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
   const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
   const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
-  const featureImageInputRef = useRef<HTMLInputElement>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   // Reset form when card changes
   useEffect(() => {
@@ -236,13 +239,12 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     }
   }, [card?.type, linkedEpicId, boardId]);
 
-  if (!card) return null;
+  // Core save function - used by auto-save
+  const performSave = useCallback(async () => {
+    if (!card || !title.trim()) return;
 
-  const config = cardTypeConfig[card.type];
-  const Icon = config.icon;
+    setAutoSaveStatus('saving');
 
-  const handleSave = async () => {
-    setIsSaving(true);
     try {
       const updates: Record<string, unknown> = {
         title: title.trim(),
@@ -291,6 +293,10 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         };
         onUpdate(updatedCard);
 
+        setAutoSaveStatus('saved');
+        // Reset status after a short delay
+        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+
         // Refresh board if connections changed (to update connected tasks/stories counts)
         const connectionChanged =
           (card.type === 'TASK' && linkedUserStoryId !== ((card as TaskCard).taskData?.linkedUserStoryId ?? null)) ||
@@ -299,13 +305,60 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         if (connectionChanged && onRefreshBoard) {
           onRefreshBoard();
         }
+      } else {
+        setAutoSaveStatus('error');
       }
     } catch (error) {
       console.error('Failed to save card:', error);
-    } finally {
-      setIsSaving(false);
+      setAutoSaveStatus('error');
     }
-  };
+  }, [card, title, description, color, featureImage, featureImagePosition, storyPoints, deadline, linkedUserStoryId, flags, linkedEpicId, utilitySubtype, utilityUrl, utilityContent, utilityDate, boardId, checklists, assignees, onUpdate, onRefreshBoard]);
+
+  // Auto-save effect - debounced save when fields change
+  useEffect(() => {
+    // Skip auto-save during initial load or if no card
+    if (isInitialLoadRef.current || !card) {
+      return;
+    }
+
+    // Clear any pending auto-save
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    // Schedule auto-save after 1.5 seconds of inactivity
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      performSave();
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [title, description, color, featureImage, featureImagePosition, storyPoints, deadline, linkedUserStoryId, flags, linkedEpicId, utilitySubtype, utilityUrl, utilityContent, utilityDate, performSave, card]);
+
+  // Mark initial load as complete after card data is set
+  useEffect(() => {
+    if (card) {
+      // Small delay to ensure all state updates from card prop have settled
+      const timer = setTimeout(() => {
+        isInitialLoadRef.current = false;
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [card]);
+
+  // Reset initial load flag when card changes
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+    setAutoSaveStatus('idle');
+  }, [card?.id]);
+
+  if (!card) return null;
+
+  const config = cardTypeConfig[card.type];
+  const Icon = config.icon;
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this card?')) return;
@@ -407,68 +460,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     } as Card);
   };
 
-  const handleFeatureImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate it's an image
-    if (!file.type.startsWith('image/')) {
-      console.error('Please select an image file');
-      return;
-    }
-
-    setIsUploadingFeatureImage(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', 'feature_image');
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setFeatureImage(data.data.url);
-      } else {
-        console.error('Upload failed:', data.error);
-      }
-    } catch (error) {
-      console.error('Failed to upload feature image:', error);
-    } finally {
-      setIsUploadingFeatureImage(false);
-      if (featureImageInputRef.current) {
-        featureImageInputRef.current.value = '';
-      }
-    }
-  };
-
-  const hasChanges =
-    title !== card.title ||
-    description !== (card.description || '') ||
-    color !== card.color ||
-    featureImage !== card.featureImage ||
-    featureImagePosition !== (card.featureImagePosition ?? 50) ||
-    (card.type === 'TASK' && (
-      storyPoints !== ((card as TaskCard).taskData?.storyPoints ?? null) ||
-      deadline !== ((card as TaskCard).taskData?.deadline ?? null) ||
-      linkedUserStoryId !== ((card as TaskCard).taskData?.linkedUserStoryId ?? null)
-    )) ||
-    (card.type === 'USER_STORY' && (
-      JSON.stringify(flags.sort()) !== JSON.stringify(((card as UserStoryCard).userStoryData?.flags || []).sort()) ||
-      linkedEpicId !== ((card as UserStoryCard).userStoryData?.linkedEpicId ?? null)
-    )) ||
-    (card.type === 'UTILITY' && (
-      utilitySubtype !== ((card as UtilityCard).utilityData?.subtype || 'NOTE') ||
-      utilityUrl !== ((card as UtilityCard).utilityData?.url || '') ||
-      utilityContent !== ((card as UtilityCard).utilityData?.content || '') ||
-      utilityDate !== ((card as UtilityCard).utilityData?.date || null)
-    ));
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-[800px] gap-0 overflow-hidden p-0 flex flex-col">
+      <DialogContent className="max-h-[90vh] max-w-modal gap-0 overflow-hidden p-0 flex flex-col">
         {/* Feature Image */}
         {featureImage && (
           <div className="relative h-40 w-full overflow-hidden bg-surface-hover group">
@@ -529,11 +523,26 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                 Edit {config.label.toLowerCase()} card details
               </DialogDescription>
             </div>
-            <div className={cn('flex items-center gap-1.5 rounded-md px-2 py-1', config.bg)}>
-              <Icon className={cn('h-4 w-4', config.color)} />
-              <span className={cn('text-caption font-medium', config.color)}>
-                {config.label}
-              </span>
+            <div className="flex items-center gap-2">
+              {/* Auto-save status indicator */}
+              {autoSaveStatus !== 'idle' && (
+                <span className={cn(
+                  'text-tiny font-medium transition-opacity',
+                  autoSaveStatus === 'saving' && 'text-text-tertiary',
+                  autoSaveStatus === 'saved' && 'text-success',
+                  autoSaveStatus === 'error' && 'text-error'
+                )}>
+                  {autoSaveStatus === 'saving' && 'Saving...'}
+                  {autoSaveStatus === 'saved' && 'Saved'}
+                  {autoSaveStatus === 'error' && 'Save failed'}
+                </span>
+              )}
+              <div className={cn('flex items-center gap-1.5 rounded-md px-2 py-1', config.bg)}>
+                <Icon className={cn('h-4 w-4', config.color)} />
+                <span className={cn('text-caption font-medium', config.color)}>
+                  {config.label}
+                </span>
+              </div>
             </div>
           </div>
         </DialogHeader>
@@ -541,7 +550,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         {/* Content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Main Content Area */}
-          <div className="flex-1 space-y-4 overflow-y-auto p-6">
+          <div className="flex-1 min-w-0 space-y-4 overflow-y-auto p-6">
             {/* Description */}
             <div className="space-y-2">
               <button
@@ -786,30 +795,59 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                 {connectedTasks.length > 0 ? (
                   <div className="space-y-2">
                     {connectedTasks.map((task) => {
-                      const isComplete = task.checklists?.every(cl =>
-                        cl.items.every(i => i.isComplete)
-                      ) ?? false;
+                      // Task is complete if it's in a "Done" list
+                      const isDone = task.list?.phase === 'DONE';
+                      const firstAssignee = task.assignees?.[0];
                       return (
-                        <div
+                        <button
                           key={task.id}
-                          className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body"
+                          onClick={() => {
+                            if (onCardClick) {
+                              onCardClick(task as unknown as Card);
+                            }
+                          }}
+                          className="flex w-full items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body text-left hover:border-card-task hover:bg-card-task/5 transition-colors"
                         >
                           <CheckSquare className={cn(
                             'h-4 w-4 shrink-0',
-                            isComplete ? 'text-success' : 'text-card-task'
+                            isDone ? 'text-success' : 'text-card-task'
                           )} />
-                          <span className={cn(
-                            'flex-1 truncate',
-                            isComplete && 'text-text-tertiary line-through'
-                          )}>
-                            {task.title}
-                          </span>
-                          {task.taskData?.storyPoints && (
-                            <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
-                              {task.taskData.storyPoints}
+                          <div className="flex-1 min-w-0">
+                            <span className={cn(
+                              'block truncate',
+                              isDone && 'text-text-tertiary line-through'
+                            )}>
+                              {task.title}
                             </span>
-                          )}
-                        </div>
+                            {task.list?.name && (
+                              <span className="text-tiny text-text-tertiary">
+                                {task.list.name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {task.taskData?.storyPoints && (
+                              <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
+                                {task.taskData.storyPoints} SP
+                              </span>
+                            )}
+                            {firstAssignee && (
+                              <div className="h-5 w-5 rounded-full bg-surface-hover flex items-center justify-center overflow-hidden" title={firstAssignee.user.name || ''}>
+                                {firstAssignee.user.image ? (
+                                  <img
+                                    src={firstAssignee.user.image}
+                                    alt={firstAssignee.user.name || ''}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-tiny font-medium text-text-secondary">
+                                    {(firstAssignee.user.name || '?').charAt(0).toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -950,13 +988,45 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                 boardId={boardId}
                 cardId={card.id}
                 currentUserId={currentUserId}
+                attachments={attachments}
+                onAttachmentClick={(attachment) => {
+                  // Highlight the attachment and scroll to it
+                  setHighlightedAttachmentId(attachment.id);
+                  // Scroll the attachment into view
+                  const element = document.getElementById(`attachment-${attachment.id}`);
+                  element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Remove highlight after a short delay
+                  setTimeout(() => setHighlightedAttachmentId(null), 2000);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Middle Column - Attachments */}
+          <div className="w-[260px] shrink-0 border-l border-border overflow-y-auto p-4">
+            <div className="space-y-2">
+              <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
+                <Paperclip className="h-4 w-4" />
+                Attachments
+                {attachmentCount > 0 && (
+                  <span className="text-xs text-text-tertiary">({attachmentCount})</span>
+                )}
+              </Label>
+              <AttachmentSection
+                boardId={boardId}
+                cardId={card.id}
+                onAttachmentCountChange={setAttachmentCount}
+                onAttachmentsChange={setAttachments}
+                highlightAttachmentId={highlightedAttachmentId}
+                featureImageUrl={featureImage}
+                onSetAsHeader={(url) => setFeatureImage(url)}
               />
             </div>
           </div>
 
           {/* Sidebar */}
           <div
-            className="w-[220px] shrink-0 space-y-4 border-l border-border overflow-y-auto p-4"
+            className="w-[180px] shrink-0 space-y-4 border-l border-border overflow-y-auto p-4"
             style={{ backgroundColor: color ? `${color}10` : undefined }}
           >
             {/* Assignees */}
@@ -1190,68 +1260,6 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
               <ColorPicker color={color} onChange={setColor} />
             </div>
 
-            {/* Feature Image */}
-            <div className="space-y-2">
-              <Label className="text-caption font-medium text-text-secondary">
-                Feature Image
-              </Label>
-              <input
-                ref={featureImageInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFeatureImageUpload}
-                className="hidden"
-              />
-              {!featureImage ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => featureImageInputRef.current?.click()}
-                  disabled={isUploadingFeatureImage}
-                >
-                  {isUploadingFeatureImage ? (
-                    <>
-                      <Upload className="mr-2 h-4 w-4 animate-pulse" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Image className="mr-2 h-4 w-4" />
-                      Add image
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-text-tertiary"
-                  onClick={() => featureImageInputRef.current?.click()}
-                  disabled={isUploadingFeatureImage}
-                >
-                  <Image className="mr-2 h-4 w-4" />
-                  {isUploadingFeatureImage ? 'Uploading...' : 'Change image'}
-                </Button>
-              )}
-            </div>
-
-            {/* Attachments */}
-            <div className="space-y-2">
-              <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
-                <Paperclip className="h-4 w-4" />
-                Attachments
-                {attachmentCount > 0 && (
-                  <span className="text-xs text-text-tertiary">({attachmentCount})</span>
-                )}
-              </Label>
-              <AttachmentSection
-                boardId={boardId}
-                cardId={card.id}
-                onAttachmentCountChange={setAttachmentCount}
-              />
-            </div>
-
             {/* Actions */}
             <div className="space-y-2 pt-4 border-t border-border">
               <Label className="text-caption font-medium text-text-secondary">
@@ -1271,17 +1279,12 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
           </div>
         </div>
 
-        {/* Footer */}
-        {hasChanges && (
-          <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-            <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving || !title.trim()}>
-              {isSaving ? 'Saving...' : 'Save changes'}
-            </Button>
-          </div>
-        )}
+        {/* Footer - always visible with auto-save */}
+        <div className="flex justify-end gap-2 border-t border-border px-6 py-3">
+          <Button variant="ghost" onClick={onClose}>
+            Close
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

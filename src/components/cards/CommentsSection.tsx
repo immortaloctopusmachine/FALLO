@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
+import { Send, MoreHorizontal, Trash2, Pencil, Paperclip, User, Reply } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,22 +12,55 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Comment } from '@/types';
+import { CommentContent } from './CommentContent';
+import type { Comment, Attachment, User as UserType } from '@/types';
+import { cn } from '@/lib/utils';
+
+interface BoardMember {
+  id: string;
+  user: UserType;
+}
+
+interface MentionSuggestion {
+  type: 'attachment' | 'user';
+  id: string;
+  name: string;
+  image?: string | null;
+}
 
 interface CommentsSectionProps {
   boardId: string;
   cardId: string;
   currentUserId?: string;
+  attachments?: Attachment[];
+  onAttachmentClick?: (attachment: Attachment) => void;
 }
 
-export function CommentsSection({ boardId, cardId, currentUserId }: CommentsSectionProps) {
+export function CommentsSection({
+  boardId,
+  cardId,
+  currentUserId,
+  attachments = [],
+  onAttachmentClick,
+}: CommentsSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
 
+  // Mention autocomplete state
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionPickerRef = useRef<HTMLDivElement>(null);
+
+  // Fetch comments
   useEffect(() => {
     const fetchComments = async () => {
       try {
@@ -50,6 +83,62 @@ export function CommentsSection({ boardId, cardId, currentUserId }: CommentsSect
 
     fetchComments();
   }, [boardId, cardId]);
+
+  // Fetch board members for @mentions
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const response = await fetch(`/api/boards/${boardId}/members`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setBoardMembers(data.data);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch board members:', error);
+      }
+    };
+
+    fetchMembers();
+  }, [boardId]);
+
+  // Build mention suggestions based on query
+  const mentionSuggestions = useMemo((): MentionSuggestion[] => {
+    const query = mentionQuery.toLowerCase();
+    const suggestions: MentionSuggestion[] = [];
+
+    // Add matching attachments
+    attachments.forEach((att) => {
+      if (att.name.toLowerCase().includes(query)) {
+        suggestions.push({
+          type: 'attachment',
+          id: att.id,
+          name: att.name,
+        });
+      }
+    });
+
+    // Add matching users
+    boardMembers.forEach((member) => {
+      const userName = member.user.name || member.user.email;
+      if (userName.toLowerCase().includes(query)) {
+        suggestions.push({
+          type: 'user',
+          id: member.user.id,
+          name: member.user.name || member.user.email,
+          image: member.user.image,
+        });
+      }
+    });
+
+    return suggestions.slice(0, 8); // Limit to 8 suggestions
+  }, [mentionQuery, attachments, boardMembers]);
+
+  // Reset selection when suggestions change
+  useEffect(() => {
+    setSelectedMentionIndex(0);
+  }, [mentionSuggestions]);
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
@@ -125,6 +214,141 @@ export function CommentsSection({ boardId, cardId, currentUserId }: CommentsSect
     setEditingId(null);
     setEditContent('');
   };
+
+  const handleReply = (comment: Comment) => {
+    // Extract mentioned users from the comment being replied to
+    // Pattern: @username (for users)
+    const userMentionRegex = /@(\w+(?:\s+\w+)*?)(?=\s|$|@|\[)/g;
+    const mentionedUsers = new Set<string>();
+
+    let match;
+    while ((match = userMentionRegex.exec(comment.content)) !== null) {
+      mentionedUsers.add(match[1]);
+    }
+
+    // Always add the comment author
+    const authorName = comment.author.name || comment.author.email;
+    mentionedUsers.add(authorName);
+
+    // Build the reply prefix with all mentioned users
+    const mentions = Array.from(mentionedUsers)
+      .map(name => `@${name}`)
+      .join(' ');
+
+    setNewComment(mentions + ' ');
+
+    // Focus the textarea and move cursor to end
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      const length = mentions.length + 1;
+      textareaRef.current?.setSelectionRange(length, length);
+    }, 0);
+  };
+
+  const insertMention = useCallback((suggestion: MentionSuggestion) => {
+    const textarea = textareaRef.current;
+    if (!textarea || mentionStartPos === null) return;
+
+    // For attachments, use @[name], for users use @name
+    const mentionText = suggestion.type === 'attachment'
+      ? `@[${suggestion.name}]`
+      : `@${suggestion.name}`;
+
+    const beforeMention = newComment.slice(0, mentionStartPos);
+    const afterMention = newComment.slice(textarea.selectionStart);
+    const newValue = beforeMention + mentionText + ' ' + afterMention;
+
+    setNewComment(newValue);
+    setShowMentionPicker(false);
+    setMentionQuery('');
+    setMentionStartPos(null);
+
+    // Move cursor after the inserted mention
+    const newCursorPos = mentionStartPos + mentionText.length + 1;
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  }, [newComment, mentionStartPos]);
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setNewComment(value);
+
+    // Check if we should show the mention picker
+    // Look for @ symbol before cursor that starts a mention
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      // Check if @ is at start or preceded by whitespace
+      const charBeforeAt = textBeforeCursor[lastAtIndex - 1];
+      const isValidMentionStart = lastAtIndex === 0 || /\s/.test(charBeforeAt);
+
+      if (isValidMentionStart) {
+        const query = textBeforeCursor.slice(lastAtIndex + 1);
+        // Only show picker if query doesn't contain whitespace (except for [])
+        // and doesn't already have a completed @[...] pattern
+        const hasClosedBracket = query.includes(']');
+        const hasSpace = /\s/.test(query.replace(/\[.*?\]/g, ''));
+
+        if (!hasClosedBracket && !hasSpace) {
+          setMentionStartPos(lastAtIndex);
+          // Remove leading [ if present (user started typing @[)
+          setMentionQuery(query.replace(/^\[/, ''));
+          setShowMentionPicker(true);
+          return;
+        }
+      }
+    }
+
+    // Hide picker if no valid mention context
+    setShowMentionPicker(false);
+    setMentionStartPos(null);
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentionPicker && mentionSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) =>
+          prev < mentionSuggestions.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) =>
+          prev > 0 ? prev - 1 : mentionSuggestions.length - 1
+        );
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(mentionSuggestions[selectedMentionIndex]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentionPicker(false);
+        setMentionStartPos(null);
+      }
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleAddComment();
+    }
+  };
+
+  // Close mention picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        mentionPickerRef.current &&
+        !mentionPickerRef.current.contains(e.target as Node) &&
+        textareaRef.current &&
+        !textareaRef.current.contains(e.target as Node)
+      ) {
+        setShowMentionPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (isFetching) {
     return (
@@ -208,9 +432,22 @@ export function CommentsSection({ boardId, cardId, currentUserId }: CommentsSect
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-0.5 text-body text-text-secondary whitespace-pre-wrap">
-                    {comment.content}
-                  </p>
+                  <>
+                    <p className="mt-0.5 text-body text-text-secondary">
+                      <CommentContent
+                        content={comment.content}
+                        attachments={attachments}
+                        onAttachmentClick={onAttachmentClick}
+                      />
+                    </p>
+                    <button
+                      onClick={() => handleReply(comment)}
+                      className="mt-1 flex items-center gap-1 text-tiny text-text-tertiary hover:text-text-primary transition-colors"
+                    >
+                      <Reply className="h-3 w-3" />
+                      Reply
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -226,24 +463,78 @@ export function CommentsSection({ boardId, cardId, currentUserId }: CommentsSect
       )}
 
       {/* New Comment Form */}
-      <div className="flex gap-2">
+      <div className="relative">
         <Textarea
+          ref={textareaRef}
           value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Write a comment..."
+          onChange={handleTextareaChange}
+          onKeyDown={handleTextareaKeyDown}
+          placeholder="Write a comment... Type @ to mention attachments or users"
           className="min-h-[80px] resize-none"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              handleAddComment();
-            }
-          }}
         />
+
+        {/* Mention Autocomplete Picker */}
+        {showMentionPicker && mentionSuggestions.length > 0 && (
+          <div
+            ref={mentionPickerRef}
+            className="absolute left-0 bottom-full mb-1 z-10 w-72 max-h-64 overflow-y-auto rounded-md border border-border bg-surface shadow-lg"
+          >
+            <div className="py-1">
+              {mentionSuggestions.map((suggestion, index) => (
+                <button
+                  key={`${suggestion.type}-${suggestion.id}`}
+                  onClick={() => insertMention(suggestion)}
+                  className={cn(
+                    "flex items-center gap-2 w-full px-3 py-2 text-left transition-colors",
+                    index === selectedMentionIndex
+                      ? "bg-surface-hover"
+                      : "hover:bg-surface-hover"
+                  )}
+                >
+                  {suggestion.type === 'attachment' ? (
+                    <Paperclip className="h-4 w-4 text-card-task shrink-0" />
+                  ) : (
+                    <Avatar className="h-5 w-5 shrink-0">
+                      <AvatarImage src={suggestion.image || undefined} />
+                      <AvatarFallback className="text-[10px]">
+                        <User className="h-3 w-3" />
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-body truncate block">{suggestion.name}</span>
+                    <span className="text-tiny text-text-tertiary">
+                      {suggestion.type === 'attachment' ? 'Attachment' : 'User'}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No matches message */}
+        {showMentionPicker && mentionSuggestions.length === 0 && mentionQuery.length > 0 && (
+          <div
+            ref={mentionPickerRef}
+            className="absolute left-0 bottom-full mb-1 z-10 w-72 rounded-md border border-border bg-surface shadow-lg"
+          >
+            <p className="px-3 py-2 text-caption text-text-tertiary">
+              No matching attachments or users
+            </p>
+          </div>
+        )}
       </div>
-      <div className="flex justify-end">
+
+      <div className="flex items-center justify-between">
+        <p className="text-tiny text-text-tertiary">
+          Type @ to mention attachments or users
+        </p>
         <Button
           size="sm"
           onClick={handleAddComment}
           disabled={isLoading || !newComment.trim()}
+          className="ml-auto"
         >
           <Send className="mr-2 h-4 w-4" />
           Comment

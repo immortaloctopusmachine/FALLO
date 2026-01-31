@@ -92,6 +92,7 @@ export function List({
   const [newCardType, setNewCardType] = useState<CardType>(cardTypeFilter || 'TASK');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Use custom color or derive from name
   const listColor = customListColor ? '' : getListColor(name);
 
   // Format date range
@@ -104,6 +105,13 @@ export function List({
   };
 
   const dateRange = formatDateRange();
+
+  // Custom header style with full background color (subtle) when customListColor is provided
+  const customColorStyle = customListColor
+    ? {
+        backgroundColor: `${customListColor}08`, // Very subtle background (8% opacity)
+      }
+    : undefined;
 
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -149,11 +157,6 @@ export function List({
     return sum;
   }, 0);
 
-  // Custom header color style
-  const headerStyle = customListColor
-    ? { borderTop: `3px solid ${customListColor}` }
-    : undefined;
-
   return (
     <div
       ref={setNodeRef}
@@ -162,8 +165,16 @@ export function List({
         listColor,
         isOver && 'ring-2 ring-card-task ring-opacity-50'
       )}
-      style={headerStyle}
+      style={customColorStyle}
     >
+      {/* Color indicator bar for custom colored lists */}
+      {customListColor && (
+        <div
+          className="h-1 w-full rounded-t-lg"
+          style={{ backgroundColor: customListColor }}
+        />
+      )}
+
       {/* List Header */}
       <div className="flex items-center justify-between px-2 py-2">
         <div className="flex flex-col gap-0.5">

@@ -12,9 +12,10 @@ interface BoardHeaderProps {
   viewMode?: BoardViewMode;
   onViewModeChange?: (mode: BoardViewMode) => void;
   onSettingsClick?: () => void;
+  onMembersClick?: () => void;
 }
 
-export function BoardHeader({ name, memberCount, viewMode = 'tasks', onViewModeChange, onSettingsClick }: BoardHeaderProps) {
+export function BoardHeader({ name, memberCount, viewMode = 'tasks', onViewModeChange, onSettingsClick, onMembersClick }: BoardHeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
       <div className="flex items-center gap-3">
@@ -57,7 +58,12 @@ export function BoardHeader({ name, memberCount, viewMode = 'tasks', onViewModeC
       )}
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" className="h-8 gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-2"
+          onClick={onMembersClick}
+        >
           <Users className="h-4 w-4" />
           <span className="text-caption">{memberCount}</span>
         </Button>

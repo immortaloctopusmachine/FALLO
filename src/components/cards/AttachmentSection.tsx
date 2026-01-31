@@ -13,6 +13,11 @@ import {
   Download,
   MessageSquare,
   Send,
+  Pencil,
+  Check,
+  X,
+  ImageIcon,
+  Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +33,10 @@ interface AttachmentSectionProps {
   boardId: string;
   cardId: string;
   onAttachmentCountChange?: (count: number) => void;
+  onAttachmentsChange?: (attachments: Attachment[]) => void;
+  highlightAttachmentId?: string | null;
+  featureImageUrl?: string | null;
+  onSetAsHeader?: (url: string) => void;
 }
 
 const FILE_ICONS: Record<string, typeof File> = {
@@ -58,6 +67,10 @@ export function AttachmentSection({
   boardId,
   cardId,
   onAttachmentCountChange,
+  onAttachmentsChange,
+  highlightAttachmentId,
+  featureImageUrl,
+  onSetAsHeader,
 }: AttachmentSectionProps) {
   const [attachments, setAttachments] = useState<AttachmentWithComments[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -65,7 +78,11 @@ export function AttachmentSection({
   const [expandedAttachment, setExpandedAttachment] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const [editingAttachmentId, setEditingAttachmentId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchAttachments = async () => {
@@ -76,6 +93,7 @@ export function AttachmentSection({
         if (data.success) {
           setAttachments(data.data);
           onAttachmentCountChange?.(data.data.length);
+          onAttachmentsChange?.(data.data);
         }
       } catch (error) {
         console.error('Failed to fetch attachments:', error);
@@ -127,8 +145,10 @@ export function AttachmentSection({
 
         const attachmentData = await attachmentResponse.json();
         if (attachmentData.success) {
-          setAttachments((prev) => [attachmentData.data, ...prev]);
-          onAttachmentCountChange?.(attachments.length + 1);
+          const newAttachments = [attachmentData.data, ...attachments];
+          setAttachments(newAttachments);
+          onAttachmentCountChange?.(newAttachments.length);
+          onAttachmentsChange?.(newAttachments);
         }
       }
     } catch (error) {
@@ -149,11 +169,53 @@ export function AttachmentSection({
       );
 
       if (response.ok) {
-        setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
-        onAttachmentCountChange?.(attachments.length - 1);
+        const newAttachments = attachments.filter((a) => a.id !== attachmentId);
+        setAttachments(newAttachments);
+        onAttachmentCountChange?.(newAttachments.length);
+        onAttachmentsChange?.(newAttachments);
       }
     } catch (error) {
       console.error('Failed to delete attachment:', error);
+    }
+  };
+
+  const startRenaming = (attachment: AttachmentWithComments) => {
+    setEditingAttachmentId(attachment.id);
+    setEditingName(attachment.name);
+    setTimeout(() => renameInputRef.current?.select(), 0);
+  };
+
+  const cancelRenaming = () => {
+    setEditingAttachmentId(null);
+    setEditingName('');
+  };
+
+  const handleRename = async (attachmentId: string) => {
+    if (!editingName.trim() || isRenaming) return;
+
+    setIsRenaming(true);
+    try {
+      const response = await fetch(
+        `/api/boards/${boardId}/cards/${cardId}/attachments/${attachmentId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: editingName.trim() }),
+        }
+      );
+
+      const data = await response.json();
+      if (data.success) {
+        const newAttachments = attachments.map((a) => (a.id === attachmentId ? data.data : a));
+        setAttachments(newAttachments);
+        setEditingAttachmentId(null);
+        setEditingName('');
+        onAttachmentsChange?.(newAttachments);
+      }
+    } catch (error) {
+      console.error('Failed to rename attachment:', error);
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -238,82 +300,171 @@ export function AttachmentSection({
             const isImage = isImageType(attachment.type);
             const isExpanded = expandedAttachment === attachment.id;
 
+            const isHighlighted = highlightAttachmentId === attachment.id;
+
             return (
               <div
                 key={attachment.id}
-                className="rounded-md border border-border bg-surface overflow-hidden"
+                id={`attachment-${attachment.id}`}
+                className={cn(
+                  "rounded-md border bg-surface overflow-hidden transition-all duration-300",
+                  isHighlighted
+                    ? "border-card-task ring-2 ring-card-task/30"
+                    : "border-border"
+                )}
               >
                 {/* Image Preview */}
                 {isImage && (
-                  <a
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <img
-                      src={attachment.url}
-                      alt={attachment.name}
-                      className="w-full max-h-40 object-cover hover:opacity-90 transition-opacity"
-                    />
-                  </a>
+                  <div className="relative group/image">
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <img
+                        src={attachment.url}
+                        alt={attachment.name}
+                        className="w-full max-h-40 object-cover hover:opacity-90 transition-opacity"
+                      />
+                    </a>
+                    {/* Header image indicator or set button */}
+                    {featureImageUrl === attachment.url ? (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-card-task px-2 py-1 text-white text-tiny font-medium">
+                        <Star className="h-3 w-3 fill-current" />
+                        Header
+                      </div>
+                    ) : onSetAsHeader && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="absolute top-2 right-2 opacity-0 group-hover/image:opacity-100 transition-opacity h-7 text-tiny"
+                        onClick={() => onSetAsHeader(attachment.url)}
+                      >
+                        <ImageIcon className="mr-1 h-3 w-3" />
+                        Set as header
+                      </Button>
+                    )}
+                  </div>
                 )}
 
                 {/* File Info */}
-                <div className="p-2">
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-text-tertiary shrink-0" />
+                <div className="p-2 space-y-2">
+                  {/* File name and info row */}
+                  <div className="flex items-start gap-2">
+                    <Icon className="h-4 w-4 text-text-tertiary shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-body font-medium text-text-primary hover:underline truncate block"
-                      >
-                        {attachment.name}
-                      </a>
-                      <p className="text-caption text-text-tertiary">
-                        {formatFileSize(attachment.size)} • Added{' '}
-                        {formatDistanceToNow(new Date(attachment.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </p>
+                      {editingAttachmentId === attachment.id ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            ref={renameInputRef}
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleRename(attachment.id);
+                              } else if (e.key === 'Escape') {
+                                cancelRenaming();
+                              }
+                            }}
+                            className="h-7 text-body"
+                            disabled={isRenaming}
+                            autoFocus
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-success hover:text-success shrink-0"
+                            onClick={() => handleRename(attachment.id)}
+                            disabled={isRenaming || !editingName.trim()}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-text-tertiary hover:text-error shrink-0"
+                            onClick={cancelRenaming}
+                            disabled={isRenaming}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-body font-medium text-text-primary hover:underline line-clamp-2"
+                          >
+                            {attachment.name}
+                          </a>
+                          <p className="text-caption text-text-tertiary">
+                            {formatFileSize(attachment.size)} • Added{' '}
+                            {formatDistanceToNow(new Date(attachment.createdAt), {
+                              addSuffix: true,
+                            })}
+                            {attachment.uploader && (
+                              <> by {attachment.uploader.name || attachment.uploader.email}</>
+                            )}
+                          </p>
+                        </>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
+                  </div>
+
+                  {/* Action buttons row - separate from file info */}
+                  {editingAttachmentId !== attachment.id && (
+                    <div className="flex items-center gap-1 pt-1 border-t border-border-subtle">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0"
+                        className="h-7 px-2 text-text-tertiary hover:text-text-primary text-tiny"
+                        onClick={() => startRenaming(attachment)}
+                      >
+                        <Pencil className="mr-1 h-3 w-3" />
+                        Rename
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="relative h-7 px-2 text-tiny"
                         onClick={() =>
                           setExpandedAttachment(isExpanded ? null : attachment.id)
                         }
                       >
                         <MessageSquare
                           className={cn(
-                            'h-4 w-4',
+                            'mr-1 h-3 w-3',
                             attachment.comments.length > 0
                               ? 'text-card-task'
                               : 'text-text-tertiary'
                           )}
                         />
+                        <span className={attachment.comments.length > 0 ? 'text-card-task' : 'text-text-tertiary'}>
+                          {attachment.comments.length || 'Comment'}
+                        </span>
                       </Button>
                       <a
                         href={attachment.url}
                         download={attachment.name}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-surface-hover"
+                        className="inline-flex h-7 px-2 items-center rounded-md text-text-tertiary hover:bg-surface-hover text-tiny"
                       >
-                        <Download className="h-4 w-4 text-text-tertiary" />
+                        <Download className="mr-1 h-3 w-3" />
+                        Download
                       </a>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0 text-text-tertiary hover:text-error"
+                        className="h-7 px-2 text-text-tertiary hover:text-error text-tiny ml-auto"
                         onClick={() => handleDelete(attachment.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
-                  </div>
+                  )}
 
                   {/* Comments Section */}
                   {isExpanded && (

@@ -69,10 +69,10 @@
 ## Phase 2: Card Types & Relationships
 **Target**: Full card type implementation with connections
 
-### 2.1 Task Card (Complete) 🟡
+### 2.1 Task Card (Complete) 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Attachments with comments | 🔴 | - | Deferred |
+| Attachments with comments | 🟢 | Claude | Rename, comment on attachments, @[name] links in comments |
 | Todo checklist | 🟢 | Claude | ChecklistSection component |
 | Feedback checklist | 🟢 | Claude | ChecklistSection component |
 | Card chat | 🟢 | Claude | CommentsSection component |
@@ -141,14 +141,25 @@
 | List templates (Standard Slot, Branded Game) | 🟢 | Claude | In list-templates.ts |
 | View-specific list types | 🟢 | Claude | TASKS vs PLANNING lists |
 
-### 3.2 Board Management 🔴
+### 3.2 Board Management 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
-| Create board | 🔴 | - | |
-| Board settings | 🔴 | - | |
-| Board templates | 🔴 | - | |
-| Archive board | 🔴 | - | |
-| Board member management | 🔴 | - | |
+| Create board | 🟢 | Claude | CreateBoardDialog component |
+| Board settings | 🟢 | Claude | BoardSettingsModal (dates, links, archive) |
+| Board templates | 🟢 | Claude | Blank, Standard Slot, Branded Game templates |
+| Archive board | 🟢 | Claude | Danger zone in settings with confirmation |
+| Board member management | 🟢 | Claude | BoardMembersModal with role management |
+
+### 3.3 Project Templates 🟢
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Clone board API with ID remapping | 🟢 | Claude | POST /api/boards/[id]/clone |
+| Duplicate board from settings | 🟢 | Claude | Clone & Templates section in settings |
+| Save as template option | 🟢 | Claude | Creates board with isTemplate=true |
+| Template indicator on boards page | 🟢 | Claude | Separate section, warning color badge |
+| Create from project template | 🟢 | Claude | In CreateBoardDialog with template picker |
+| Card connections preserved in clone | 🟢 | Claude | ID remapping for Task→UserStory→Epic links |
+| Board card quick actions (admin) | 🟢 | Claude | Dropdown menu on board cards for duplicate/template |
 
 ---
 
@@ -229,6 +240,9 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-01-31 | 3.3 | Project Templates: clone board API with ID remapping for card connections, duplicate/save as template in settings, template indicator on boards page, create from template in dialog | Claude |
+| 2026-01-31 | 2.1 | Attachments with comments: rename attachments, comment on attachments, @[name] syntax to link attachments in card comments | Claude |
+| 2025-01-31 | 3.2 | Board Management complete: templates (Blank/Standard Slot/Branded Game), archive board, member management (add/remove/roles) | Claude |
 | 2025-01-30 | 3.1 | Bug fixes: Planning lists immediate display, view state sync, linked card list selection, API error handling, accessibility improvements | Claude |
 | 2025-01-30 | 3.1 | Board Modes complete: Tasks/Planning views, burn-up chart, statistics, epic health, list templates | Claude |
 | 2025-01-28 | 2.5 | Create linked card from modal; Epic inheritance for Tasks; Server-side connected card stats | Claude |

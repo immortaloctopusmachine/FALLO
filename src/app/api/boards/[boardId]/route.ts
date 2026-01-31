@@ -85,12 +85,20 @@ export async function GET(
       );
     }
 
-    // Collect all cards across all lists
-    const allCards = board.lists.flatMap(list => list.cards);
+    // Collect all cards across all lists, attaching list info to each card
+    type CardWithList = typeof board.lists[0]['cards'][0] & {
+      list: { id: string; name: string; phase: string | null };
+    };
+    const allCards: CardWithList[] = board.lists.flatMap(list =>
+      list.cards.map(card => ({
+        ...card,
+        list: { id: list.id, name: list.name, phase: list.phase },
+      }))
+    );
 
     // Create a map of user story ID -> connected tasks for computing stats
-    const tasksByUserStory = new Map<string, typeof allCards>();
-    const userStoriesByEpic = new Map<string, typeof allCards>();
+    const tasksByUserStory = new Map<string, CardWithList[]>();
+    const userStoriesByEpic = new Map<string, CardWithList[]>();
 
     allCards.forEach(card => {
       if (card.type === 'TASK') {

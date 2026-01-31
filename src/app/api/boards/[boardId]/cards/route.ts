@@ -107,6 +107,13 @@ export async function POST(
         ...typeData,
       },
       include: {
+        list: {
+          select: {
+            id: true,
+            name: true,
+            phase: true,
+          },
+        },
         assignees: {
           include: {
             user: {

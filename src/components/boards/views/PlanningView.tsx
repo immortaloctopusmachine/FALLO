@@ -1012,6 +1012,7 @@ export function PlanningView({
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
         onRefreshBoard={handleRefreshBoard}
+        onCardClick={setSelectedCard}
         currentUserId={currentUserId}
         taskLists={taskLists}
         planningLists={planningLists}

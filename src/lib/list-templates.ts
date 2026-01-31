@@ -1,4 +1,4 @@
-import type { ListPhase, ListTemplateType, ListViewType } from '@/types';
+import type { ListPhase, BoardTemplateType, ListViewType } from '@/types';
 
 // List template definition
 export interface ListTemplateItem {
@@ -11,12 +11,25 @@ export interface ListTemplateItem {
 }
 
 export interface ListTemplate {
-  id: ListTemplateType;
+  id: BoardTemplateType;
   name: string;
   description: string;
   taskLists: ListTemplateItem[];
   planningLists: ListTemplateItem[];
 }
+
+// Blank template (simple starter board)
+export const BLANK_TEMPLATE: ListTemplate = {
+  id: 'BLANK',
+  name: 'Blank Board',
+  description: 'Start fresh with basic To Do, In Progress, and Done lists',
+  taskLists: [
+    { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 0 },
+    { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 1 },
+    { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: '#10B981', durationWeeks: 0, position: 2 },
+  ],
+  planningLists: [],
+};
 
 // Color palette for list phases
 export const PHASE_COLORS = {
@@ -72,10 +85,14 @@ export const BRANDED_GAME_TEMPLATE: ListTemplate = {
 };
 
 // All templates
-export const LIST_TEMPLATES: Record<ListTemplateType, ListTemplate> = {
+export const BOARD_TEMPLATES: Record<BoardTemplateType, ListTemplate> = {
+  BLANK: BLANK_TEMPLATE,
   STANDARD_SLOT: STANDARD_SLOT_TEMPLATE,
   BRANDED_GAME: BRANDED_GAME_TEMPLATE,
 };
+
+// For backwards compatibility
+export const LIST_TEMPLATES = BOARD_TEMPLATES;
 
 // Default project links
 export const DEFAULT_PROJECT_LINKS = {

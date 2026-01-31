@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BoardHeader } from './BoardHeader';
 import { BoardView } from './BoardView';
 import { BoardSettingsModal } from './BoardSettingsModal';
+import { BoardMembersModal } from './BoardMembersModal';
 import { TasksView, PlanningView } from './views';
 import type { Board, BoardViewMode, BoardSettings, WeeklyProgress } from '@/types';
 
@@ -25,6 +26,7 @@ export function BoardViewWrapper({
   const [board, setBoard] = useState(initialBoard);
   const [viewMode, setViewMode] = useState<BoardViewMode>('tasks');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const handleViewModeChange = (mode: BoardViewMode) => {
     setViewMode(mode);
@@ -64,6 +66,7 @@ export function BoardViewWrapper({
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         onSettingsClick={() => setSettingsOpen(true)}
+        onMembersClick={() => setMembersOpen(true)}
       />
       <div className="flex-1 overflow-hidden">
         {viewMode === 'tasks' ? (
@@ -92,8 +95,19 @@ export function BoardViewWrapper({
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         boardId={board.id}
+        boardName={board.name}
+        isTemplate={board.isTemplate}
         settings={board.settings || {}}
         onSave={handleSaveSettings}
+      />
+
+      {/* Members Modal */}
+      <BoardMembersModal
+        isOpen={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        boardId={board.id}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
       />
     </div>
   );

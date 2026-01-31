@@ -113,6 +113,13 @@ export async function GET(
           },
         },
         include: {
+          list: {
+            select: {
+              id: true,
+              name: true,
+              phase: true,
+            },
+          },
           assignees: {
             include: {
               user: {

@@ -1,10 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { unlink } from 'fs/promises';
 import path from 'path';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 interface RouteContext {
   params: Promise<{ boardId: string; cardId: string; attachmentId: string }>;
+}
+
+// PATCH /api/boards/[boardId]/cards/[cardId]/attachments/[attachmentId] - Rename attachment
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  try {
+    const session = await auth();
+    const { boardId, attachmentId } = await context.params;
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { status: 401 }
+      );
+    }
+
+    // Check board membership
+    const membership = await prisma.boardMember.findFirst({
+      where: {
+        boardId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { name } = body;
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Attachment name is required' } },
+        { status: 400 }
+      );
+    }
+
+    const attachment = await prisma.attachment.update({
+      where: { id: attachmentId },
+      data: { name: name.trim() },
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+          },
+        },
+        comments: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    return NextResponse.json({ success: true, data: attachment });
+  } catch (error) {
+    console.error('Failed to rename attachment:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to rename attachment' } },
+      { status: 500 }
+    );
+  }
 }
 
 // DELETE /api/boards/[boardId]/cards/[cardId]/attachments/[attachmentId]

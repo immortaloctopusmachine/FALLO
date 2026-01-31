@@ -9,6 +9,7 @@ export type ListViewType = 'TASKS' | 'PLANNING';
 export type ListPhase = 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE';
 export type BoardViewMode = 'tasks' | 'planning';
 export type ListTemplateType = 'STANDARD_SLOT' | 'BRANDED_GAME';
+export type BoardTemplateType = 'BLANK' | 'STANDARD_SLOT' | 'BRANDED_GAME';
 
 // Base Card
 export interface BaseCard {
@@ -45,6 +46,12 @@ export interface TaskCard extends BaseCard {
   _count?: {
     attachments: number;
     comments: number;
+  };
+  // Attached list info for connected task display
+  list?: {
+    id: string;
+    name: string;
+    phase: string | null;
   };
 }
 
@@ -119,6 +126,8 @@ export interface Attachment {
   type: string;
   size: number;
   createdAt: string;
+  uploaderId?: string | null;
+  uploader?: User | null;
 }
 
 export interface Comment {

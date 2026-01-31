@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, Calendar, Link as LinkIcon, Sparkles, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Settings, Calendar, Link as LinkIcon, Sparkles, Save, AlertTriangle, Archive, Copy, FileText } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,8 @@ interface BoardSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   boardId: string;
+  boardName: string;
+  isTemplate?: boolean;
   settings: BoardSettings;
   onSave: (settings: BoardSettings) => Promise<void>;
 }
@@ -33,12 +36,19 @@ interface BoardSettingsModalProps {
 export function BoardSettingsModal({
   isOpen,
   onClose,
-  boardId: _boardId,
+  boardId,
+  boardName,
+  isTemplate = false,
   settings: initialSettings,
   onSave,
 }: BoardSettingsModalProps) {
+  const router = useRouter();
   const [settings, setSettings] = useState<BoardSettings>(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
+  const [archiveConfirmation, setArchiveConfirmation] = useState('');
+  const [cloneName, setCloneName] = useState('');
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -49,6 +59,58 @@ export function BoardSettingsModal({
       console.error('Failed to save settings:', error);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (archiveConfirmation !== boardName) return;
+
+    setIsArchiving(true);
+    try {
+      const response = await fetch(`/api/boards/${boardId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        onClose();
+        router.push('/boards');
+        router.refresh();
+      } else {
+        console.error('Failed to archive board');
+      }
+    } catch (error) {
+      console.error('Failed to archive board:', error);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleClone = async (asTemplate: boolean) => {
+    setIsCloning(true);
+    try {
+      const response = await fetch(`/api/boards/${boardId}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cloneName.trim() || undefined,
+          asTemplate,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        onClose();
+        router.push(`/boards/${result.data.id}`);
+        router.refresh();
+      } else {
+        console.error('Failed to clone board:', result.error);
+      }
+    } catch (error) {
+      console.error('Failed to clone board:', error);
+    } finally {
+      setIsCloning(false);
+      setCloneName('');
     }
   };
 
@@ -244,6 +306,109 @@ export function BoardSettingsModal({
                 checked={settings.llmEnabled || false}
                 onCheckedChange={(checked) => updateSetting('llmEnabled', checked)}
               />
+            </div>
+          </div>
+
+          {/* Clone & Template Section */}
+          <div className="space-y-4 pt-4 border-t border-border">
+            <h3 className="flex items-center gap-2 text-title font-semibold">
+              <Copy className="h-4 w-4" />
+              Clone & Templates
+            </h3>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="cloneName">New board name (optional)</Label>
+                <Input
+                  id="cloneName"
+                  placeholder={`${boardName} (Copy)`}
+                  value={cloneName}
+                  onChange={(e) => setCloneName(e.target.value)}
+                  disabled={isCloning}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleClone(false)}
+                  disabled={isCloning}
+                  className="flex-1"
+                >
+                  {isCloning ? (
+                    'Cloning...'
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Duplicate Board
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleClone(true)}
+                  disabled={isCloning}
+                  className="flex-1"
+                >
+                  {isCloning ? (
+                    'Creating...'
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Save as Template
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-caption text-text-tertiary">
+                {isTemplate
+                  ? 'This board is a template. Duplicating creates a new working board.'
+                  : 'Duplicate creates a copy of this board. Save as Template creates a reusable template.'}
+              </p>
+              <p className="text-caption text-text-tertiary">
+                Cloning copies all lists, cards, and their connections. Assignees, comments, and dates are not copied.
+              </p>
+            </div>
+          </div>
+
+          {/* Danger Zone */}
+          <div className="space-y-4 pt-4 border-t border-border">
+            <h3 className="flex items-center gap-2 text-title font-semibold text-error">
+              <AlertTriangle className="h-4 w-4" />
+              Danger Zone
+            </h3>
+            <div className="rounded-lg border border-error/30 bg-error/5 p-4 space-y-4">
+              <div>
+                <div className="font-medium text-error">Archive this board</div>
+                <div className="text-caption text-text-secondary">
+                  Once archived, the board will be hidden from your board list. This action can be undone by an administrator.
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="archiveConfirmation" className="text-caption">
+                  Type <span className="font-mono font-semibold">{boardName}</span> to confirm:
+                </Label>
+                <Input
+                  id="archiveConfirmation"
+                  value={archiveConfirmation}
+                  onChange={(e) => setArchiveConfirmation(e.target.value)}
+                  placeholder="Board name"
+                  disabled={isArchiving}
+                />
+              </div>
+              <Button
+                variant="destructive"
+                onClick={handleArchive}
+                disabled={archiveConfirmation !== boardName || isArchiving}
+                className="w-full"
+              >
+                {isArchiving ? (
+                  'Archiving...'
+                ) : (
+                  <>
+                    <Archive className="h-4 w-4 mr-2" />
+                    Archive Board
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
