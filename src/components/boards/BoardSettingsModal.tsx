@@ -53,7 +53,23 @@ export function BoardSettingsModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Check if project start date was changed
+      const startDateChanged = settings.projectStartDate !== initialSettings.projectStartDate;
+
       await onSave(settings);
+
+      // If start date was set/changed, apply dates to planning lists
+      if (startDateChanged && settings.projectStartDate) {
+        try {
+          await fetch(`/api/boards/${boardId}/apply-dates`, {
+            method: 'POST',
+          });
+        } catch (error) {
+          console.error('Failed to apply dates to lists:', error);
+        }
+      }
+
+      router.refresh(); // Refresh to get updated list data
       onClose();
     } catch (error) {
       console.error('Failed to save settings:', error);

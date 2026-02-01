@@ -206,6 +206,52 @@
 
 ---
 
+## Phase 5.5: Organization & Timeline
+**Target**: Studios, Teams, Users hierarchy and Timeline view
+
+### 5.5.1 Organization Structure 🟡
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Studio model & CRUD | 🟢 | Claude | With teams, skills, tags relations |
+| Team model & CRUD | 🟢 | Claude | With color, members, boards relations |
+| Team member management | 🟢 | Claude | With roles and titles |
+| User skills system | 🟢 | Claude | UserSkill model with Skill relation |
+| Tags system | 🟢 | Claude | Tag and CardTag models |
+| Organization page | 🟢 | Claude | Studios, teams, users hierarchy view |
+| Settings pages | 🟢 | Claude | Skills, tags, block types, event types managers |
+
+### 5.5.2 Timeline View 🟡
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| BlockType model | 🟢 | Claude | With seeded defaults (Spine, Concept, Production, Tweak) |
+| EventType model | 🟢 | Claude | With seeded defaults (GSD, Review, Demo, etc.) |
+| TimelineBlock model | 🟢 | Claude | Linked to boards and lists |
+| TimelineEvent model | 🟢 | Claude | Milestones and deadlines |
+| TimelineAssignment model | 🟢 | Claude | User dedication percentages |
+| Timeline view page | 🟢 | Claude | Grid with date headers, project rows, blocks |
+| Zoom levels (Day/Week/Month) | 🟢 | Claude | With business day calculation |
+| Filter panel | 🟢 | Claude | By team, user, block type, event type |
+
+### 5.5.3 Timeline-Planning Sync 🟢
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| List-TimelineBlock one-to-one relation | 🟢 | Claude | listId on TimelineBlock |
+| Auto-create timeline blocks | 🟢 | Claude | When planning lists get dates |
+| Apply dates from project start | 🟢 | Claude | POST /api/boards/[id]/apply-dates |
+| Sync to Timeline button | 🟢 | Claude | In Planning view stats |
+| Sync indicator badges | 🟢 | Claude | On planning lists with linked blocks |
+| durationDays support | 🟢 | Claude | 5-day blocks with business day calc |
+
+### 5.5.4 Time Tracking 🔴
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| TimeLog model | 🟢 | Claude | Schema ready |
+| Auto-start on In Progress | 🔴 | - | When card moves to In Progress |
+| Manual time entry (admin) | 🔴 | - | |
+| User time stats | 🔴 | - | |
+
+---
+
 ## Phase 6: Polish & Advanced Features
 **Target**: Production readiness
 
@@ -240,6 +286,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-01 | 5.5.3 | Timeline-Planning Sync: auto-create timeline blocks from planning lists, apply dates endpoint, sync button in Planning view, sync badges on lists | Claude |
 | 2026-01-31 | 3.3 | Project Templates: clone board API with ID remapping for card connections, duplicate/save as template in settings, template indicator on boards page, create from template in dialog | Claude |
 | 2026-01-31 | 2.1 | Attachments with comments: rename attachments, comment on attachments, @[name] syntax to link attachments in card comments | Claude |
 | 2025-01-31 | 3.2 | Board Management complete: templates (Blank/Standard Slot/Branded Game), archive board, member management (add/remove/roles) | Claude |

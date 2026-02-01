@@ -73,6 +73,18 @@ export async function GET(
                 },
               },
             },
+            // Include timeline block relation for sync indicator
+            timelineBlock: {
+              select: {
+                id: true,
+                blockType: {
+                  select: {
+                    name: true,
+                    color: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -125,9 +137,15 @@ export async function GET(
       return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
     };
 
-    // Enhance cards with computed stats
+    // Enhance cards with computed stats and include timeline block info
     const enhancedLists = board.lists.map(list => ({
       ...list,
+      // Add timeline block info for sync indicator
+      timelineBlockId: list.timelineBlock?.id || null,
+      timelineBlock: list.timelineBlock ? {
+        id: list.timelineBlock.id,
+        blockType: list.timelineBlock.blockType,
+      } : null,
       cards: list.cards.map(card => {
         if (card.type === 'USER_STORY') {
           const connectedTasks = tasksByUserStory.get(card.id) || [];

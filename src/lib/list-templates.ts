@@ -7,6 +7,7 @@ export interface ListTemplateItem {
   phase?: ListPhase;
   color: string;
   durationWeeks: number;
+  durationDays?: number; // Alternative: duration in business days (for 5-day blocks)
   position: number;
 }
 
@@ -102,27 +103,55 @@ export const DEFAULT_PROJECT_LINKS = {
   gameNameBrainstorming: 'https://docs.google.com/spreadsheets/d/1gsDa2F9ojf5jCtJMqPgF0xFhoVgxw5tsNpEMORCuEJg/edit#gid=235114580',
 };
 
+// Helper to add business days (skipping weekends)
+export function addBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let remainingDays = days;
+
+  while (remainingDays > 0) {
+    result.setDate(result.getDate() + 1);
+    const dayOfWeek = result.getDay();
+    // Skip weekends (0 = Sunday, 6 = Saturday)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      remainingDays--;
+    }
+  }
+
+  return result;
+}
+
 // Calculate list dates based on project start date
 export function calculateListDates(
   template: ListTemplate,
   projectStartDate: Date
-): { listName: string; startDate: Date; endDate: Date }[] {
-  const dates: { listName: string; startDate: Date; endDate: Date }[] = [];
-  const currentDate = new Date(projectStartDate);
+): { listName: string; startDate: Date; endDate: Date; durationDays?: number }[] {
+  const dates: { listName: string; startDate: Date; endDate: Date; durationDays?: number }[] = [];
+  let currentDate = new Date(projectStartDate);
 
   for (const list of template.planningLists) {
     const startDate = new Date(currentDate);
-    const endDate = new Date(currentDate);
-    endDate.setDate(endDate.getDate() + list.durationWeeks * 7 - 1);
+    let endDate: Date;
+    let durationDays: number | undefined;
+
+    if (list.durationDays !== undefined) {
+      // Use business days (for 5-day blocks)
+      durationDays = list.durationDays;
+      endDate = addBusinessDays(startDate, list.durationDays - 1);
+      currentDate = addBusinessDays(endDate, 1);
+    } else {
+      // Use calendar weeks
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + list.durationWeeks * 7 - 1);
+      currentDate = new Date(endDate);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
     dates.push({
       listName: list.name,
       startDate,
       endDate,
+      durationDays,
     });
-
-    // Move to next phase
-    currentDate.setDate(currentDate.getDate() + list.durationWeeks * 7);
   }
 
   return dates;

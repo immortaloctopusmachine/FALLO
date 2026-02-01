@@ -34,13 +34,25 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, position } = body;
+    const { name, position, color, phase, durationWeeks, durationDays, startDate, endDate } = body;
+
+    // Validate phase if provided
+    const validPhases = ['BACKLOG', 'SPINE_PROTOTYPE', 'CONCEPT', 'PRODUCTION', 'TWEAK', 'DONE'];
+    const listPhase = phase !== undefined
+      ? (phase && validPhases.includes(phase) ? phase : null)
+      : undefined;
 
     const list = await prisma.list.update({
       where: { id: listId, boardId },
       data: {
         ...(name && { name: name.trim() }),
         ...(position !== undefined && { position }),
+        ...(color !== undefined && { color: color || null }),
+        ...(listPhase !== undefined && { phase: listPhase }),
+        ...(durationWeeks !== undefined && { durationWeeks: durationWeeks || null }),
+        ...(durationDays !== undefined && { durationDays: durationDays || null }),
+        ...(startDate !== undefined && { startDate: startDate ? new Date(startDate) : null }),
+        ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
       },
     });
 

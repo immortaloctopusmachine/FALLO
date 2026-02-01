@@ -57,6 +57,162 @@ enum ListPhase {
 
 // ============== MODELS ==============
 
+// Organization hierarchy
+model Studio {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  image       String?   // Header image URL
+  color       String?   // Brand color
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  teams       Team[]
+  skills      Skill[]
+  tags        Tag[]
+  blockTypes  BlockType[]
+  eventTypes  EventType[]
+
+  @@map("studios")
+}
+
+model Team {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  image       String?   // Header image URL
+  color       String    // Team color (required for timeline)
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  studioId    String?   // Optional - some teams may not belong to a studio
+  studio      Studio?   @relation(fields: [studioId], references: [id])
+  members     TeamMember[]
+  boards      Board[]
+
+  @@index([studioId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  role      UserRole @default(MEMBER)  // Permission role
+  title     String?  // Job title: Lead, Artist, Animator, etc.
+  joinedAt  DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@map("team_members")
+}
+
+// Skills system
+model Skill {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studioId    String?  // null = global skill
+  studio      Studio?  @relation(fields: [studioId], references: [id])
+  userSkills  UserSkill[]
+
+  @@index([studioId])
+  @@map("skills")
+}
+
+model UserSkill {
+  id         String   @id @default(cuid())
+  assignedAt DateTime @default(now())
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId    String
+  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@map("user_skills")
+}
+
+// Tags for tasks
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  color       String?
+  description String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  studioId    String?  // null = global tag
+  studio      Studio?  @relation(fields: [studioId], references: [id])
+  cardTags    CardTag[]
+
+  @@unique([studioId, name])
+  @@index([studioId])
+  @@map("tags")
+}
+
+model CardTag {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, tagId])
+  @@map("card_tags")
+}
+
+// Block types for timeline
+model BlockType {
+  id          String   @id @default(cuid())
+  name        String   // SPINE_PROTOTYPE, CONCEPT, PRODUCTION, TWEAK, etc.
+  color       String
+  description String?
+  isDefault   Boolean  @default(false)  // Pre-seeded types
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studioId    String?
+  studio      Studio?  @relation(fields: [studioId], references: [id])
+  blocks      TimelineBlock[]
+
+  @@index([studioId])
+  @@map("block_types")
+}
+
+// Event types for timeline
+model EventType {
+  id          String   @id @default(cuid())
+  name        String   // GSD, Marketing Deadline, Review, etc.
+  color       String
+  icon        String?  // Optional icon identifier
+  description String?
+  isDefault   Boolean  @default(false)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studioId    String?
+  studio      Studio?  @relation(fields: [studioId], references: [id])
+  events      TimelineEvent[]
+
+  @@index([studioId])
+  @@map("event_types")
+}
+
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
@@ -72,6 +228,13 @@ model User {
   assignedCards CardUser[]
   comments      Comment[]
   activities    Activity[]
+  attachments   Attachment[]
+
+  // Organization relations
+  teamMembers   TeamMember[]
+  userSkills    UserSkill[]
+  timeLogs      TimeLog[]
+  timelineAssignments TimelineAssignment[]
 
   // NextAuth relations
   accounts      Account[]
@@ -139,6 +302,15 @@ model Board {
   activities      Activity[]
   weeklyProgress  WeeklyProgress[]
 
+  // Team relation
+  teamId          String?
+  team            Team?    @relation(fields: [teamId], references: [id])
+
+  // Timeline relations
+  timelineBlocks  TimelineBlock[]
+  timelineEvents  TimelineEvent[]
+
+  @@index([teamId])
   @@map("boards")
 }
 
@@ -171,11 +343,16 @@ model List {
   startDate  DateTime?                        // Start date for planning lists
   endDate    DateTime?                        // End date for planning lists
   durationWeeks Int?                          // Default duration in weeks
+  durationDays  Int?                          // Duration in business days (for 5-day blocks)
 
   // Relations
   boardId String
   board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards   Card[]
+
+  // Timeline sync
+  timelineBlock   TimelineBlock?
+  timeLogs        TimeLog[]
 
   @@index([boardId])
   @@index([viewType])
@@ -213,6 +390,10 @@ model Card {
   userStoryData Json? // UserStoryCardData
   epicData      Json? // EpicCardData
   utilityData   Json? // UtilityCardData
+
+  // Tags and time tracking
+  tags          CardTag[]
+  timeLogs      TimeLog[]
 
   @@index([listId])
   @@index([parentId])
@@ -263,11 +444,14 @@ model Attachment {
   createdAt DateTime @default(now())
 
   // Relations
-  cardId   String
-  card     Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  comments Comment[]
+  cardId     String
+  card       Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  uploaderId String?
+  uploader   User?     @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  comments   Comment[]
 
   @@index([cardId])
+  @@index([uploaderId])
   @@map("attachments")
 }
 
@@ -339,4 +523,90 @@ model WeeklyProgress {
   @@unique([boardId, weekStartDate])
   @@index([boardId])
   @@map("weekly_progress")
+}
+
+// Timeline blocks (phases)
+model TimelineBlock {
+  id          String   @id @default(cuid())
+  startDate   DateTime
+  endDate     DateTime
+  position    Int      // Sequence number (e.g., "Production 3")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  boardId     String
+  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  blockTypeId String
+  blockType   BlockType @relation(fields: [blockTypeId], references: [id])
+
+  // Link to Planning view list for sync
+  listId      String?  @unique
+  list        List?    @relation(fields: [listId], references: [id])
+
+  assignments TimelineAssignment[]
+
+  @@index([boardId])
+  @@map("timeline_blocks")
+}
+
+// User assignments to timeline blocks with dedication
+model TimelineAssignment {
+  id          String   @id @default(cuid())
+  dedication  Int      // 25, 50, 75, 100 (percentage)
+  startDate   DateTime // Can differ from block dates
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  blockId     String
+  block       TimelineBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([blockId])
+  @@index([userId])
+  @@map("timeline_assignments")
+}
+
+// Timeline events (milestones, deadlines)
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime // Same as startDate for single-day events
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  boardId     String
+  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  eventTypeId String
+  eventType   EventType @relation(fields: [eventTypeId], references: [id])
+
+  @@index([boardId])
+  @@map("timeline_events")
+}
+
+// Time tracking
+model TimeLog {
+  id          String    @id @default(cuid())
+  startTime   DateTime
+  endTime     DateTime?  // null = still in progress
+  durationMs  Int?       // Calculated when ended
+  isManual    Boolean   @default(false)  // Admin manual adjustment
+  notes       String?    // For manual adjustments
+
+  cardId      String
+  card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listId      String    // Which list it was in (for tracking review time etc.)
+  list        List      @relation(fields: [listId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([cardId])
+  @@index([userId])
+  @@index([listId])
+  @@map("time_logs")
 }

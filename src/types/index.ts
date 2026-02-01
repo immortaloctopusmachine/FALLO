@@ -170,6 +170,16 @@ export interface List {
   startDate?: string | null;
   endDate?: string | null;
   durationWeeks?: number | null;
+  durationDays?: number | null; // Duration in business days (for 5-day blocks)
+  // Timeline sync
+  timelineBlockId?: string | null;
+  timelineBlock?: {
+    id: string;
+    blockType: {
+      name: string;
+      color: string;
+    };
+  } | null;
 }
 
 export interface Board {
@@ -255,4 +265,80 @@ export interface PaginationMeta {
   pageSize: number;
   total: number;
   totalPages: number;
+}
+
+// Timeline Types
+export type TimelineZoomLevel = 'day' | 'week' | 'month';
+
+export interface BlockType {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  isDefault: boolean;
+  position: number;
+}
+
+export interface EventType {
+  id: string;
+  name: string;
+  color: string;
+  icon: string | null;
+  description: string | null;
+  isDefault: boolean;
+  position: number;
+}
+
+export interface TimelineAssignment {
+  id: string;
+  dedication: number; // 25, 50, 75, 100
+  startDate: string;
+  endDate: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+  };
+}
+
+export interface TimelineBlock {
+  id: string;
+  startDate: string;
+  endDate: string;
+  position: number;
+  blockType: BlockType;
+  list: {
+    id: string;
+    name: string;
+    phase: string | null;
+  } | null;
+  assignments: TimelineAssignment[];
+}
+
+export interface TimelineEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  startDate: string;
+  endDate: string;
+  eventType: EventType;
+}
+
+export interface TimelineData {
+  board: {
+    id: string;
+    name: string;
+    description: string | null;
+    teamId: string | null;
+    team: {
+      id: string;
+      name: string;
+      color: string;
+    } | null;
+  };
+  blocks: TimelineBlock[];
+  events: TimelineEvent[];
+  blockTypes: BlockType[];
+  eventTypes: EventType[];
 }

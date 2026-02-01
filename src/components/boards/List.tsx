@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText } from 'lucide-react';
+import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText, CalendarRange, Unlink } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,6 +35,14 @@ const CARD_TYPES: { value: CardType; label: string; icon: typeof CheckSquare; co
   { value: 'UTILITY', label: 'Utility', icon: FileText, color: 'text-card-utility' },
 ];
 
+interface TimelineBlockInfo {
+  id: string;
+  blockType: {
+    name: string;
+    color: string;
+  };
+}
+
 interface ListProps {
   id: string;
   name: string;
@@ -37,12 +51,14 @@ interface ListProps {
   onAddCard: (listId: string, title: string, type: CardType) => Promise<void>;
   onCardClick: (card: Card) => void;
   onDeleteList: (listId: string) => Promise<void>;
+  onDetachFromTimeline?: (listId: string) => Promise<void>;
   cardTypeFilter?: CardType; // Only show cards of this type
   listColor?: string | null; // Custom list header color
   showDateRange?: boolean; // Show date range in header
   startDate?: string | null;
   endDate?: string | null;
   donePoints?: number; // Story points of completed tasks (for planning view)
+  timelineBlock?: TimelineBlockInfo | null; // Timeline sync info
 }
 
 // Get subtle background color based on list name
@@ -80,12 +96,14 @@ export function List({
   onAddCard,
   onCardClick,
   onDeleteList,
+  onDetachFromTimeline,
   cardTypeFilter,
   listColor: customListColor,
   showDateRange,
   startDate,
   endDate,
   donePoints,
+  timelineBlock,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -186,6 +204,29 @@ export function List({
                 {donePoints !== undefined ? `${donePoints}/${totalStoryPoints}` : totalStoryPoints} SP
               </span>
             )}
+            {/* Timeline Sync Indicator */}
+            {timelineBlock && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-tiny font-medium"
+                      style={{
+                        backgroundColor: `${timelineBlock.blockType.color}20`,
+                        color: timelineBlock.blockType.color,
+                      }}
+                    >
+                      <CalendarRange className="h-3 w-3" />
+                      <span>Synced</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Linked to Timeline: {timelineBlock.blockType.name}</p>
+                    <p className="text-text-tertiary">Dates sync from Timeline view</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
           {dateRange && (
             <span className="text-tiny text-text-tertiary">{dateRange}</span>
@@ -207,6 +248,12 @@ export function List({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {timelineBlock && onDetachFromTimeline && (
+                <DropdownMenuItem onClick={() => onDetachFromTimeline(id)}>
+                  <Unlink className="h-4 w-4 mr-2" />
+                  Detach from Timeline
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => onDeleteList(id)} className="text-error">
                 Delete List
               </DropdownMenuItem>

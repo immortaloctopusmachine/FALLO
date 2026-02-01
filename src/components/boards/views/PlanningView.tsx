@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   Target,
   LayoutGrid,
+  CalendarRange,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,6 +117,7 @@ export function PlanningView({
   const [statsExpanded, setStatsExpanded] = useState(true);
   const [isCreatingLists, setIsCreatingLists] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<'STANDARD_SLOT' | 'BRANDED_GAME'>('STANDARD_SLOT');
+  const [isSyncingTimeline, setIsSyncingTimeline] = useState(false);
 
   // Filter to get Epics and User Stories
   const epics = useMemo(() => {
@@ -623,6 +625,73 @@ export function PlanningView({
     }
   }, [board.id]);
 
+  const handleDetachFromTimeline = useCallback(async (listId: string) => {
+    if (!confirm('Are you sure you want to detach this list from the Timeline? Dates will no longer sync.')) {
+      return;
+    }
+
+    try {
+      // Find the timeline block linked to this list
+      const list = board.lists.find(l => l.id === listId);
+      if (!list?.timelineBlockId) return;
+
+      // Delete the timeline block (this will unlink the list)
+      const response = await fetch(`/api/boards/${board.id}/timeline/blocks/${list.timelineBlockId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setBoard((prev) => ({
+          ...prev,
+          lists: prev.lists.map((l) => {
+            if (l.id === listId) {
+              return {
+                ...l,
+                timelineBlockId: null,
+                timelineBlock: null,
+              };
+            }
+            return l;
+          }),
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to detach from timeline:', error);
+    }
+  }, [board.id, board.lists]);
+
+  // Sync planning lists to timeline (create missing timeline blocks)
+  const handleSyncToTimeline = useCallback(async () => {
+    setIsSyncingTimeline(true);
+    try {
+      const response = await fetch(`/api/boards/${board.id}/sync-timeline`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+      if (data.success && data.data.created > 0) {
+        // Refresh the board to get updated timeline block info
+        router.refresh();
+      }
+    } catch (error) {
+      console.error('Failed to sync timeline:', error);
+    } finally {
+      setIsSyncingTimeline(false);
+    }
+  }, [board.id, router]);
+
+  // Check if any planning lists are missing timeline blocks
+  const hasUnsyncedLists = useMemo(() => {
+    return planningLists.some(list =>
+      list.startDate && list.endDate && !list.timelineBlock
+    );
+  }, [planningLists]);
+
+  // Check if there are planning lists but they're missing dates (need to set project start)
+  const hasListsWithoutDates = useMemo(() => {
+    return planningLists.some(list => !list.startDate || !list.endDate);
+  }, [planningLists]);
+
   // Get health icon and color
   const getHealthIcon = (health: EpicHealth) => {
     switch (health) {
@@ -641,14 +710,35 @@ export function PlanningView({
       'border-b border-border bg-surface transition-all duration-300 overflow-hidden',
       statsExpanded ? 'max-h-[400px]' : 'max-h-10'
     )}>
-      <button
-        onClick={() => setStatsExpanded(!statsExpanded)}
-        className="flex items-center gap-2 w-full px-4 py-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
-      >
-        {statsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <BarChart3 className="h-4 w-4" />
-        Project Statistics
-      </button>
+      <div className="flex items-center justify-between px-4 py-2">
+        <button
+          onClick={() => setStatsExpanded(!statsExpanded)}
+          className="flex items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
+        >
+          {statsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <BarChart3 className="h-4 w-4" />
+          Project Statistics
+        </button>
+        <div className="flex items-center gap-2">
+          {hasListsWithoutDates && (
+            <span className="text-tiny text-text-tertiary">
+              Set project start date in settings to enable timeline sync
+            </span>
+          )}
+          {hasUnsyncedLists && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncToTimeline}
+              disabled={isSyncingTimeline}
+              className="gap-2"
+            >
+              <CalendarRange className="h-4 w-4" />
+              {isSyncingTimeline ? 'Syncing...' : 'Sync to Timeline'}
+            </Button>
+          )}
+        </div>
+      </div>
 
       {statsExpanded && (
         <div className="px-4 pb-4">
@@ -874,12 +964,14 @@ export function PlanningView({
                   onAddCard={handleAddUserStory}
                   onCardClick={handleCardClick}
                   onDeleteList={handleDeleteList}
+                  onDetachFromTimeline={handleDetachFromTimeline}
                   cardTypeFilter="USER_STORY"
                   listColor={list.color}
                   showDateRange
                   startDate={list.startDate}
                   endDate={list.endDate}
                   donePoints={listDonePoints[list.id]}
+                  timelineBlock={list.timelineBlock}
                 />
               ))}
             </div>
@@ -981,12 +1073,14 @@ export function PlanningView({
                     onAddCard={handleAddUserStory}
                     onCardClick={handleCardClick}
                     onDeleteList={handleDeleteList}
+                    onDetachFromTimeline={handleDetachFromTimeline}
                     cardTypeFilter="USER_STORY"
                     listColor={list.color}
                     showDateRange
                     startDate={list.startDate}
                     endDate={list.endDate}
                     donePoints={listDonePoints[list.id]}
+                    timelineBlock={list.timelineBlock}
                   />
                 </SortableContext>
               ))}
