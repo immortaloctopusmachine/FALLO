@@ -231,6 +231,19 @@
 | Timeline view page | 🟢 | Claude | Grid with date headers, project rows, blocks |
 | Zoom levels (Day/Week/Month) | 🟢 | Claude | With business day calculation |
 | Filter panel | 🟢 | Claude | By team, user, block type, event type |
+| Global navigation header | 🟢 | Claude | Consistent nav across all dashboard pages |
+| Create project from Timeline | 🟢 | Claude | CreateProjectDialog with templates |
+| Grid fills viewport width | ⏸️ | - | See Notes section - CSS approaches tried |
+| Block drag-and-drop (resize/move) | 🟢 | Claude | Snap-to-grid, business day calc |
+| Block edit modal | 🟢 | Claude | BlockEditModal with type/dates/list |
+| Block delete functionality | 🟢 | Claude | Context menu + modal confirmation |
+| Add new block functionality | 🟢 | Claude | AddBlockDialog with list options |
+| Timeline events CRUD | 🟢 | Claude | EventEditModal, right-click context menu on events row |
+| Event drag-and-drop | 🟢 | Claude | Day-by-day snapping, business day calculation |
+| Events follow block moves | 🟢 | Claude | Events in block date range move with blocks |
+| Long-press right-click drag | 🟢 | Claude | 400ms hold to drag entire section (all blocks + events) |
+| Block collision prevention | 🟢 | Claude | Blocks push in drag direction, cascading resolution |
+| Cross-project state isolation | 🟢 | Claude | Fixed stale closure bug in state updaters |
 
 ### 5.5.3 Timeline-Planning Sync 🟢
 | Task | Status | Owner | Notes |
@@ -286,6 +299,9 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-03 | 5.5.2 | Timeline events: CRUD with context menu, drag-and-drop (day snap), events follow blocks, long-press drag for entire section, block collision prevention, cross-project state isolation fix | Claude |
+| 2026-02-02 | 5.5.2 | Timeline block interactions: drag-and-drop resize/move, edit modal, delete with confirmation, add new block dialog with list linking options | Claude |
+| 2026-02-02 | 5.5.2 | Global navigation header, Create Project from Timeline dialog, Planning view collapsible lists with story points, Timeline week/month visual separators | Claude |
 | 2026-02-01 | 5.5.3 | Timeline-Planning Sync: auto-create timeline blocks from planning lists, apply dates endpoint, sync button in Planning view, sync badges on lists | Claude |
 | 2026-01-31 | 3.3 | Project Templates: clone board API with ID remapping for card connections, duplicate/save as template in settings, template indicator on boards page, create from template in dialog | Claude |
 | 2026-01-31 | 2.1 | Attachments with comments: rename attachments, comment on attachments, @[name] syntax to link attachments in card comments | Claude |
@@ -306,6 +322,16 @@
 
 ### Architectural Decisions
 1. **Card polymorphism**: Single `Card` table with `type` discriminator + type-specific JSON fields. Decision: Implemented in prisma/schema.prisma
+
+### Timeline Grid Width Issue (Blocked)
+The timeline grid does not fill the entire viewport width when there are fewer columns than the viewport width. Multiple CSS approaches were tried without success:
+
+1. **Approach 1**: Changed container from fixed `width: totalDays * columnWidth` to `minWidth: '100%', width: max(100%, ${totalDays * columnWidth}px)` - No effect
+2. **Approach 2**: Wrapped DateHeader and project rows in a single container with minWidth - No effect
+3. **Approach 3**: Added flex fill divs (`<div className="flex-1 bg-background" />`) at the end of each row to fill remaining space - No effect
+4. **Approach 4**: Added minWidth prop to TimelineProjectRow and TimelineUserRow components - No effect
+
+The issue persists across all zoom levels (day, week, month) with month view being closest to filling the viewport. Root cause likely involves the scrollable container and flex layout interaction. May need investigation with browser dev tools to identify the constraint.
 
 ### Open Questions
 1. Real-time collaboration scope for MVP?
