@@ -1,28 +1,51 @@
-# User Roles and Skills
+# Permissions, Roles, and Skills
 
-This document outlines the available user roles and skills in the Fantasma PM App.
+This document outlines user permissions, company roles, and skills in Fallo.
 
 ---
 
-## User Roles
+## User Permissions
 
-User roles determine permission levels within the application.
+Permissions determine access levels within the application. Stored as `UserPermission` enum in the database.
 
-| Role | Value | Permissions |
-|------|-------|-------------|
-| **Admin** | `admin` | Full CRUD - Create, Read, Update, Delete all entities |
-| **Edit** | `edit` | Modify existing content, cannot delete |
-| **View** | `view` | Read-only access |
+| Permission | Value | Access |
+|------------|-------|--------|
+| **Viewer** | `VIEWER` | Read-only access to boards and cards |
+| **Member** | `MEMBER` | Can create and edit cards |
+| **Admin** | `ADMIN` | Can manage boards, lists, and users |
+| **Super Admin** | `SUPER_ADMIN` | Full system access, can create/delete users |
+
+> **Note:** Previously called "Roles" — renamed to "Permissions" in Feb 2026 to distinguish from Company Roles.
+
+---
+
+## Company Roles
+
+Company roles represent job functions within the organization. Users can have multiple roles. These are managed in **Settings > Roles**.
+
+### Default Roles
+
+| Role | Color | Hex | Description |
+|------|-------|-----|-------------|
+| **PO** | Purple | `#8b5cf6` | Product Owner |
+| **Lead** | Blue | `#3b82f6` | Team Lead |
+| **Artist** | Pink | `#ec4899` | Visual Artist |
+| **Animator** | Orange | `#f97316` | Spine / 2D Animator |
+| **QA** | Teal | `#14b8a6` | Quality Assurance |
+| **Math** | Indigo | `#6366f1` | Game Mathematics |
+| **Sound** | Red | `#ef4444` | Sound Designer |
+
+### Custom Roles
+
+Administrators can create additional company roles via Settings > Roles with custom names, descriptions, and colors.
 
 ---
 
 ## Skills
 
-Skills represent competencies that can be assigned to users. These are used to match team members to appropriate work blocks.
+Skills represent technical competencies that can be assigned to users. These are used to match team members to appropriate work blocks. Managed in **Settings > Skills**.
 
 ### Default Skills
-
-The following skills are pre-defined in the system:
 
 | Skill | Description |
 |-------|-------------|
@@ -39,7 +62,7 @@ The following skills are pre-defined in the system:
 
 ### Custom Skills
 
-In addition to the default skills, administrators can create custom skills to match specific team competencies.
+Administrators can create custom skills via Settings > Skills to match specific team competencies.
 
 ---
 
@@ -53,6 +76,16 @@ When assigning users to blocks or events, dedication levels indicate time alloca
 | **Partial** | 50% | Split between projects |
 | **Primary** | 75% | Main focus |
 | **Full** | 100% | Exclusively dedicated |
+
+---
+
+## Terminology Reference
+
+| Term | Meaning | DB Model |
+|------|---------|----------|
+| Permission | Access level (Viewer/Member/Admin/Super Admin) | `UserPermission` enum on `User.permission` |
+| Company Role | Job function (PO, Lead, Artist, etc.) | `CompanyRole` model, assigned via `UserCompanyRole` |
+| Skill | Technical competency (Spine, Concept Art, etc.) | `Skill` model, assigned via `UserSkill` |
 
 ---
 

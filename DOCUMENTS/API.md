@@ -506,11 +506,141 @@ cards = api.get_board_cards(boards[0]["id"])
 
 ---
 
+## Spine Tracker
+
+The Spine Tracker API manages Spine 4.2 skeleton asset data per board. Data is stored as a single JSON document with optimistic concurrency control.
+
+### Get Spine Tracker Data
+```http
+GET /api/boards/:boardId/spine-tracker
+```
+
+Returns the board's spine tracker data. Auto-creates an empty tracker if none exists.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx123...",
+    "data": {
+      "skeletons": [...],
+      "customGroups": {},
+      "groupOrder": ["symbols", "ui", "characters", "effects", "screens", "layout", "other"],
+      "projectName": "My Project",
+      "baseline": null
+    },
+    "version": 5,
+    "updatedAt": "2026-02-03T12:00:00Z"
+  }
+}
+```
+
+### Save Spine Tracker Data
+```http
+PUT /api/boards/:boardId/spine-tracker
+```
+
+Saves spine tracker data with optimistic concurrency. Returns `409 Conflict` if the version has changed since the client last fetched.
+
+**Body:**
+```json
+{
+  "data": { "skeletons": [...], "projectName": "...", ... },
+  "version": 5
+}
+```
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx123...",
+    "version": 6,
+    "updatedAt": "2026-02-03T12:01:00Z"
+  }
+}
+```
+
+**Conflict Response (409):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CONFLICT",
+    "message": "Data has been modified by another user. Please reload and try again."
+  },
+  "currentVersion": 7
+}
+```
+
+### Import Spine Tracker Data
+```http
+POST /api/boards/:boardId/spine-tracker/import
+```
+
+Import JSON data from a standalone Spine Tracker export. Accepts both the full `SpineTrackerState` format and the standalone `{ skeletons: [...] }` format.
+
+**Body:**
+```json
+{
+  "data": {
+    "skeletons": [
+      {
+        "id": "skeleton_0",
+        "name": "LAYOUT_TEMPLATE",
+        "status": "planned",
+        "zOrder": 0,
+        "group": "layout",
+        "description": "Master layout",
+        "placement": { "parent": null, "bone": null, "notes": "Standalone" },
+        "animations": [{ "name": "idle", "status": "planned", "track": 0, "notes": "", "soundFx": [] }],
+        "skins": [],
+        "events": [],
+        "generalNotes": ""
+      }
+    ]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clx123...",
+    "version": 2,
+    "skeletonCount": 44,
+    "updatedAt": "2026-02-03T12:05:00Z"
+  }
+}
+```
+
+### Export Spine Tracker Data
+```http
+GET /api/boards/:boardId/spine-tracker/export?format=json|markdown|changelog
+```
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `format` | string | `json` | Export format: `json`, `markdown`, or `changelog` |
+
+**Responses:**
+- `format=json` — Downloads `spine-tracker.json` (full state backup)
+- `format=markdown` — Downloads `SPINE_TRACKER.md` (documentation)
+- `format=changelog` — Downloads `spine-changes.md` (changes since baseline)
+
+---
+
 ## Revision History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-01-26 | Claude | Initial document |
+| 1.1 | 2026-02-03 | Claude | Added Spine Tracker API endpoints |
 
 ---
 

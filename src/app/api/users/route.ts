@@ -23,7 +23,7 @@ export async function GET() {
         name: true,
         email: true,
         image: true,
-        role: true,
+        permission: true,
         createdAt: true,
         teamMembers: {
           include: {
@@ -39,6 +39,11 @@ export async function GET() {
         userSkills: {
           include: {
             skill: true,
+          },
+        },
+        userCompanyRoles: {
+          include: {
+            companyRole: true,
           },
         },
         _count: {
@@ -75,10 +80,10 @@ export async function POST(request: Request) {
     // Only Super Admins can create users
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    if (currentUser?.role !== 'SUPER_ADMIN') {
+    if (currentUser?.permission !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Super Admin access required' } },
         { status: 403 }
@@ -86,7 +91,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, password, name, role, teamIds, skillIds } = body;
+    const { email, password, name, permission, teamIds, skillIds, companyRoleIds } = body;
 
     // Validate required fields
     if (!email || !password) {
@@ -113,11 +118,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate role if provided
+    // Validate permission if provided
     const validRoles = ['VIEWER', 'MEMBER', 'ADMIN', 'SUPER_ADMIN'];
-    if (role && !validRoles.includes(role)) {
+    if (permission && !validRoles.includes(permission)) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid role' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid permission' } },
         { status: 400 }
       );
     }
@@ -143,13 +148,13 @@ export async function POST(request: Request) {
         email: email.toLowerCase(),
         name: name || null,
         passwordHash,
-        role: role || 'MEMBER',
+        permission: permission || 'MEMBER',
       },
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
+        permission: true,
         createdAt: true,
       },
     });
@@ -160,7 +165,7 @@ export async function POST(request: Request) {
         data: teamIds.map((teamId: string) => ({
           userId: newUser.id,
           teamId,
-          role: 'MEMBER',
+          permission: 'MEMBER',
         })),
         skipDuplicates: true,
       });
@@ -177,6 +182,17 @@ export async function POST(request: Request) {
       });
     }
 
+    // Add company roles if provided
+    if (companyRoleIds && Array.isArray(companyRoleIds) && companyRoleIds.length > 0) {
+      await prisma.userCompanyRole.createMany({
+        data: companyRoleIds.map((companyRoleId: string) => ({
+          userId: newUser.id,
+          companyRoleId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     // Fetch the complete user with relations
     const completeUser = await prisma.user.findUnique({
       where: { id: newUser.id },
@@ -184,7 +200,7 @@ export async function POST(request: Request) {
         id: true,
         email: true,
         name: true,
-        role: true,
+        permission: true,
         createdAt: true,
         teamMembers: {
           include: {
@@ -200,6 +216,11 @@ export async function POST(request: Request) {
         userSkills: {
           include: {
             skill: true,
+          },
+        },
+        userCompanyRoles: {
+          include: {
+            companyRole: true,
           },
         },
       },

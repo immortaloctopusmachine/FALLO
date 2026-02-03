@@ -40,7 +40,7 @@
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
 | NextAuth.js setup | 🟢 | Claude | Credentials provider |
-| User roles (viewer/member/admin/super) | 🟢 | Claude | In schema |
+| User permissions (viewer/member/admin/super) | 🟢 | Claude | Renamed from "roles" to "permissions" |
 | Protected routes | 🟢 | Claude | Basic redirect |
 | Permission middleware | 🔴 | - | Phase 2 |
 
@@ -299,6 +299,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-03 | 1.3, 4.x | Rename "Roles" to "Permissions" across entire codebase (~57 files): schema enum, types, auth, 35 API routes, 28 UI components. Add new "Company Roles" feature: CompanyRole + UserCompanyRole models, settings CRUD page, role assignment to users with colored pills. Default roles: PO, Lead, Artist, Animator, QA, Math, Sound | Claude |
 | 2026-02-03 | 5.5.2 | Timeline events: CRUD with context menu, drag-and-drop (day snap), events follow blocks, long-press drag for entire section, block collision prevention, cross-project state isolation fix | Claude |
 | 2026-02-02 | 5.5.2 | Timeline block interactions: drag-and-drop resize/move, edit modal, delete with confirmation, add new block dialog with list linking options | Claude |
 | 2026-02-02 | 5.5.2 | Global navigation header, Create Project from Timeline dialog, Planning view collapsible lists with story points, Timeline week/month visual separators | Claude |

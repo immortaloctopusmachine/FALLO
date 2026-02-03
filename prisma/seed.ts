@@ -12,13 +12,13 @@ async function main() {
   const testUser = await prisma.user.upsert({
     where: { email: 'test@example.com' },
     update: {
-      role: 'SUPER_ADMIN',
+      permission: 'SUPER_ADMIN',
     },
     create: {
       email: 'test@example.com',
       name: 'Test User',
       passwordHash,
-      role: 'SUPER_ADMIN',
+      permission: 'SUPER_ADMIN',
     },
   });
 
@@ -50,7 +50,7 @@ async function main() {
     create: {
       userId: testUser.id,
       boardId: board.id,
-      role: 'ADMIN',
+      permission: 'ADMIN',
     },
   });
 
@@ -165,6 +165,34 @@ async function main() {
   }
 
   console.log('Created default event types:', defaultEventTypes.map(e => e.name).join(', '));
+
+  // Seed default company roles (global - no studioId)
+  const defaultCompanyRoles = [
+    { name: 'PO', description: 'Product Owner', color: '#8b5cf6' },
+    { name: 'Lead', description: 'Team Lead', color: '#3b82f6' },
+    { name: 'Artist', description: 'Visual Artist', color: '#ec4899' },
+    { name: 'Animator', description: 'Spine / 2D Animator', color: '#f97316' },
+    { name: 'QA', description: 'Quality Assurance', color: '#14b8a6' },
+    { name: 'Math', description: 'Game Mathematics', color: '#6366f1' },
+    { name: 'Sound', description: 'Sound Designer', color: '#ef4444' },
+  ];
+
+  for (let i = 0; i < defaultCompanyRoles.length; i++) {
+    const companyRole = defaultCompanyRoles[i];
+    await prisma.companyRole.upsert({
+      where: { id: `default-company-role-${i + 1}` },
+      update: { ...companyRole, position: i, isDefault: true },
+      create: {
+        id: `default-company-role-${i + 1}`,
+        ...companyRole,
+        position: i,
+        isDefault: true,
+        studioId: null,
+      },
+    });
+  }
+
+  console.log('Created default company roles:', defaultCompanyRoles.map(r => r.name).join(', '));
 
   console.log('Seeding completed!');
 }

@@ -61,7 +61,7 @@ interface User {
 
 interface TeamMember {
   id: string;
-  role: string;
+  permission: string;
   title: string | null;
   user: User;
 }
@@ -180,7 +180,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
       const response = await fetch(`/api/teams/${team.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role: 'MEMBER' }),
+        body: JSON.stringify({ userId, permission: 'MEMBER' }),
       });
 
       const data = await response.json();
@@ -528,7 +528,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
                               {member.user.name || member.user.email}
                             </div>
                             <div className="text-caption text-text-tertiary">
-                              {member.title || member.role.toLowerCase()}
+                              {member.title || member.permission.toLowerCase()}
                             </div>
                           </div>
                         </div>

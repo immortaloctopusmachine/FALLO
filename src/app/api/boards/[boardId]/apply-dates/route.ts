@@ -25,7 +25,7 @@ export async function POST(
       where: {
         boardId,
         userId: session.user.id,
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
       },
     });
 

@@ -54,15 +54,15 @@ export default async function BoardsPage() {
   // Check if user is admin
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    select: { permission: true },
   });
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
 
   // Helper to check if user is admin for a board
   type BoardWithMembers = typeof activeBoards[0];
   const isAdminForBoard = (board: BoardWithMembers) => {
     const membership = board.members.find(m => m.userId === session.user.id);
-    return membership?.role === 'ADMIN' || membership?.role === 'SUPER_ADMIN';
+    return membership?.permission === 'ADMIN' || membership?.permission === 'SUPER_ADMIN';
   };
 
   // Separate regular boards from templates

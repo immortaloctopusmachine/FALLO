@@ -22,10 +22,10 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
   // Check if user is admin
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    select: { permission: true },
   });
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
 
   // Fetch all boards user is a member of
   const boards = await prisma.board.findMany({

@@ -2,12 +2,12 @@
 export type CardType = 'TASK' | 'USER_STORY' | 'EPIC' | 'UTILITY';
 export type UtilitySubtype = 'LINK' | 'NOTE' | 'MILESTONE' | 'BLOCKER';
 export type UserStoryFlag = 'COMPLEX' | 'HIGH_RISK' | 'MISSING_DOCS' | 'BLOCKED' | 'NEEDS_REVIEW';
-export type UserRole = 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN';
+export type UserPermission = 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN';
 
 // View Types
 export type ListViewType = 'TASKS' | 'PLANNING';
 export type ListPhase = 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE';
-export type BoardViewMode = 'tasks' | 'planning';
+export type BoardViewMode = 'tasks' | 'planning' | 'spine';
 export type ListTemplateType = 'STANDARD_SLOT' | 'BRANDED_GAME';
 export type BoardTemplateType = 'BLANK' | 'STANDARD_SLOT' | 'BRANDED_GAME';
 
@@ -104,13 +104,29 @@ export interface UtilityCard extends BaseCard {
 export type Card = TaskCard | UserStoryCard | EpicCard | UtilityCard;
 
 // Related types
+export interface CompanyRole {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  position: number;
+  isDefault: boolean;
+}
+
+export interface UserCompanyRole {
+  id: string;
+  companyRole: CompanyRole;
+  assignedAt: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string | null;
   image: string | null;
-  role: UserRole;
+  permission: UserPermission;
   deletedAt?: string | null;
+  userCompanyRoles?: UserCompanyRole[];
 }
 
 export interface CardAssignee {
@@ -238,7 +254,7 @@ export interface BoardMember {
   id: string;
   userId: string;
   user: User;
-  role: UserRole;
+  permission: UserPermission;
   joinedAt: string;
 }
 

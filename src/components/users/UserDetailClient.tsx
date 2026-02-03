@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Mail, Calendar, Users, Layers, Sparkles, Pencil } from 'lucide-react';
+import { Mail, Calendar, Users, Layers, Sparkles, Pencil, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TeamCard } from '@/components/organization/TeamCard';
 import { EditUserDialog } from './EditUserDialog';
@@ -40,15 +40,23 @@ interface User {
   name: string | null;
   email: string;
   image: string | null;
-  role: string;
+  permission: string;
   createdAt: Date;
   teamMembers: {
     team: Team;
     title: string | null;
-    role: string;
+    permission: string;
   }[];
   userSkills: {
     skill: Skill;
+  }[];
+  userCompanyRoles?: {
+    companyRole: {
+      id: string;
+      name: string;
+      color: string | null;
+      description: string | null;
+    };
   }[];
   boardMembers: {
     board: {
@@ -57,7 +65,7 @@ interface User {
       archivedAt: Date | null;
       isTemplate: boolean;
     };
-    role: string;
+    permission: string;
   }[];
   _count: {
     assignedCards: number;
@@ -77,11 +85,18 @@ interface AllSkill {
   color: string | null;
 }
 
+interface AllCompanyRole {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface UserDetailClientProps {
   user: User;
   isSuperAdmin: boolean;
   allTeams: AllTeam[];
   allSkills: AllSkill[];
+  allCompanyRoles: AllCompanyRole[];
 }
 
 export function UserDetailClient({
@@ -89,6 +104,7 @@ export function UserDetailClient({
   isSuperAdmin,
   allTeams,
   allSkills,
+  allCompanyRoles,
 }: UserDetailClientProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
 
@@ -101,7 +117,7 @@ export function UserDetailClient({
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    permission: user.permission,
     teamMembers: user.teamMembers.map(tm => ({
       team: {
         id: tm.team.id,
@@ -114,6 +130,13 @@ export function UserDetailClient({
         id: us.skill.id,
         name: us.skill.name,
         color: us.skill.color,
+      },
+    })),
+    userCompanyRoles: (user.userCompanyRoles || []).map(ucr => ({
+      companyRole: {
+        id: ucr.companyRole.id,
+        name: ucr.companyRole.name,
+        color: ucr.companyRole.color,
       },
     })),
   };
@@ -145,7 +168,7 @@ export function UserDetailClient({
               </div>
               <div className="flex items-center gap-4 mt-2 text-caption text-text-tertiary">
                 <span className="capitalize px-2 py-0.5 rounded bg-surface-hover">
-                  {user.role.toLowerCase().replace('_', ' ')}
+                  {user.permission.toLowerCase().replace('_', ' ')}
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
@@ -189,8 +212,35 @@ export function UserDetailClient({
 
       <main className="p-6">
         <div className="grid gap-8 lg:grid-cols-3">
-          {/* Skills Section */}
+          {/* Roles & Skills Section */}
           <div className="lg:col-span-1">
+            {/* Company Roles */}
+            {(user.userCompanyRoles || []).length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="h-4 w-4 text-text-secondary" />
+                  <h2 className="text-title font-medium text-text-secondary">
+                    Roles ({(user.userCompanyRoles || []).length})
+                  </h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(user.userCompanyRoles || []).map(({ companyRole }) => (
+                    <div
+                      key={companyRole.id}
+                      className="px-3 py-1.5 rounded-full text-body font-medium"
+                      style={{
+                        backgroundColor: `${companyRole.color || '#71717a'}20`,
+                        color: companyRole.color || '#71717a',
+                      }}
+                    >
+                      {companyRole.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Skills */}
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="h-4 w-4 text-text-secondary" />
               <h2 className="text-title font-medium text-text-secondary">
@@ -242,7 +292,7 @@ export function UserDetailClient({
                   <div className="p-4 text-center text-text-tertiary">No active boards</div>
                 ) : (
                   <div className="divide-y divide-border">
-                    {activeBoards.slice(0, 5).map(({ board, role }) => (
+                    {activeBoards.slice(0, 5).map(({ board, permission }) => (
                       <Link
                         key={board.id}
                         href={`/boards/${board.id}`}
@@ -252,7 +302,7 @@ export function UserDetailClient({
                           {board.name}
                         </span>
                         <span className="text-caption text-text-tertiary capitalize">
-                          {role.toLowerCase()}
+                          {permission.toLowerCase()}
                         </span>
                       </Link>
                     ))}
@@ -317,6 +367,7 @@ export function UserDetailClient({
         user={userToEdit}
         teams={allTeams}
         skills={allSkills}
+        companyRoles={allCompanyRoles}
       />
     </div>
   );

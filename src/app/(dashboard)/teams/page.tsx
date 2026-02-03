@@ -45,9 +45,9 @@ export default async function TeamsPage() {
   // Check if user is admin
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    select: { permission: true },
   });
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
 
   // Group teams by studio
   const teamsWithStudio = teams.filter((t) => t.studio);

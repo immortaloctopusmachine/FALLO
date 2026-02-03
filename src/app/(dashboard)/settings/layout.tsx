@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sparkles, Tag, Layers, Calendar, ArrowLeft } from 'lucide-react';
+import { Sparkles, Tag, Layers, Calendar, Users, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const settingsNav = [
   { name: 'Skills', href: '/settings/skills', icon: Sparkles },
+  { name: 'Roles', href: '/settings/roles', icon: Users },
   { name: 'Tags', href: '/settings/tags', icon: Tag },
   { name: 'Block Types', href: '/settings/block-types', icon: Layers },
   { name: 'Event Types', href: '/settings/event-types', icon: Calendar },

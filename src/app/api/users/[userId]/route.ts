@@ -25,7 +25,7 @@ export async function GET(
         name: true,
         email: true,
         image: true,
-        role: true,
+        permission: true,
         createdAt: true,
         teamMembers: {
           include: {
@@ -44,6 +44,11 @@ export async function GET(
         userSkills: {
           include: {
             skill: true,
+          },
+        },
+        userCompanyRoles: {
+          include: {
+            companyRole: true,
           },
         },
         boardMembers: {
@@ -103,11 +108,11 @@ export async function PATCH(
     // Users can only update their own profile, unless admin
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
-    const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+    const isAdmin = currentUser?.permission === 'ADMIN' || currentUser?.permission === 'SUPER_ADMIN';
+    const isSuperAdmin = currentUser?.permission === 'SUPER_ADMIN';
     const isSelf = session.user.id === userId;
 
     if (!isAdmin && !isSelf) {
@@ -118,7 +123,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, image, role, teamIds, skillIds } = body;
+    const { name, image, permission, teamIds, skillIds, companyRoleIds } = body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -132,19 +137,19 @@ export async function PATCH(
       );
     }
 
-    // Validate role if provided
-    if (role !== undefined) {
+    // Validate permission if provided
+    if (permission !== undefined) {
       const validRoles = ['VIEWER', 'MEMBER', 'ADMIN', 'SUPER_ADMIN'];
-      if (!validRoles.includes(role)) {
+      if (!validRoles.includes(permission)) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid role' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid permission' } },
           { status: 400 }
         );
       }
-      // Only Super Admins can assign SUPER_ADMIN role
-      if (role === 'SUPER_ADMIN' && !isSuperAdmin) {
+      // Only Super Admins can assign SUPER_ADMIN permission
+      if (permission === 'SUPER_ADMIN' && !isSuperAdmin) {
         return NextResponse.json(
-          { success: false, error: { code: 'FORBIDDEN', message: 'Only Super Admins can assign Super Admin role' } },
+          { success: false, error: { code: 'FORBIDDEN', message: 'Only Super Admins can assign Super Admin permission' } },
           { status: 403 }
         );
       }
@@ -153,8 +158,8 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name?.trim() || null;
     if (image !== undefined) updateData.image = image || null;
-    // Only Super Admins can change roles
-    if (role !== undefined && isSuperAdmin) updateData.role = role;
+    // Only Super Admins can change permissions
+    if (permission !== undefined && isSuperAdmin) updateData.permission = permission;
 
     // Update the user
     await prisma.user.update({
@@ -175,7 +180,7 @@ export async function PATCH(
           data: teamIds.map((teamId: string) => ({
             userId,
             teamId,
-            role: 'MEMBER',
+            permission: 'MEMBER',
           })),
           skipDuplicates: true,
         });
@@ -201,6 +206,25 @@ export async function PATCH(
       }
     }
 
+    // Update company roles if provided (Super Admin only)
+    if (companyRoleIds !== undefined && isSuperAdmin) {
+      // Remove all existing company roles
+      await prisma.userCompanyRole.deleteMany({
+        where: { userId },
+      });
+
+      // Add new company roles
+      if (Array.isArray(companyRoleIds) && companyRoleIds.length > 0) {
+        await prisma.userCompanyRole.createMany({
+          data: companyRoleIds.map((companyRoleId: string) => ({
+            userId,
+            companyRoleId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     // Fetch the complete updated user
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -209,7 +233,7 @@ export async function PATCH(
         name: true,
         email: true,
         image: true,
-        role: true,
+        permission: true,
         teamMembers: {
           include: {
             team: {
@@ -224,6 +248,11 @@ export async function PATCH(
         userSkills: {
           include: {
             skill: true,
+          },
+        },
+        userCompanyRoles: {
+          include: {
+            companyRole: true,
           },
         },
       },
@@ -258,10 +287,10 @@ export async function DELETE(
     // Only Super Admins can delete users
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    if (currentUser?.role !== 'SUPER_ADMIN') {
+    if (currentUser?.permission !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Super Admin access required' } },
         { status: 403 }
@@ -310,6 +339,11 @@ export async function DELETE(
 
     // Remove skills (no longer relevant for a deleted user)
     await prisma.userSkill.deleteMany({
+      where: { userId },
+    });
+
+    // Remove company roles
+    await prisma.userCompanyRole.deleteMany({
       where: { userId },
     });
 

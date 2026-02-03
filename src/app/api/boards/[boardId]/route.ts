@@ -36,7 +36,7 @@ export async function GET(
                 name: true,
                 email: true,
                 image: true,
-                role: true,
+                permission: true,
               },
             },
           },
@@ -234,7 +234,7 @@ export async function PATCH(
       where: {
         boardId,
         userId: session.user.id,
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
       },
     });
 
@@ -288,7 +288,7 @@ export async function DELETE(
       where: {
         boardId,
         userId: session.user.id,
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
       },
     });
 

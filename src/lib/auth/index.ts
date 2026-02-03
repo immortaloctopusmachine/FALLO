@@ -3,7 +3,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import Credentials from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/prisma';
 import { comparePassword } from './password';
-import type { UserRole } from '@/types';
+import type { UserPermission } from '@/types';
 import type { Adapter } from 'next-auth/adapters';
 
 declare module 'next-auth' {
@@ -13,19 +13,19 @@ declare module 'next-auth' {
       email: string;
       name: string | null;
       image: string | null;
-      role: UserRole;
+      permission: UserPermission;
     };
   }
 
   interface User {
-    role: UserRole;
+    permission: UserPermission;
   }
 }
 
 declare module '@auth/core/jwt' {
   interface JWT {
     id: string;
-    role: UserRole;
+    permission: UserPermission;
   }
 }
 
@@ -73,7 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           image: user.image,
-          role: user.role as UserRole,
+          permission: user.permission as UserPermission,
         };
       },
     }),
@@ -82,14 +82,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
-        token.role = user.role;
+        token.permission = user.permission;
+      }
+      // Backward compat: existing sessions may have 'role' instead of 'permission'
+      if (!token.permission && (token as Record<string, unknown>).role) {
+        token.permission = (token as Record<string, unknown>).role as UserPermission;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
+        session.user.permission = token.permission as UserPermission;
       }
       return session;
     },

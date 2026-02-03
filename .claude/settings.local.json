@@ -41,7 +41,10 @@
       "Bash(tasklist:*)",
       "Bash(npm run db:seed:*)",
       "Bash(npx next build:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(del /f \"C:\\\\project-planner\\\\project-planner\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node\")",
+      "Bash(npx ts-node:*)",
+      "Bash(git status:*)"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",

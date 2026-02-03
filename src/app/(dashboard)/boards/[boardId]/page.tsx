@@ -39,7 +39,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
                 name: true,
                 email: true,
                 image: true,
-                role: true,
+                permission: true,
               },
             },
           },
@@ -153,9 +153,9 @@ export default async function BoardPage({ params }: BoardPageProps) {
         email: m.user.email,
         name: m.user.name,
         image: m.user.image,
-        role: m.user.role as 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN',
+        permission: m.user.permission as 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN',
       },
-      role: m.role as 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN',
+      permission: m.permission as 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN',
       joinedAt: m.joinedAt.toISOString(),
     })),
     lists: boardData.lists.map((list) => ({
@@ -206,7 +206,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
               email: a.user.email,
               name: a.user.name,
               image: a.user.image,
-              role: 'MEMBER' as const,
+              permission: 'MEMBER' as const,
             },
             assignedAt: a.assignedAt.toISOString(),
           })),
@@ -289,7 +289,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
 
   // Check if current user is admin
   const currentMember = boardData.members.find((m) => m.userId === session.user.id);
-  const isAdmin = currentMember?.role === 'ADMIN' || currentMember?.role === 'SUPER_ADMIN';
+  const isAdmin = currentMember?.permission === 'ADMIN' || currentMember?.permission === 'SUPER_ADMIN';
 
   return (
     <BoardViewWrapper

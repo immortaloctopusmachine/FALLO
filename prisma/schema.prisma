@@ -12,11 +12,13 @@ datasource db {
 
 // ============== ENUMS ==============
 
-enum UserRole {
+enum UserPermission {
   VIEWER
   MEMBER
   ADMIN
   SUPER_ADMIN
+
+  @@map("UserRole")
 }
 
 enum CardType {
@@ -68,11 +70,12 @@ model Studio {
   updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
 
-  teams       Team[]
-  skills      Skill[]
-  tags        Tag[]
-  blockTypes  BlockType[]
-  eventTypes  EventType[]
+  teams        Team[]
+  skills       Skill[]
+  tags         Tag[]
+  blockTypes   BlockType[]
+  eventTypes   EventType[]
+  companyRoles CompanyRole[]
 
   @@map("studios")
 }
@@ -99,8 +102,8 @@ model Team {
 
 model TeamMember {
   id        String   @id @default(cuid())
-  role      UserRole @default(MEMBER)  // Permission role
-  title     String?  // Job title: Lead, Artist, Animator, etc.
+  permission UserPermission @default(MEMBER) @map("role")
+  title      String?  // Job title: Lead, Artist, Animator, etc.
   joinedAt  DateTime @default(now())
 
   userId    String
@@ -141,6 +144,38 @@ model UserSkill {
 
   @@unique([userId, skillId])
   @@map("user_skills")
+}
+
+// Company roles (job functions: PO, Lead, Artist, etc.)
+model CompanyRole {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String?
+  position    Int      @default(0)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  studioId         String?
+  studio           Studio?           @relation(fields: [studioId], references: [id])
+  userCompanyRoles UserCompanyRole[]
+
+  @@index([studioId])
+  @@map("company_roles")
+}
+
+model UserCompanyRole {
+  id         String   @id @default(cuid())
+  assignedAt DateTime @default(now())
+
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyRoleId String
+  companyRole   CompanyRole @relation(fields: [companyRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyRoleId])
+  @@map("user_company_roles")
 }
 
 // Tags for tasks
@@ -219,7 +254,7 @@ model User {
   name          String?
   image         String?
   passwordHash  String?       // For credentials auth
-  role          UserRole      @default(MEMBER)
+  permission    UserPermission @default(MEMBER) @map("role")
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?     // Soft delete - user data preserved on boards
@@ -232,9 +267,10 @@ model User {
   attachments   Attachment[]
 
   // Organization relations
-  teamMembers   TeamMember[]
-  userSkills    UserSkill[]
-  timeLogs      TimeLog[]
+  teamMembers      TeamMember[]
+  userSkills       UserSkill[]
+  userCompanyRoles UserCompanyRole[]
+  timeLogs         TimeLog[]
   timelineAssignments TimelineAssignment[]
 
   // NextAuth relations
@@ -311,14 +347,17 @@ model Board {
   timelineBlocks  TimelineBlock[]
   timelineEvents  TimelineEvent[]
 
+  // Spine Tracker
+  spineTrackerData SpineTrackerData?
+
   @@index([teamId])
   @@map("boards")
 }
 
 model BoardMember {
   id       String   @id @default(cuid())
-  role     UserRole @default(MEMBER)
-  joinedAt DateTime @default(now())
+  permission UserPermission @default(MEMBER) @map("role")
+  joinedAt   DateTime @default(now())
 
   // Relations
   userId  String
@@ -610,4 +649,20 @@ model TimeLog {
   @@index([userId])
   @@index([listId])
   @@map("time_logs")
+}
+
+// ============== SPINE TRACKER ==============
+
+model SpineTrackerData {
+  id        String   @id @default(cuid())
+  data      Json     @default("{}")    // Full spine tracker state as JSON
+  version   Int      @default(1)       // Optimistic concurrency version
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  boardId   String   @unique           // One spine tracker per board
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@map("spine_tracker_data")
 }

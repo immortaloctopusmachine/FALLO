@@ -28,9 +28,9 @@ export default async function StudiosPage() {
   // Check if user is admin
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    select: { permission: true },
   });
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
 
   return (
     <main className="p-6 flex-1">

@@ -178,9 +178,23 @@ model Board {
   archivedAt    DateTime?
   
   // Relations
-  members       BoardMember[]
-  lists         List[]
-  activities    Activity[]
+  members          BoardMember[]
+  lists            List[]
+  activities       Activity[]
+  spineTrackerData SpineTrackerData?
+}
+
+model SpineTrackerData {
+  id        String   @id @default(cuid())
+  data      Json     @default("{}")    // Full SpineTrackerState as JSON
+  version   Int      @default(1)       // Optimistic concurrency control
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  boardId   String   @unique           // One tracker per board
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@map("spine_tracker_data")
 }
 
 model BoardMember {
@@ -406,8 +420,14 @@ interface UtilityCardData {
 │       │       ├── comments/
 │       │       ├── attachments/
 │       │       └── checklists/
-│       └── members/
-│           └── route.ts     # GET, POST, DELETE
+│       ├── members/
+│       │   └── route.ts     # GET, POST, DELETE
+│       └── spine-tracker/
+│           ├── route.ts     # GET (fetch), PUT (save w/ version)
+│           ├── import/
+│           │   └── route.ts # POST (import JSON)
+│           └── export/
+│               └── route.ts # GET (?format=json|markdown|changelog)
 ├── users/
 │   └── route.ts
 └── webhooks/
@@ -599,6 +619,7 @@ CLOUDFLARE_ACCOUNT_ID=
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-01-26 | Claude | Initial document |
+| 1.1 | 2026-02-03 | Claude | Added SpineTrackerData model, Spine Tracker API routes |
 
 ---
 

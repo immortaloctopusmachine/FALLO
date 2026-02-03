@@ -7,6 +7,7 @@ import { BoardView } from './BoardView';
 import { BoardSettingsModal } from './BoardSettingsModal';
 import { BoardMembersModal } from './BoardMembersModal';
 import { TasksView, PlanningView } from './views';
+import { SpineTrackerView } from '@/components/spine-tracker';
 import type { Board, BoardViewMode, BoardSettings, WeeklyProgress } from '@/types';
 
 interface BoardViewWrapperProps {
@@ -84,6 +85,8 @@ export function BoardViewWrapper({
             isAdmin={isAdmin}
             onBoardUpdate={handleBoardUpdate}
           />
+        ) : viewMode === 'spine' ? (
+          <SpineTrackerView boardId={board.id} />
         ) : (
           // Fallback to original BoardView for legacy
           <BoardView board={board} currentUserId={currentUserId} />

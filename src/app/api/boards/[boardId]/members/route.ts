@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import type { UserRole } from '@/types';
+import type { UserPermission } from '@/types';
 
 interface RouteContext {
   params: Promise<{ boardId: string }>;
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             name: true,
             email: true,
             image: true,
-            role: true,
+            permission: true,
             deletedAt: true,
           },
         },
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       where: {
         boardId,
         userId: session.user.id,
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
       },
     });
 
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
-    const { email, role = 'MEMBER' } = body;
+    const { email, permission = 'MEMBER' } = body;
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json(
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       data: {
         boardId,
         userId: user.id,
-        role: role as UserRole,
+        permission: permission as UserPermission,
       },
       include: {
         user: {
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             name: true,
             email: true,
             image: true,
-            role: true,
+            permission: true,
           },
         },
       },
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 }
 
-// PATCH /api/boards/[boardId]/members - Update member role
+// PATCH /api/boards/[boardId]/members - Update member permission
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth();
@@ -176,7 +176,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       where: {
         boardId,
         userId: session.user.id,
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
       },
     });
 
@@ -188,30 +188,30 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
-    const { memberId, role } = body;
+    const { memberId, permission } = body;
 
-    if (!memberId || !role) {
+    if (!memberId || !permission) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Member ID and role are required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Member ID and permission are required' } },
         { status: 400 }
       );
     }
 
-    // Can't change your own role (to prevent locking yourself out)
+    // Can't change your own permission (to prevent locking yourself out)
     const memberToUpdate = await prisma.boardMember.findUnique({
       where: { id: memberId },
     });
 
     if (memberToUpdate?.userId === session.user.id) {
       return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Cannot change your own role' } },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Cannot change your own permission' } },
         { status: 403 }
       );
     }
 
     const member = await prisma.boardMember.update({
       where: { id: memberId },
-      data: { role: role as UserRole },
+      data: { permission: permission as UserPermission },
       include: {
         user: {
           select: {
@@ -219,7 +219,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             name: true,
             email: true,
             image: true,
-            role: true,
+            permission: true,
           },
         },
       },
@@ -277,7 +277,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         where: {
           boardId,
           userId: session.user.id,
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+          permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
         },
       });
 
@@ -290,11 +290,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     // Check if this would leave the board with no admins
-    if (memberToRemove.role === 'ADMIN' || memberToRemove.role === 'SUPER_ADMIN') {
+    if (memberToRemove.permission === 'ADMIN' || memberToRemove.permission === 'SUPER_ADMIN') {
       const adminCount = await prisma.boardMember.count({
         where: {
           boardId,
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+          permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
         },
       });
 

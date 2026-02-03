@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { BoardMember, UserRole } from '@/types';
+import type { BoardMember, UserPermission } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface BoardMembersModalProps {
@@ -30,7 +30,7 @@ interface BoardMembersModalProps {
   isAdmin: boolean;
 }
 
-const ROLE_CONFIG: Record<UserRole, { label: string; icon: React.ElementType; color: string }> = {
+const PERMISSION_CONFIG: Record<UserPermission, { label: string; icon: React.ElementType; color: string }> = {
   SUPER_ADMIN: { label: 'Super Admin', icon: Crown, color: 'text-yellow-500' },
   ADMIN: { label: 'Admin', icon: Shield, color: 'text-blue-500' },
   MEMBER: { label: 'Member', icon: User, color: 'text-text-secondary' },
@@ -47,7 +47,7 @@ export function BoardMembersModal({
   const [members, setMembers] = useState<BoardMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState<UserRole>('MEMBER');
+  const [newMemberPermission, setNewMemberPermission] = useState<UserPermission>('MEMBER');
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,7 +84,7 @@ export function BoardMembersModal({
       const response = await fetch(`/api/boards/${boardId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newMemberEmail, role: newMemberRole }),
+        body: JSON.stringify({ email: newMemberEmail, permission: newMemberPermission }),
       });
 
       const data = await response.json();
@@ -96,7 +96,7 @@ export function BoardMembersModal({
 
       setMembers((prev) => [...prev, data.data]);
       setNewMemberEmail('');
-      setNewMemberRole('MEMBER');
+      setNewMemberPermission('MEMBER');
     } catch {
       setError('An error occurred. Please try again.');
     } finally {
@@ -104,19 +104,19 @@ export function BoardMembersModal({
     }
   };
 
-  const handleUpdateRole = async (memberId: string, newRole: UserRole) => {
+  const handleUpdateRole = async (memberId: string, newRole: UserPermission) => {
     try {
       const response = await fetch(`/api/boards/${boardId}/members`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId, role: newRole }),
+        body: JSON.stringify({ memberId, permission: newRole }),
       });
 
       const data = await response.json();
 
       if (data.success) {
         setMembers((prev) =>
-          prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+          prev.map((m) => (m.id === memberId ? { ...m, permission: newRole } : m))
         );
       }
     } catch (err) {
@@ -181,8 +181,8 @@ export function BoardMembersModal({
                   />
                 </div>
                 <Select
-                  value={newMemberRole}
-                  onValueChange={(value) => setNewMemberRole(value as UserRole)}
+                  value={newMemberPermission}
+                  onValueChange={(value) => setNewMemberPermission(value as UserPermission)}
                   disabled={isAdding}
                 >
                   <SelectTrigger className="w-[120px]">
@@ -223,7 +223,7 @@ export function BoardMembersModal({
             ) : (
               <div className="space-y-1 max-h-[300px] overflow-y-auto">
                 {members.map((member) => {
-                  const roleConfig = ROLE_CONFIG[member.role];
+                  const roleConfig = PERMISSION_CONFIG[member.permission];
                   const RoleIcon = roleConfig.icon;
                   const isCurrentUser = member.userId === currentUserId;
                   const isDeleted = !!member.user.deletedAt;
@@ -279,8 +279,8 @@ export function BoardMembersModal({
                       {/* Role */}
                       {canModify ? (
                         <Select
-                          value={member.role}
-                          onValueChange={(value) => handleUpdateRole(member.id, value as UserRole)}
+                          value={member.permission}
+                          onValueChange={(value) => handleUpdateRole(member.id, value as UserPermission)}
                         >
                           <SelectTrigger className="w-[110px] h-8">
                             <SelectValue />

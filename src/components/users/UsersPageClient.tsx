@@ -12,7 +12,7 @@ interface User {
   name: string | null;
   email: string;
   image: string | null;
-  role: string;
+  permission: string;
   teamMembers: {
     team: {
       id: string;
@@ -22,6 +22,13 @@ interface User {
   }[];
   userSkills: {
     skill: {
+      id: string;
+      name: string;
+      color: string | null;
+    };
+  }[];
+  userCompanyRoles?: {
+    companyRole: {
       id: string;
       name: string;
       color: string | null;
@@ -45,10 +52,17 @@ interface Skill {
   color: string | null;
 }
 
+interface CompanyRole {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface UsersPageClientProps {
   users: User[];
   teams: Team[];
   skills: Skill[];
+  companyRoles: CompanyRole[];
   isSuperAdmin: boolean;
 }
 
@@ -56,6 +70,7 @@ export function UsersPageClient({
   users,
   teams,
   skills,
+  companyRoles,
   isSuperAdmin,
 }: UsersPageClientProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -88,10 +103,13 @@ export function UsersPageClient({
                 User
               </th>
               <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
-                Role
+                Permission
               </th>
               <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
                 Teams
+              </th>
+              <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
+                Roles
               </th>
               <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
                 Skills
@@ -134,7 +152,7 @@ export function UsersPageClient({
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-body text-text-secondary capitalize">
-                    {user.role.toLowerCase().replace('_', ' ')}
+                    {user.permission.toLowerCase().replace('_', ' ')}
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -159,6 +177,31 @@ export function UsersPageClient({
                     )}
                     {user.teamMembers.length === 0 && (
                       <span className="text-caption text-text-tertiary">No teams</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    {(user.userCompanyRoles || []).slice(0, 4).map(({ companyRole }) => (
+                      <div
+                        key={companyRole.id}
+                        className="px-2 py-0.5 rounded text-tiny font-medium"
+                        style={{
+                          backgroundColor: `${companyRole.color || '#71717a'}20`,
+                          color: companyRole.color || '#71717a',
+                        }}
+                        title={companyRole.name}
+                      >
+                        {companyRole.name}
+                      </div>
+                    ))}
+                    {(user.userCompanyRoles || []).length > 4 && (
+                      <span className="text-tiny text-text-tertiary">
+                        +{(user.userCompanyRoles || []).length - 4}
+                      </span>
+                    )}
+                    {(user.userCompanyRoles || []).length === 0 && (
+                      <span className="text-caption text-text-tertiary">-</span>
                     )}
                   </div>
                 </td>
@@ -222,6 +265,7 @@ export function UsersPageClient({
         onClose={() => setShowCreateDialog(false)}
         teams={teams}
         skills={skills}
+        companyRoles={companyRoles}
       />
 
       {/* Edit User Dialog */}
@@ -231,6 +275,7 @@ export function UsersPageClient({
         user={editingUser}
         teams={teams}
         skills={skills}
+        companyRoles={companyRoles}
       />
     </main>
   );

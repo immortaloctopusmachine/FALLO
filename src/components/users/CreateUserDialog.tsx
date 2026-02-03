@@ -27,14 +27,21 @@ interface Skill {
   color: string | null;
 }
 
+interface CompanyRole {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface CreateUserDialogProps {
   isOpen: boolean;
   onClose: () => void;
   teams: Team[];
   skills: Skill[];
+  companyRoles: CompanyRole[];
 }
 
-const ROLES = [
+const PERMISSIONS = [
   { value: 'VIEWER', label: 'Viewer', description: 'Can view boards and cards' },
   { value: 'MEMBER', label: 'Member', description: 'Can create and edit cards' },
   { value: 'ADMIN', label: 'Admin', description: 'Can manage boards and users' },
@@ -56,15 +63,17 @@ export function CreateUserDialog({
   onClose,
   teams,
   skills,
+  companyRoles,
 }: CreateUserDialogProps) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<string>('MEMBER');
+  const [permission, setPermission] = useState<string>('MEMBER');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [selectedCompanyRoleIds, setSelectedCompanyRoleIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedPassword, setCopiedPassword] = useState(false);
@@ -76,9 +85,10 @@ export function CreateUserDialog({
       setName('');
       setPassword('');
       setShowPassword(false);
-      setRole('MEMBER');
+      setPermission('MEMBER');
       setSelectedTeamIds([]);
       setSelectedSkillIds([]);
+      setSelectedCompanyRoleIds([]);
       setError(null);
       setCopiedPassword(false);
     }
@@ -113,6 +123,14 @@ export function CreateUserDialog({
     );
   };
 
+  const toggleCompanyRole = (roleId: string) => {
+    setSelectedCompanyRoleIds(prev =>
+      prev.includes(roleId)
+        ? prev.filter(id => id !== roleId)
+        : [...prev, roleId]
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
@@ -139,9 +157,10 @@ export function CreateUserDialog({
           email: email.trim(),
           name: name.trim() || undefined,
           password,
-          role,
+          permission,
           teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
           skillIds: selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
+          companyRoleIds: selectedCompanyRoleIds.length > 0 ? selectedCompanyRoleIds : undefined,
         }),
       });
 
@@ -250,25 +269,25 @@ export function CreateUserDialog({
             </p>
           </div>
 
-          {/* Role */}
+          {/* Permission Level */}
           <div className="space-y-2">
-            <Label>Role</Label>
+            <Label>Permission Level</Label>
             <div className="grid grid-cols-2 gap-2">
-              {ROLES.map((r) => (
+              {PERMISSIONS.map((r) => (
                 <button
                   key={r.value}
                   type="button"
-                  onClick={() => setRole(r.value)}
+                  onClick={() => setPermission(r.value)}
                   className={cn(
                     'flex flex-col items-start p-2 rounded-md border-2 text-left transition-colors',
-                    role === r.value
+                    permission === r.value
                       ? 'border-success bg-success/10'
                       : 'border-border hover:border-success/50'
                   )}
                 >
                   <span className={cn(
                     'text-body font-medium',
-                    role === r.value && 'text-success'
+                    permission === r.value && 'text-success'
                   )}>
                     {r.label}
                   </span>
@@ -340,6 +359,42 @@ export function CreateUserDialog({
                         style={{ backgroundColor: color }}
                       />
                       {skill.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Company Roles */}
+          {companyRoles.length > 0 && (
+            <div className="space-y-2">
+              <Label>Roles (optional)</Label>
+              <div className="flex flex-wrap gap-2">
+                {companyRoles.map((companyRole) => {
+                  const isSelected = selectedCompanyRoleIds.includes(companyRole.id);
+                  const color = companyRole.color || '#71717a';
+                  return (
+                    <button
+                      key={companyRole.id}
+                      type="button"
+                      onClick={() => toggleCompanyRole(companyRole.id)}
+                      className={cn(
+                        'flex items-center gap-1 px-3 py-1.5 rounded-full text-body transition-colors',
+                        isSelected
+                          ? 'ring-2 ring-success'
+                          : 'opacity-70 hover:opacity-100'
+                      )}
+                      style={{
+                        backgroundColor: `${color}20`,
+                        color: color,
+                      }}
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                      {companyRole.name}
                     </button>
                   );
                 })}

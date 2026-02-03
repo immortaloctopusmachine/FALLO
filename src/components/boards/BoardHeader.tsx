@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Settings, Users, CheckSquare, Layers } from 'lucide-react';
+import { ArrowLeft, Settings, Users, CheckSquare, Layers, Bone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { BoardViewMode } from '@/types';
 import { cn } from '@/lib/utils';
@@ -53,6 +53,18 @@ export function BoardHeader({ name, memberCount, viewMode = 'tasks', onViewModeC
           >
             <Layers className="h-3.5 w-3.5" />
             Planning
+          </button>
+          <button
+            onClick={() => onViewModeChange('spine')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-caption font-medium transition-colors',
+              viewMode === 'spine'
+                ? 'bg-background text-text-primary shadow-sm'
+                : 'text-text-tertiary hover:text-text-secondary'
+            )}
+          >
+            <Bone className="h-3.5 w-3.5" />
+            Spine
           </button>
         </div>
       )}

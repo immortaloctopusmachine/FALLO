@@ -19,9 +19,11 @@ fallo/
 ├── DOCUMENTS/             # Project documentation
 │   ├── _ROADMAP.md        # Implementation phases & status
 │   ├── TDD.md             # Technical Design Document
-│   ├── ASD.md             # App Specification Document  
+│   ├── ASD.md             # App Specification Document
 │   ├── GDD.md             # Graphic Design Document
-│   └── API.md             # API documentation
+│   ├── API.md             # API documentation
+│   ├── SPINE_TRACKER.md   # Spine Tracker feature documentation
+│   └── TECH_DEBT.md       # Code health, duplication, refactoring plan
 ├── skills/                # Claude Code skills for this project
 ├── src/
 │   ├── app/               # Next.js App Router pages
@@ -29,6 +31,7 @@ fallo/
 │   │   ├── ui/            # Base UI components (shadcn)
 │   │   ├── cards/         # Card type components
 │   │   ├── boards/        # Board & list components
+│   │   ├── spine-tracker/ # Spine asset management tool
 │   │   └── shared/        # Shared components
 │   ├── lib/               # Utilities, API clients
 │   ├── types/             # TypeScript definitions
@@ -50,6 +53,8 @@ fallo/
 | **ASD.md** | Implementing card mechanics, user roles, board logic |
 | **GDD.md** | Creating UI components, styling, layout decisions |
 | **API.md** | Building or consuming API endpoints |
+| **SPINE_TRACKER.md** | Working on the Spine Tracker feature, its API, or components |
+| **TECH_DEBT.md** | Before refactoring, adding shared utilities, or writing tests |
 
 ## Development Commands
 ```bash
@@ -157,6 +162,16 @@ docs(api): document card endpoints
 | Epic | Purple | PO-level initiatives | Connected stories, progress overview |
 | Utility | Gray | Links, notes, etc. | Flexible content |
 
+## Spine Tracker
+Each board has an integrated **Spine Tracker** — a tool for managing Spine 4.2 skeleton assets. Accessed via the "Spine" tab in the board header. See `DOCUMENTS/SPINE_TRACKER.md` for full documentation.
+
+Key points:
+- Data stored as JSON in PostgreSQL (`SpineTrackerData` model)
+- Auto-saves with 1.5s debounce, optimistic concurrency via version field
+- Components in `src/components/spine-tracker/`, hook in `src/hooks/useSpineTracker.ts`
+- API routes at `/api/boards/[boardId]/spine-tracker/` (GET, PUT, import, export)
+- Types in `src/types/spine-tracker.ts`
+
 ## LLM Integration Notes
 - LLM features are opt-in per board (admin setting)
 - Default provider: Claude (Anthropic)
@@ -217,4 +232,5 @@ docs(api): document card endpoints
 
 ---
 
-*Last updated: 2025-01-26*
+*Last updated: 2026-02-03*
+*Spine Tracker integration: 2026-02-03*

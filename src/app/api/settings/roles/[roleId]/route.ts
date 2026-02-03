@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// PATCH /api/settings/block-types/[blockTypeId] - Update a block type
+// PATCH /api/settings/roles/[roleId] - Update a company role
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ blockTypeId: string }> }
+  { params }: { params: Promise<{ roleId: string }> }
 ) {
   try {
     const session = await auth();
-    const { blockTypeId } = await params;
+    const { roleId } = await params;
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -34,14 +34,14 @@ export async function PATCH(
     const body = await request.json();
     const { name, description, color, position } = body;
 
-    // Check if block type exists
-    const existingBlockType = await prisma.blockType.findUnique({
-      where: { id: blockTypeId },
+    // Check if role exists
+    const existingRole = await prisma.companyRole.findUnique({
+      where: { id: roleId },
     });
 
-    if (!existingBlockType) {
+    if (!existingRole) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block type not found' } },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Company role not found' } },
         { status: 404 }
       );
     }
@@ -49,32 +49,32 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name.trim();
     if (description !== undefined) updateData.description = description?.trim() || null;
-    if (color !== undefined) updateData.color = color;
+    if (color !== undefined) updateData.color = color || null;
     if (position !== undefined) updateData.position = position;
 
-    const blockType = await prisma.blockType.update({
-      where: { id: blockTypeId },
+    const role = await prisma.companyRole.update({
+      where: { id: roleId },
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: blockType });
+    return NextResponse.json({ success: true, data: role });
   } catch (error) {
-    console.error('Failed to update block type:', error);
+    console.error('Failed to update company role:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update block type' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update company role' } },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/settings/block-types/[blockTypeId] - Delete a block type
+// DELETE /api/settings/roles/[roleId] - Delete a company role
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ blockTypeId: string }> }
+  { params }: { params: Promise<{ roleId: string }> }
 ) {
   try {
     const session = await auth();
-    const { blockTypeId } = await params;
+    const { roleId } = await params;
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -96,46 +96,28 @@ export async function DELETE(
       );
     }
 
-    // Check if block type exists
-    const existingBlockType = await prisma.blockType.findUnique({
-      where: { id: blockTypeId },
-      include: {
-        _count: { select: { blocks: true } },
-      },
+    // Check if role exists
+    const existingRole = await prisma.companyRole.findUnique({
+      where: { id: roleId },
     });
 
-    if (!existingBlockType) {
+    if (!existingRole) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block type not found' } },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Company role not found' } },
         { status: 404 }
       );
     }
 
-    // Prevent deletion if block type is in use
-    if (existingBlockType._count.blocks > 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'IN_USE', message: 'Cannot delete block type that is in use' } },
-        { status: 400 }
-      );
-    }
-
-    // Prevent deletion of default block types
-    if (existingBlockType.isDefault) {
-      return NextResponse.json(
-        { success: false, error: { code: 'PROTECTED', message: 'Cannot delete default block types' } },
-        { status: 400 }
-      );
-    }
-
-    await prisma.blockType.delete({
-      where: { id: blockTypeId },
+    // Delete role (cascades to userCompanyRoles)
+    await prisma.companyRole.delete({
+      where: { id: roleId },
     });
 
     return NextResponse.json({ success: true, data: null });
   } catch (error) {
-    console.error('Failed to delete block type:', error);
+    console.error('Failed to delete company role:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete block type' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete company role' } },
       { status: 500 }
     );
   }

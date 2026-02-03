@@ -48,7 +48,7 @@ export default async function OrganizationPage() {
         name: true,
         email: true,
         image: true,
-        role: true,
+        permission: true,
         _count: {
           select: { teamMembers: true },
         },
@@ -59,9 +59,9 @@ export default async function OrganizationPage() {
   // Check if user is admin
   const currentUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    select: { permission: true },
   });
-  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN';
+  const isAdmin = currentUser?.permission === 'ADMIN' || currentUser?.permission === 'SUPER_ADMIN';
 
   // Calculate stats
   const totalTeams = teams.length;
@@ -291,7 +291,7 @@ export default async function OrganizationPage() {
                       </div>
                     </div>
                     <span className="text-tiny text-text-tertiary capitalize px-2 py-0.5 rounded bg-surface-hover">
-                      {user.role.toLowerCase().replace('_', ' ')}
+                      {user.permission.toLowerCase().replace('_', ' ')}
                     </span>
                   </Link>
                 ))}

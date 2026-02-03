@@ -79,7 +79,7 @@ export async function POST(
           members: {
             create: {
               userId: session.user.id,
-              role: 'ADMIN',
+              permission: 'ADMIN',
             },
           },
         },

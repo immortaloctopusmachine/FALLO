@@ -37,11 +37,17 @@ interface Skill {
   color: string | null;
 }
 
+interface CompanyRole {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface UserToEdit {
   id: string;
   name: string | null;
   email: string;
-  role: string;
+  permission: string;
   teamMembers: {
     team: {
       id: string;
@@ -56,6 +62,13 @@ interface UserToEdit {
       color: string | null;
     };
   }[];
+  userCompanyRoles?: {
+    companyRole: {
+      id: string;
+      name: string;
+      color: string | null;
+    };
+  }[];
 }
 
 interface EditUserDialogProps {
@@ -64,9 +77,10 @@ interface EditUserDialogProps {
   user: UserToEdit | null;
   teams: Team[];
   skills: Skill[];
+  companyRoles: CompanyRole[];
 }
 
-const ROLES = [
+const PERMISSIONS = [
   { value: 'VIEWER', label: 'Viewer', description: 'Can view boards and cards' },
   { value: 'MEMBER', label: 'Member', description: 'Can create and edit cards' },
   { value: 'ADMIN', label: 'Admin', description: 'Can manage boards and users' },
@@ -79,12 +93,14 @@ export function EditUserDialog({
   user,
   teams,
   skills,
+  companyRoles,
 }: EditUserDialogProps) {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [role, setRole] = useState<string>('MEMBER');
+  const [permission, setPermission] = useState<string>('MEMBER');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [selectedCompanyRoleIds, setSelectedCompanyRoleIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -94,9 +110,10 @@ export function EditUserDialog({
   useEffect(() => {
     if (user) {
       setName(user.name || '');
-      setRole(user.role);
+      setPermission(user.permission);
       setSelectedTeamIds(user.teamMembers.map(tm => tm.team.id));
       setSelectedSkillIds(user.userSkills.map(us => us.skill.id));
+      setSelectedCompanyRoleIds(user.userCompanyRoles?.map(ucr => ucr.companyRole.id) || []);
       setError(null);
     }
   }, [user]);
@@ -125,6 +142,14 @@ export function EditUserDialog({
     );
   };
 
+  const toggleCompanyRole = (roleId: string) => {
+    setSelectedCompanyRoleIds(prev =>
+      prev.includes(roleId)
+        ? prev.filter(id => id !== roleId)
+        : [...prev, roleId]
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -138,9 +163,10 @@ export function EditUserDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim() || null,
-          role,
+          permission,
           teamIds: selectedTeamIds,
           skillIds: selectedSkillIds,
+          companyRoleIds: selectedCompanyRoleIds,
         }),
       });
 
@@ -221,25 +247,25 @@ export function EditUserDialog({
             />
           </div>
 
-          {/* Role */}
+          {/* Permission Level */}
           <div className="space-y-2">
-            <Label>Role</Label>
+            <Label>Permission Level</Label>
             <div className="grid grid-cols-2 gap-2">
-              {ROLES.map((r) => (
+              {PERMISSIONS.map((r) => (
                 <button
                   key={r.value}
                   type="button"
-                  onClick={() => setRole(r.value)}
+                  onClick={() => setPermission(r.value)}
                   className={cn(
                     'flex flex-col items-start p-2 rounded-md border-2 text-left transition-colors',
-                    role === r.value
+                    permission === r.value
                       ? 'border-success bg-success/10'
                       : 'border-border hover:border-success/50'
                   )}
                 >
                   <span className={cn(
                     'text-body font-medium',
-                    role === r.value && 'text-success'
+                    permission === r.value && 'text-success'
                   )}>
                     {r.label}
                   </span>
@@ -321,6 +347,42 @@ export function EditUserDialog({
               {skills.length === 0 && (
                 <p className="text-caption text-text-tertiary">No skills available</p>
               )}
+            </div>
+          )}
+
+          {/* Company Roles */}
+          {companyRoles.length > 0 && (
+            <div className="space-y-2">
+              <Label>Roles</Label>
+              <div className="flex flex-wrap gap-2">
+                {companyRoles.map((companyRole) => {
+                  const isSelected = selectedCompanyRoleIds.includes(companyRole.id);
+                  const color = companyRole.color || '#71717a';
+                  return (
+                    <button
+                      key={companyRole.id}
+                      type="button"
+                      onClick={() => toggleCompanyRole(companyRole.id)}
+                      className={cn(
+                        'flex items-center gap-1 px-3 py-1.5 rounded-full text-body transition-colors',
+                        isSelected
+                          ? 'ring-2 ring-success'
+                          : 'opacity-70 hover:opacity-100'
+                      )}
+                      style={{
+                        backgroundColor: `${color}20`,
+                        color: color,
+                      }}
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                      {companyRole.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

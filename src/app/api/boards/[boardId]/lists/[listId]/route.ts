@@ -87,7 +87,7 @@ export async function DELETE(
       where: {
         boardId,
         userId: session.user.id,
-        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
       },
     });
 

@@ -133,18 +133,18 @@ export async function POST(request: Request) {
     }
 
     // If teamId provided, get all team members to add to board
-    let teamMembersToAdd: { userId: string; role: 'MEMBER' | 'ADMIN' }[] = [];
+    let teamMembersToAdd: { userId: string; permission: 'MEMBER' | 'ADMIN' }[] = [];
     if (teamId) {
       const teamMembers = await prisma.teamMember.findMany({
         where: { teamId },
-        select: { userId: true, role: true },
+        select: { userId: true, permission: true },
       });
       // Add all team members except the creator (who will be added as admin)
       teamMembersToAdd = teamMembers
         .filter((m) => m.userId !== session.user.id)
         .map((m) => ({
           userId: m.userId,
-          role: m.role === 'ADMIN' || m.role === 'SUPER_ADMIN' ? 'ADMIN' as const : 'MEMBER' as const,
+          permission: m.permission === 'ADMIN' || m.permission === 'SUPER_ADMIN' ? 'ADMIN' as const : 'MEMBER' as const,
         }));
     }
 
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
           create: [
             {
               userId: session.user.id,
-              role: 'ADMIN',
+              permission: 'ADMIN',
             },
             ...teamMembersToAdd,
           ],

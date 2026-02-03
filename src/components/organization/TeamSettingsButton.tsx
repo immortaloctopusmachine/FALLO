@@ -19,7 +19,7 @@ interface User {
 
 interface TeamMember {
   id: string;
-  role: string;
+  permission: string;
   title: string | null;
   user: User;
 }

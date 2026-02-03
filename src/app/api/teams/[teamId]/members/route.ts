@@ -28,7 +28,7 @@ export async function GET(
             name: true,
             email: true,
             image: true,
-            role: true,
+            permission: true,
             userSkills: {
               include: {
                 skill: true,
@@ -68,10 +68,10 @@ export async function POST(
     // Check if user is admin
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
         { status: 403 }
@@ -79,7 +79,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { userId, role = 'MEMBER', title } = body;
+    const { userId, permission = 'MEMBER', title } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -131,7 +131,7 @@ export async function POST(
       data: {
         userId,
         teamId,
-        role,
+        permission,
         title: title?.trim() || null,
       },
       include: {
@@ -141,7 +141,7 @@ export async function POST(
             name: true,
             email: true,
             image: true,
-            role: true,
+            permission: true,
           },
         },
       },
@@ -162,7 +162,7 @@ export async function POST(
         create: {
           userId,
           boardId: board.id,
-          role: role,
+          permission: permission,
         },
       });
     }
@@ -196,10 +196,10 @@ export async function DELETE(
     // Check if user is admin
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
         { status: 403 }

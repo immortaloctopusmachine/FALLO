@@ -57,10 +57,10 @@ export async function POST(
     // Check if user is admin
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+    if (currentUser?.permission !== 'ADMIN' && currentUser?.permission !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
         { status: 403 }
@@ -154,10 +154,10 @@ export async function DELETE(
     // Check if user is admin
     const currentUser = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { role: true },
+      select: { permission: true },
     });
 
-    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+    if (currentUser?.permission !== 'ADMIN' && currentUser?.permission !== 'SUPER_ADMIN') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
         { status: 403 }

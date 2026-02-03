@@ -15,16 +15,16 @@ export default async function UserPage({ params }: UserPageProps) {
     redirect('/login');
   }
 
-  // Get current user's role
+  // Get current user's permission
   const currentUser = await prisma.user.findUnique({
     where: { id: session.user?.id },
-    select: { role: true },
+    select: { permission: true },
   });
 
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = currentUser?.permission === 'SUPER_ADMIN';
 
-  // Fetch user, teams, and skills in parallel
-  const [user, allTeams, allSkills] = await Promise.all([
+  // Fetch user, teams, skills, and company roles in parallel
+  const [user, allTeams, allSkills, allCompanyRoles] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -65,6 +65,14 @@ export default async function UserPage({ params }: UserPageProps) {
             skill: { position: 'asc' },
           },
         },
+        userCompanyRoles: {
+          include: {
+            companyRole: true,
+          },
+          orderBy: {
+            companyRole: { position: 'asc' },
+          },
+        },
         boardMembers: {
           include: {
             board: {
@@ -103,6 +111,15 @@ export default async function UserPage({ params }: UserPageProps) {
         color: true,
       },
     }),
+    prisma.companyRole.findMany({
+      where: { studioId: null },
+      orderBy: { position: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+      },
+    }),
   ]);
 
   if (!user) {
@@ -115,6 +132,7 @@ export default async function UserPage({ params }: UserPageProps) {
       isSuperAdmin={isSuperAdmin}
       allTeams={allTeams}
       allSkills={allSkills}
+      allCompanyRoles={allCompanyRoles}
     />
   );
 }
