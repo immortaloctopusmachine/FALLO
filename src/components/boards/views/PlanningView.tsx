@@ -118,6 +118,7 @@ export function PlanningView({
   const [isCreatingLists, setIsCreatingLists] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<'STANDARD_SLOT' | 'BRANDED_GAME'>('STANDARD_SLOT');
   const [isSyncingTimeline, setIsSyncingTimeline] = useState(false);
+  const [collapsedLists, setCollapsedLists] = useState<Set<string>>(new Set());
 
   // Filter to get Epics and User Stories
   const epics = useMemo(() => {
@@ -250,6 +251,19 @@ export function PlanningView({
 
     return donePoints;
   }, [planningLists, doneListId]);
+
+  // Handle list collapse toggle
+  const handleCollapseChange = useCallback((listId: string, collapsed: boolean) => {
+    setCollapsedLists(prev => {
+      const newSet = new Set(prev);
+      if (collapsed) {
+        newSet.add(listId);
+      } else {
+        newSet.delete(listId);
+      }
+      return newSet;
+    });
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -972,6 +986,9 @@ export function PlanningView({
                   endDate={list.endDate}
                   donePoints={listDonePoints[list.id]}
                   timelineBlock={list.timelineBlock}
+                  isCollapsible
+                  isCollapsed={collapsedLists.has(list.id)}
+                  onCollapseChange={handleCollapseChange}
                 />
               ))}
             </div>
@@ -1081,6 +1098,9 @@ export function PlanningView({
                     endDate={list.endDate}
                     donePoints={listDonePoints[list.id]}
                     timelineBlock={list.timelineBlock}
+                    isCollapsible
+                    isCollapsed={collapsedLists.has(list.id)}
+                    onCollapseChange={handleCollapseChange}
                   />
                 </SortableContext>
               ))}

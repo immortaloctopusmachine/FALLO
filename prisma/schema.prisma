@@ -222,6 +222,7 @@ model User {
   role          UserRole      @default(MEMBER)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?     // Soft delete - user data preserved on boards
 
   // Relations
   boardMembers  BoardMember[]

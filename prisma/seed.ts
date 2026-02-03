@@ -11,12 +11,14 @@ async function main() {
 
   const testUser = await prisma.user.upsert({
     where: { email: 'test@example.com' },
-    update: {},
+    update: {
+      role: 'SUPER_ADMIN',
+    },
     create: {
       email: 'test@example.com',
       name: 'Test User',
       passwordHash,
-      role: 'ADMIN',
+      role: 'SUPER_ADMIN',
     },
   });
 
@@ -103,13 +105,14 @@ async function main() {
   console.log('Created default skills:', defaultSkills.map(s => s.name).join(', '));
 
   // Seed default block types (global - no studioId)
+  // Colors synced with PHASE_COLORS in list-templates.ts
   const defaultBlockTypes = [
-    { name: 'Spine Prototype', color: '#8b5cf6', description: 'Initial animation prototype phase' },
-    { name: 'Concept', color: '#3b82f6', description: 'Concept art and ideation phase' },
-    { name: 'Production', color: '#22c55e', description: 'Main production work phase' },
-    { name: 'Tweak', color: '#f97316', description: 'Fine-tuning and adjustments phase' },
-    { name: 'QA', color: '#ec4899', description: 'Quality assurance testing phase' },
-    { name: 'Marketing', color: '#eab308', description: 'Marketing preparation phase' },
+    { name: 'Spine Prototype', color: '#EC4899', description: 'Initial animation prototype phase' },  // Pink
+    { name: 'Concept', color: '#A855F7', description: 'Concept art and ideation phase' },             // Purple
+    { name: 'Production', color: '#22C55E', description: 'Main production work phase' },              // Green
+    { name: 'Tweak', color: '#F97316', description: 'Fine-tuning and adjustments phase' },            // Orange
+    { name: 'QA', color: '#3B82F6', description: 'Quality assurance testing phase' },                 // Blue
+    { name: 'Marketing', color: '#1E3A8A', description: 'Marketing preparation phase' },              // Dark Blue
   ];
 
   for (let i = 0; i < defaultBlockTypes.length; i++) {

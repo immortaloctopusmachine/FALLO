@@ -33,20 +33,23 @@ export const BLANK_TEMPLATE: ListTemplate = {
 };
 
 // Color palette for list phases
+// Synced with block type colors in prisma/seed.ts
 export const PHASE_COLORS = {
-  BACKLOG: '#6B7280',      // Gray
+  BACKLOG: '#6B7280',        // Gray
   SPINE_PROTOTYPE: '#EC4899', // Pink
-  CONCEPT: '#A855F7',      // Purple
-  PRODUCTION: '#22C55E',   // Green
-  TWEAK: '#EAB308',        // Yellow
-  DONE: '#10B981',         // Emerald
+  CONCEPT: '#A855F7',        // Purple
+  PRODUCTION: '#22C55E',     // Green
+  TWEAK: '#F97316',          // Orange
+  QA: '#3B82F6',             // Blue
+  MARKETING: '#1E3A8A',      // Dark Blue
+  DONE: '#10B981',           // Emerald
 } as const;
 
-// Standard Slot template (full production cycle)
+// Standard Slot template (full production cycle with 5-day blocks)
 export const STANDARD_SLOT_TEMPLATE: ListTemplate = {
   id: 'STANDARD_SLOT',
   name: 'Standard Slot',
-  description: 'Full production cycle with 8 production phases (2 weeks each)',
+  description: 'Full production cycle with 5-day blocks starting on Mondays',
   taskLists: [
     { name: 'Backlog', viewType: 'TASKS', phase: 'BACKLOG', color: PHASE_COLORS.BACKLOG, durationWeeks: 0, position: 0 },
     { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 1 },
@@ -55,21 +58,28 @@ export const STANDARD_SLOT_TEMPLATE: ListTemplate = {
     { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: PHASE_COLORS.DONE, durationWeeks: 0, position: 4 },
   ],
   planningLists: [
-    { name: 'Spine/Prototype', viewType: 'PLANNING', phase: 'SPINE_PROTOTYPE', color: PHASE_COLORS.SPINE_PROTOTYPE, durationWeeks: 2, position: 0 },
-    { name: 'Concept', viewType: 'PLANNING', phase: 'CONCEPT', color: PHASE_COLORS.CONCEPT, durationWeeks: 2, position: 1 },
-    { name: 'Production 1-2', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 2, position: 2 },
-    { name: 'Production 3-4', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 2, position: 3 },
-    { name: 'Production 5-6', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 2, position: 4 },
-    { name: 'Production 7-8', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 2, position: 5 },
-    { name: 'Tweak', viewType: 'PLANNING', phase: 'TWEAK', color: PHASE_COLORS.TWEAK, durationWeeks: 2, position: 6 },
+    { name: 'Spine/Prototype 1', viewType: 'PLANNING', phase: 'SPINE_PROTOTYPE', color: PHASE_COLORS.SPINE_PROTOTYPE, durationWeeks: 0, durationDays: 5, position: 0 },
+    { name: 'Spine/Prototype 2', viewType: 'PLANNING', phase: 'SPINE_PROTOTYPE', color: PHASE_COLORS.SPINE_PROTOTYPE, durationWeeks: 0, durationDays: 5, position: 1 },
+    { name: 'Concept 1', viewType: 'PLANNING', phase: 'CONCEPT', color: PHASE_COLORS.CONCEPT, durationWeeks: 0, durationDays: 5, position: 2 },
+    { name: 'Concept 2', viewType: 'PLANNING', phase: 'CONCEPT', color: PHASE_COLORS.CONCEPT, durationWeeks: 0, durationDays: 5, position: 3 },
+    { name: 'Production 1', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 4 },
+    { name: 'Production 2', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 5 },
+    { name: 'Production 3', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 6 },
+    { name: 'Production 4', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 7 },
+    { name: 'Production 5', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 8 },
+    { name: 'Production 6', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 9 },
+    { name: 'Production 7', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 10 },
+    { name: 'Production 8', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 11 },
+    { name: 'Tweak 1', viewType: 'PLANNING', phase: 'TWEAK', color: PHASE_COLORS.TWEAK, durationWeeks: 0, durationDays: 5, position: 12 },
+    { name: 'Tweak 2', viewType: 'PLANNING', phase: 'TWEAK', color: PHASE_COLORS.TWEAK, durationWeeks: 0, durationDays: 5, position: 13 },
   ],
 };
 
-// Branded Game template (shorter cycle)
+// Branded Game template (shorter cycle with 5-day blocks)
 export const BRANDED_GAME_TEMPLATE: ListTemplate = {
   id: 'BRANDED_GAME',
   name: 'Branded Game',
-  description: 'Shorter production cycle with 4 production phases',
+  description: 'Shorter production cycle with 5-day blocks',
   taskLists: [
     { name: 'Backlog', viewType: 'TASKS', phase: 'BACKLOG', color: PHASE_COLORS.BACKLOG, durationWeeks: 0, position: 0 },
     { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 1 },
@@ -78,10 +88,12 @@ export const BRANDED_GAME_TEMPLATE: ListTemplate = {
     { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: PHASE_COLORS.DONE, durationWeeks: 0, position: 4 },
   ],
   planningLists: [
-    { name: 'Concept', viewType: 'PLANNING', phase: 'CONCEPT', color: PHASE_COLORS.CONCEPT, durationWeeks: 1, position: 0 },
-    { name: 'Production 1-2', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 2, position: 1 },
-    { name: 'Production 3-4', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 2, position: 2 },
-    { name: 'Tweak', viewType: 'PLANNING', phase: 'TWEAK', color: PHASE_COLORS.TWEAK, durationWeeks: 1, position: 3 },
+    { name: 'Concept 1', viewType: 'PLANNING', phase: 'CONCEPT', color: PHASE_COLORS.CONCEPT, durationWeeks: 0, durationDays: 5, position: 0 },
+    { name: 'Production 1', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 1 },
+    { name: 'Production 2', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 2 },
+    { name: 'Production 3', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 3 },
+    { name: 'Production 4', viewType: 'PLANNING', phase: 'PRODUCTION', color: PHASE_COLORS.PRODUCTION, durationWeeks: 0, durationDays: 5, position: 4 },
+    { name: 'Tweak 1', viewType: 'PLANNING', phase: 'TWEAK', color: PHASE_COLORS.TWEAK, durationWeeks: 0, durationDays: 5, position: 5 },
   ],
 };
 
@@ -106,10 +118,11 @@ export const DEFAULT_PROJECT_LINKS = {
 // Helper to add business days (skipping weekends)
 export function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
-  let remainingDays = days;
+  let remainingDays = Math.abs(days);
+  const direction = days >= 0 ? 1 : -1;
 
   while (remainingDays > 0) {
-    result.setDate(result.getDate() + 1);
+    result.setDate(result.getDate() + direction);
     const dayOfWeek = result.getDay();
     // Skip weekends (0 = Sunday, 6 = Saturday)
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
@@ -120,13 +133,51 @@ export function addBusinessDays(date: Date, days: number): Date {
   return result;
 }
 
+// Snap a date to the nearest Monday (for block starts)
+export function snapToMonday(date: Date): Date {
+  const result = new Date(date);
+  const dayOfWeek = result.getDay();
+
+  // If Sunday, move to next Monday
+  if (dayOfWeek === 0) {
+    result.setDate(result.getDate() + 1);
+  }
+  // If Saturday, move to next Monday
+  else if (dayOfWeek === 6) {
+    result.setDate(result.getDate() + 2);
+  }
+  // Otherwise, move to previous Monday
+  else if (dayOfWeek !== 1) {
+    result.setDate(result.getDate() - (dayOfWeek - 1));
+  }
+
+  return result;
+}
+
+// Get the end date for a 5-day block starting on a Monday
+export function getBlockEndDate(startDate: Date): Date {
+  // A 5-day block starting Monday ends on Friday
+  const result = new Date(startDate);
+  result.setDate(result.getDate() + 4); // Monday + 4 = Friday
+  return result;
+}
+
+// Move a block by weeks (5 business days = 1 week)
+export function moveBlockByWeeks(startDate: Date, weeks: number): Date {
+  const result = new Date(startDate);
+  result.setDate(result.getDate() + (weeks * 7));
+  return snapToMonday(result);
+}
+
 // Calculate list dates based on project start date
+// Project start date is snapped to Monday to ensure all blocks align to week boundaries
 export function calculateListDates(
   template: ListTemplate,
   projectStartDate: Date
 ): { listName: string; startDate: Date; endDate: Date; durationDays?: number }[] {
   const dates: { listName: string; startDate: Date; endDate: Date; durationDays?: number }[] = [];
-  let currentDate = new Date(projectStartDate);
+  // Snap project start to Monday for consistent week alignment
+  let currentDate = snapToMonday(new Date(projectStartDate));
 
   for (const list of template.planningLists) {
     const startDate = new Date(currentDate);

@@ -20,6 +20,7 @@ import { DeadlinePicker } from './DeadlinePicker';
 import { ColorPicker } from './ColorPicker';
 import { AttachmentSection } from './AttachmentSection';
 import { ConnectionPicker } from './ConnectionPicker';
+import { TimeLogSection } from './TimeLogSection';
 import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List, Attachment } from '@/types';
 import { cn } from '@/lib/utils';
 import {
@@ -40,6 +41,7 @@ interface CardModalProps {
   onRefreshBoard?: () => void;
   onCardClick?: (card: Card) => void;  // Open another card (e.g., a connected task)
   currentUserId?: string;
+  isAdmin?: boolean;  // Whether current user is admin (for time log management)
   taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
   planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
 }
@@ -68,7 +70,7 @@ const UTILITY_SUBTYPES: { value: UtilitySubtype; label: string; icon: typeof Lin
   { value: 'BLOCKER', label: 'Blocker', icon: Ban, color: 'text-error bg-error/10 border-error/30' },
 ];
 
-export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, onCardClick, currentUserId, taskLists = [], planningLists = [] }: CardModalProps) {
+export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, onCardClick, currentUserId, isAdmin = false, taskLists = [], planningLists = [] }: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storyPoints, setStoryPoints] = useState<number | null>(null);
@@ -1080,6 +1082,17 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                   onChange={setDeadline}
                 />
               </div>
+            )}
+
+            {/* Time Tracking (Task only) */}
+            {card.type === 'TASK' && (
+              <TimeLogSection
+                boardId={boardId}
+                cardId={card.id}
+                listId={card.listId}
+                isAdmin={isAdmin}
+                currentUserId={currentUserId}
+              />
             )}
 
             {/* Link to User Story (Task only) */}

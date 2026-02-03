@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+// Helper to check if a list is an "in progress" list (for time tracking)
+function isInProgressList(listName: string): boolean {
+  const lowerName = listName.toLowerCase();
+  return (
+    lowerName.includes('in progress') ||
+    lowerName.includes('in-progress') ||
+    lowerName.includes('doing') ||
+    lowerName.includes('working') ||
+    lowerName === 'wip'
+  );
+}
+
 // POST /api/boards/[boardId]/cards/reorder - Reorder cards (for drag-drop)
 export async function POST(
   request: Request,
@@ -57,6 +69,13 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    // Check if we need to track time (only when moving between different lists)
+    const sourceList = lists.find((l) => l.id === sourceListId);
+    const destList = lists.find((l) => l.id === destinationListId) || sourceList;
+
+    const wasInProgress = sourceList && isInProgressList(sourceList.name);
+    const isNowInProgress = destList && isInProgressList(destList.name);
 
     // Use a transaction to update positions
     await prisma.$transaction(async (tx) => {
@@ -133,6 +152,72 @@ export async function POST(
         });
       }
     });
+
+    // Handle time tracking when moving between lists
+    if (sourceListId !== destinationListId) {
+      // Card moved to a new list - check time tracking
+      if (wasInProgress && !isNowInProgress) {
+        // Card LEFT "In Progress" - stop any active time log
+        const activeLog = await prisma.timeLog.findFirst({
+          where: {
+            cardId,
+            userId: session.user.id,
+            endTime: null,
+          },
+        });
+
+        if (activeLog) {
+          const endTime = new Date();
+          const durationMs = endTime.getTime() - new Date(activeLog.startTime).getTime();
+
+          await prisma.timeLog.update({
+            where: { id: activeLog.id },
+            data: {
+              endTime,
+              durationMs,
+            },
+          });
+        }
+      } else if (!wasInProgress && isNowInProgress && destList) {
+        // Card ENTERED "In Progress" - start a new time log
+        // Only start if user is assigned to the card or is the one moving it
+        const card = await prisma.card.findUnique({
+          where: { id: cardId },
+          include: {
+            assignees: {
+              select: { userId: true },
+            },
+          },
+        });
+
+        const isAssigned = card?.assignees.some((a) => a.userId === session.user.id);
+
+        // Start tracking if user is assigned or if no one is assigned
+        if (isAssigned || !card?.assignees.length) {
+          // Close any existing open logs first
+          await prisma.timeLog.updateMany({
+            where: {
+              cardId,
+              userId: session.user.id,
+              endTime: null,
+            },
+            data: {
+              endTime: new Date(),
+            },
+          });
+
+          // Create new time log
+          await prisma.timeLog.create({
+            data: {
+              cardId,
+              userId: session.user.id,
+              listId: destList.id,
+              startTime: new Date(),
+            },
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ success: true, data: null });
   } catch (error) {

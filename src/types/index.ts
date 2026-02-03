@@ -110,6 +110,7 @@ export interface User {
   name: string | null;
   image: string | null;
   role: UserRole;
+  deletedAt?: string | null;
 }
 
 export interface CardAssignee {

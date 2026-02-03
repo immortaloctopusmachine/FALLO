@@ -24,14 +24,39 @@
       "Bash(npx shadcn@latest add:*)",
       "Bash(npm run build:*)",
       "Bash(npx prisma db push:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(python skills/skill-creator/scripts/init_skill.py:*)",
+      "Bash(python skills/skill-creator/scripts/package_skill.py:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(powershell Compress-Archive:*)",
+      "Bash(move:*)",
+      "Bash(powershell \"Compress-Archive -Path ''supabase-setup\\\\*'' -DestinationPath ''supabase-setup.zip'' -Force\")",
+      "Bash(ren supabase-setup.zip supabase-setup.skill)",
+      "Bash(npx prisma validate:*)",
+      "Read(//c/**)",
+      "Bash(npm i:*)",
+      "Bash(npx prisma db seed:*)",
+      "Bash(curl:*)",
+      "Bash(tasklist:*)",
+      "Bash(npm run db:seed:*)",
+      "Bash(npx next build:*)",
+      "Bash(git diff:*)"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]\\items",
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]",
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\comments",
-      "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\attachments"
+      "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\attachments",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\settings\\skills",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\settings\\block-types",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\settings\\event-types",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\teams\\[teamId]",
+      "c:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
+      "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]",
+      "C:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
+      "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\timeline\\blocks\\[blockId]"
     ]
   }
 }

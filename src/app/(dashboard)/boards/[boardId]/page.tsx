@@ -76,6 +76,18 @@ export default async function BoardPage({ params }: BoardPageProps) {
                 },
               },
             },
+            // Include timeline block relation
+            timelineBlock: {
+              select: {
+                id: true,
+                blockType: {
+                  select: {
+                    name: true,
+                    color: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -160,6 +172,12 @@ export default async function BoardPage({ params }: BoardPageProps) {
       startDate: list.startDate?.toISOString() || null,
       endDate: list.endDate?.toISOString() || null,
       durationWeeks: list.durationWeeks,
+      // Timeline sync
+      timelineBlockId: list.timelineBlock?.id || null,
+      timelineBlock: list.timelineBlock ? {
+        id: list.timelineBlock.id,
+        blockType: list.timelineBlock.blockType,
+      } : null,
       cards: list.cards.map((card) => {
         // Base card data
         const baseCard = {

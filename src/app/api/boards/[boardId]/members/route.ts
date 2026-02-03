@@ -45,6 +45,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
             email: true,
             image: true,
             role: true,
+            deletedAt: true,
           },
         },
       },

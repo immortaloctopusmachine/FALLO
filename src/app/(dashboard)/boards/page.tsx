@@ -1,8 +1,10 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { BoardCard } from '@/components/boards/BoardCard';
-import { CreateBoardDialog } from '@/components/boards/CreateBoardDialog';
+import { ArchivedBoardsSection } from '@/components/boards/ArchivedBoardsSection';
 
 export default async function BoardsPage() {
   const session = await auth();
@@ -11,7 +13,8 @@ export default async function BoardsPage() {
     redirect('/login');
   }
 
-  const boards = await prisma.board.findMany({
+  // Fetch active boards
+  const activeBoards = await prisma.board.findMany({
     where: {
       members: {
         some: {
@@ -29,36 +32,70 @@ export default async function BoardsPage() {
     orderBy: { updatedAt: 'desc' },
   });
 
+  // Fetch archived boards
+  const archivedBoards = await prisma.board.findMany({
+    where: {
+      members: {
+        some: {
+          userId: session.user.id,
+        },
+      },
+      archivedAt: { not: null },
+    },
+    include: {
+      members: true,
+      lists: {
+        select: { id: true },
+      },
+    },
+    orderBy: { archivedAt: 'desc' },
+  });
+
+  // Check if user is admin
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+
   // Helper to check if user is admin for a board
-  const isAdminForBoard = (board: typeof boards[0]) => {
+  type BoardWithMembers = typeof activeBoards[0];
+  const isAdminForBoard = (board: BoardWithMembers) => {
     const membership = board.members.find(m => m.userId === session.user.id);
     return membership?.role === 'ADMIN' || membership?.role === 'SUPER_ADMIN';
   };
 
   // Separate regular boards from templates
-  const regularBoards = boards.filter(b => !b.isTemplate);
-  const templateBoards = boards.filter(b => b.isTemplate);
+  const regularBoards = activeBoards.filter(b => !b.isTemplate);
+  const templateBoards = activeBoards.filter(b => b.isTemplate);
+
+  // Prepare archived boards data for client component
+  const archivedBoardsData = archivedBoards.map(board => ({
+    id: board.id,
+    name: board.name,
+    description: board.description,
+    listCount: board.lists.length,
+    memberCount: board.members.length,
+    isTemplate: board.isTemplate,
+    isAdmin: isAdminForBoard(board),
+  }));
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-surface px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-heading font-semibold">Boards</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-body text-text-secondary">
-              {session.user.name || session.user.email}
-            </span>
-          </div>
-        </div>
-      </header>
-
-      <main className="p-6">
+    <main className="p-6 flex-1">
         {/* Regular Boards Section */}
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-title font-medium text-text-secondary">
             Your Boards ({regularBoards.length})
           </h2>
-          <CreateBoardDialog />
+          {isAdmin && (
+            <Link
+              href="/timeline?create=true"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-body font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Create Project
+            </Link>
+          )}
         </div>
 
         {regularBoards.length === 0 ? (
@@ -112,7 +149,11 @@ export default async function BoardsPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+
+        {/* Archived Boards Section */}
+        {archivedBoardsData.length > 0 && (
+          <ArchivedBoardsSection boards={archivedBoardsData} />
+        )}
+    </main>
   );
 }

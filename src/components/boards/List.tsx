@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText, CalendarRange, Unlink } from 'lucide-react';
+import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText, CalendarRange, Unlink, ChevronLeft } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -59,6 +59,9 @@ interface ListProps {
   endDate?: string | null;
   donePoints?: number; // Story points of completed tasks (for planning view)
   timelineBlock?: TimelineBlockInfo | null; // Timeline sync info
+  isCollapsible?: boolean; // Enable collapse functionality
+  isCollapsed?: boolean; // External collapse state
+  onCollapseChange?: (listId: string, collapsed: boolean) => void; // Collapse callback
 }
 
 // Get subtle background color based on list name
@@ -104,6 +107,9 @@ export function List({
   endDate,
   donePoints,
   timelineBlock,
+  isCollapsible,
+  isCollapsed,
+  onCollapseChange,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -175,6 +181,64 @@ export function List({
     return sum;
   }, 0);
 
+  // Handle collapse toggle
+  const handleCollapseToggle = () => {
+    if (onCollapseChange) {
+      onCollapseChange(id, !isCollapsed);
+    }
+  };
+
+  // Collapsed view (Trello-style vertical header)
+  if (isCollapsible && isCollapsed) {
+    return (
+      <div
+        className={cn(
+          'flex h-full w-10 shrink-0 flex-col rounded-lg bg-surface cursor-pointer hover:bg-surface-hover transition-colors',
+          listColor
+        )}
+        style={customColorStyle}
+        onClick={handleCollapseToggle}
+      >
+        {/* Color indicator bar for custom colored lists */}
+        {customListColor && (
+          <div
+            className="h-1 w-full rounded-t-lg"
+            style={{ backgroundColor: customListColor }}
+          />
+        )}
+
+        {/* Vertical header */}
+        <div className="flex-1 flex flex-col items-center pt-3 pb-2 overflow-hidden">
+          {/* Rotated content */}
+          <div
+            className="flex items-center gap-2 whitespace-nowrap"
+            style={{
+              writingMode: 'vertical-rl',
+              transform: 'rotate(180deg)',
+            }}
+          >
+            <span className="text-title font-semibold text-text-primary">{name}</span>
+            <span className="text-caption text-text-tertiary">{cards.length}</span>
+            {totalStoryPoints > 0 && (
+              <span className="rounded bg-card-task/10 px-1 py-0.5 text-tiny font-medium text-card-task">
+                {donePoints !== undefined ? `${donePoints}/${totalStoryPoints}` : totalStoryPoints} SP
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Timeline sync indicator at bottom */}
+        {timelineBlock && (
+          <div
+            className="mx-1 mb-2 h-1.5 rounded-full"
+            style={{ backgroundColor: timelineBlock.blockType.color }}
+            title={`Linked to: ${timelineBlock.blockType.name}`}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -233,6 +297,25 @@ export function List({
           )}
         </div>
         <div className="flex items-center gap-1">
+          {isCollapsible && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
+                    onClick={handleCollapseToggle}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Collapse list</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <Button
             variant="ghost"
             size="sm"

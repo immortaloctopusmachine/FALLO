@@ -226,15 +226,22 @@ export function BoardMembersModal({
                   const roleConfig = ROLE_CONFIG[member.role];
                   const RoleIcon = roleConfig.icon;
                   const isCurrentUser = member.userId === currentUserId;
-                  const canModify = isAdmin && !isCurrentUser;
+                  const isDeleted = !!member.user.deletedAt;
+                  const canModify = isAdmin && !isCurrentUser && !isDeleted;
 
                   return (
                     <div
                       key={member.id}
-                      className="flex items-center gap-3 rounded-lg p-2 hover:bg-surface-hover"
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg p-2 hover:bg-surface-hover",
+                        isDeleted && "opacity-60"
+                      )}
                     >
                       {/* Avatar */}
-                      <div className="h-8 w-8 shrink-0 rounded-full bg-surface-hover flex items-center justify-center overflow-hidden">
+                      <div className={cn(
+                        "h-8 w-8 shrink-0 rounded-full bg-surface-hover flex items-center justify-center overflow-hidden",
+                        isDeleted && "grayscale"
+                      )}>
                         {member.user.image ? (
                           <img
                             src={member.user.image}
@@ -251,11 +258,17 @@ export function BoardMembersModal({
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-body font-medium truncate">
+                          <span className={cn(
+                            "text-body font-medium truncate",
+                            isDeleted && "text-text-tertiary"
+                          )}>
                             {member.user.name || member.user.email}
                           </span>
                           {isCurrentUser && (
                             <span className="text-tiny text-text-tertiary">(you)</span>
+                          )}
+                          {isDeleted && (
+                            <span className="text-tiny text-error bg-error/10 px-1.5 py-0.5 rounded">deleted</span>
                           )}
                         </div>
                         <div className="text-caption text-text-tertiary truncate">
