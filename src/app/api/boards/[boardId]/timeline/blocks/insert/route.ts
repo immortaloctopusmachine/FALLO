@@ -1,33 +1,12 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-// Helper to find the Monday of a given week
-function getMonday(date: Date): Date {
-  const result = new Date(date);
-  const day = result.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + diff);
-  return result;
-}
-
-// Helper to get the Friday of a week given a Monday
-function getFriday(monday: Date): Date {
-  const result = new Date(monday);
-  result.setDate(result.getDate() + 4);
-  return result;
-}
-
-// Helper to shift a block by weeks, snapping to Mon-Fri 5-day blocks
-function shiftBlockByWeeks(
-  startDate: Date,
-  weeks: number
-): { newStartDate: Date; newEndDate: Date } {
-  const currentMonday = getMonday(startDate);
-  const newMonday = new Date(currentMonday);
-  newMonday.setDate(newMonday.getDate() + weeks * 7);
-  return { newStartDate: newMonday, newEndDate: getFriday(newMonday) };
-}
+import { getMonday, getFriday, moveBlockDates } from '@/lib/date-utils';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
+import { getPhaseFromBlockType } from '@/lib/constants';
 
 // POST /api/boards/[boardId]/timeline/blocks/insert
 // Inserts a new block at a position and shifts all blocks at or after that position to the right
@@ -36,38 +15,21 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { blockTypeId, startDate, endDate, insertBeforeBlockId, listId, createList, syncToList } = body;
 
     // Validate required fields
     if (!blockTypeId || !startDate || !endDate || !insertBeforeBlockId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'blockTypeId, startDate, endDate, and insertBeforeBlockId are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('blockTypeId, startDate, endDate, and insertBeforeBlockId are required');
     }
 
     // Validate block type exists
@@ -76,10 +38,7 @@ export async function POST(
     });
 
     if (!blockType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block type');
     }
 
     // Get the block we're inserting before
@@ -91,10 +50,7 @@ export async function POST(
     });
 
     if (!targetBlock) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Target block not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Target block');
     }
 
     // Get all blocks at or after the target block's position (by start date)
@@ -113,7 +69,7 @@ export async function POST(
 
     // Shift all these blocks to the right by one week, snapping to Mon-Fri
     const shiftUpdates = blocksToShift.map(async (block) => {
-      const { newStartDate, newEndDate } = shiftBlockByWeeks(block.startDate, 1);
+      const { newStartDate, newEndDate } = moveBlockDates(block.startDate, 1);
 
       // Update the block
       await prisma.timelineBlock.update({
@@ -165,19 +121,8 @@ export async function POST(
 
       const nextPosition = planningLists.length > 0 ? planningLists[0].position + 1 : 0;
 
-      // Map block type to list phase - handle various name formats
-      const phaseMapping: Record<string, string> = {
-        'SPINE_PROTOTYPE': 'SPINE_PROTOTYPE',
-        'SPINE PROTOTYPE': 'SPINE_PROTOTYPE',
-        'CONCEPT': 'CONCEPT',
-        'PRODUCTION': 'PRODUCTION',
-        'TWEAK': 'TWEAK',
-        'QA': 'TWEAK', // QA can map to TWEAK phase
-        'MARKETING': 'TWEAK', // Marketing can map to TWEAK phase
-      };
-
-      const blockTypeName = blockType.name.toUpperCase().replace(/\s+/g, '_');
-      const listPhase = phaseMapping[blockTypeName] || phaseMapping[blockType.name.toUpperCase()] || null;
+      // Map block type to list phase using centralized constants
+      const listPhase = getPhaseFromBlockType(blockType.name);
 
       const newList = await prisma.list.create({
         data: {
@@ -214,33 +159,22 @@ export async function POST(
             phase: true,
           },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
-          },
-        },
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        block: newBlock,
-        shiftedCount: blocksToShift.length,
+    return apiSuccess({
+      block: {
+        id: newBlock.id,
+        startDate: newBlock.startDate.toISOString(),
+        endDate: newBlock.endDate.toISOString(),
+        position: newBlock.position,
+        blockType: newBlock.blockType,
+        list: newBlock.list,
       },
-    }, { status: 201 });
+      shiftedCount: blocksToShift.length,
+    }, 201);
   } catch (error) {
     console.error('Failed to insert block:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to insert block' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to insert block');
   }
 }

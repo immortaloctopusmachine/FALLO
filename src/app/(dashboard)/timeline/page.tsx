@@ -45,6 +45,42 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
           color: true,
         },
       },
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+              userCompanyRoles: {
+                include: {
+                  companyRole: {
+                    select: {
+                      id: true,
+                      name: true,
+                      color: true,
+                      position: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      weeklyAvailability: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
       timelineBlocks: {
         include: {
           blockType: true,
@@ -53,18 +89,6 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
               id: true,
               name: true,
               phase: true,
-            },
-          },
-          assignments: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
-              },
             },
           },
         },
@@ -98,6 +122,20 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
       description: board.description,
       teamId: board.teamId,
       team: board.team,
+      members: board.members.map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        email: m.user.email,
+        image: m.user.image,
+        userCompanyRoles: m.user.userCompanyRoles.map((ucr) => ({
+          companyRole: {
+            id: ucr.companyRole.id,
+            name: ucr.companyRole.name,
+            color: ucr.companyRole.color,
+            position: ucr.companyRole.position,
+          },
+        })),
+      })),
     },
     blocks: board.timelineBlocks.map((block) => ({
       id: block.id,
@@ -113,13 +151,14 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
         position: block.blockType.position,
       },
       list: block.list,
-      assignments: block.assignments.map((a) => ({
-        id: a.id,
-        dedication: a.dedication,
-        startDate: a.startDate.toISOString(),
-        endDate: a.endDate.toISOString(),
-        user: a.user,
-      })),
+    })),
+    availability: board.weeklyAvailability.map((a) => ({
+      id: a.id,
+      dedication: a.dedication,
+      weekStart: a.weekStart.toISOString(),
+      userId: a.userId,
+      boardId: a.boardId,
+      user: a.user,
     })),
     events: board.timelineEvents.map((event) => ({
       id: event.id,

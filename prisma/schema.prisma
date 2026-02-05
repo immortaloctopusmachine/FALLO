@@ -271,7 +271,7 @@ model User {
   userSkills       UserSkill[]
   userCompanyRoles UserCompanyRole[]
   timeLogs         TimeLog[]
-  timelineAssignments TimelineAssignment[]
+  weeklyAvailability UserWeeklyAvailability[]
 
   // NextAuth relations
   accounts      Account[]
@@ -346,6 +346,7 @@ model Board {
   // Timeline relations
   timelineBlocks  TimelineBlock[]
   timelineEvents  TimelineEvent[]
+  weeklyAvailability UserWeeklyAvailability[]
 
   // Spine Tracker
   spineTrackerData SpineTrackerData?
@@ -583,28 +584,28 @@ model TimelineBlock {
   listId      String?  @unique
   list        List?    @relation(fields: [listId], references: [id])
 
-  assignments TimelineAssignment[]
-
   @@index([boardId])
   @@map("timeline_blocks")
 }
 
-// User assignments to timeline blocks with dedication
-model TimelineAssignment {
+// User weekly availability per board (project)
+model UserWeeklyAvailability {
   id          String   @id @default(cuid())
-  dedication  Int      // 25, 50, 75, 100 (percentage)
-  startDate   DateTime // Can differ from block dates
-  endDate     DateTime
+  dedication  Int      // 0, 25, 33, 50, 75, 100 (percentage)
+  weekStart   DateTime // Monday of the week (always normalized to Monday)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  blockId     String
-  block       TimelineBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  boardId     String
+  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([blockId])
+  @@unique([boardId, userId, weekStart]) // One entry per user per week per board
+  @@index([boardId])
   @@index([userId])
-  @@map("timeline_assignments")
+  @@index([weekStart])
+  @@map("user_weekly_availability")
 }
 
 // Timeline events (milestones, deadlines)

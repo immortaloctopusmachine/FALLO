@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, Trash2, Link2, Users } from 'lucide-react';
+import { Calendar, Trash2, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
@@ -60,7 +59,7 @@ export function BlockEditModal({
   block,
   boardId: _boardId,
   blockTypes,
-  lists,
+  lists: _lists,
   users: _users,
   isOpen,
   onClose,
@@ -239,26 +238,6 @@ export function BlockEditModal({
               )}
             </div>
 
-            {/* Assignments Summary */}
-            {block.assignments.length > 0 && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Assignments ({block.assignments.length})
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {block.assignments.map((assignment) => (
-                    <div
-                      key={assignment.id}
-                      className="flex items-center gap-1 px-2 py-1 bg-surface-active rounded-full text-caption"
-                    >
-                      <span>{assignment.user.name || assignment.user.email}</span>
-                      <span className="text-text-tertiary">({assignment.dedication}%)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Actions */}

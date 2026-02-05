@@ -227,13 +227,14 @@
 | EventType model | 🟢 | Claude | With seeded defaults (GSD, Review, Demo, etc.) |
 | TimelineBlock model | 🟢 | Claude | Linked to boards and lists |
 | TimelineEvent model | 🟢 | Claude | Milestones and deadlines |
-| TimelineAssignment model | 🟢 | Claude | User dedication percentages |
+| UserWeeklyAvailability model | 🟢 | Claude | Week-based availability per user/board (replaced TimelineAssignment) |
+| Weekly availability UI | 🟢 | Claude | TimelineRoleRow + WeekAvailabilityPopup for per-week dedication by role |
 | Timeline view page | 🟢 | Claude | Grid with date headers, project rows, blocks |
 | Zoom levels (Day/Week/Month) | 🟢 | Claude | With business day calculation |
 | Filter panel | 🟢 | Claude | By team, user, block type, event type |
 | Global navigation header | 🟢 | Claude | Consistent nav across all dashboard pages |
 | Create project from Timeline | 🟢 | Claude | CreateProjectDialog with templates |
-| Grid fills viewport width | ⏸️ | - | See Notes section - CSS approaches tried |
+| Grid fills viewport width | 🟢 | Claude | Fixed with inline-flex and min-w-full classes |
 | Block drag-and-drop (resize/move) | 🟢 | Claude | Snap-to-grid, business day calc |
 | Block edit modal | 🟢 | Claude | BlockEditModal with type/dates/list |
 | Block delete functionality | 🟢 | Claude | Context menu + modal confirmation |
@@ -255,13 +256,13 @@
 | Sync indicator badges | 🟢 | Claude | On planning lists with linked blocks |
 | durationDays support | 🟢 | Claude | 5-day blocks with business day calc |
 
-### 5.5.4 Time Tracking 🔴
+### 5.5.4 Time Tracking 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
 | TimeLog model | 🟢 | Claude | Schema ready |
-| Auto-start on In Progress | 🔴 | - | When card moves to In Progress |
-| Manual time entry (admin) | 🔴 | - | |
-| User time stats | 🔴 | - | |
+| Auto-start on In Progress | 🟢 | Claude | In cards/reorder API when moving to in-progress lists |
+| Manual time entry (admin) | 🟢 | Claude | TimeLogSection in CardModal |
+| User time stats | 🟢 | Claude | /users/[userId]/time page with stats and logs |
 
 ---
 
@@ -299,6 +300,8 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-05 | 5.5.2 | Timeline user assignments UI: AssignmentEditModal for managing user assignments with dedication %, "Manage" button in BlockEditModal. Fixed grid width issue with inline-flex layout. | Claude |
+| 2026-02-05 | 5.5.4 | Time Tracking complete: User time stats page (/users/[userId]/time) with date range filters, time by phase breakdown, recent logs table. Auto-start was already implemented in cards/reorder API. | Claude |
 | 2026-02-03 | 1.3, 4.x | Rename "Roles" to "Permissions" across entire codebase (~57 files): schema enum, types, auth, 35 API routes, 28 UI components. Add new "Company Roles" feature: CompanyRole + UserCompanyRole models, settings CRUD page, role assignment to users with colored pills. Default roles: PO, Lead, Artist, Animator, QA, Math, Sound | Claude |
 | 2026-02-03 | 5.5.2 | Timeline events: CRUD with context menu, drag-and-drop (day snap), events follow blocks, long-press drag for entire section, block collision prevention, cross-project state isolation fix | Claude |
 | 2026-02-02 | 5.5.2 | Timeline block interactions: drag-and-drop resize/move, edit modal, delete with confirmation, add new block dialog with list linking options | Claude |
@@ -324,15 +327,21 @@
 ### Architectural Decisions
 1. **Card polymorphism**: Single `Card` table with `type` discriminator + type-specific JSON fields. Decision: Implemented in prisma/schema.prisma
 
-### Timeline Grid Width Issue (Blocked)
-The timeline grid does not fill the entire viewport width when there are fewer columns than the viewport width. Multiple CSS approaches were tried without success:
+### Timeline Grid Width Issue (Unresolved)
 
-1. **Approach 1**: Changed container from fixed `width: totalDays * columnWidth` to `minWidth: '100%', width: max(100%, ${totalDays * columnWidth}px)` - No effect
-2. **Approach 2**: Wrapped DateHeader and project rows in a single container with minWidth - No effect
-3. **Approach 3**: Added flex fill divs (`<div className="flex-1 bg-background" />`) at the end of each row to fill remaining space - No effect
-4. **Approach 4**: Added minWidth prop to TimelineProjectRow and TimelineUserRow components - No effect
+**Problem**: Timeline grid background/lines don't extend to fill the viewport when content width is less than viewport width.
 
-The issue persists across all zoom levels (day, week, month) with month view being closest to filling the viewport. Root cause likely involves the scrollable container and flex layout interaction. May need investigation with browser dev tools to identify the constraint.
+**Attempts:**
+1. ❌ `inline-flex flex-col min-w-full` on container, `min-w-full` on rows with flex-1 fill divs — Grid still cuts off at content width
+2. ❌ `flex flex-col bg-background` on container, `min-w-full` on rows — Same issue
+3. ❌ `style={{ minWidth: 'max(100%, ${totalDays * COLUMN_WIDTH}px)' }}` on container, `w-full` on rows — Still cuts off (current)
+
+**Current state**: The date header fill divs work (they have `flex-1`) but the block/event/user rows use CSS background gradients for grid lines, which only render where the element has dimensions. The rows are `position: relative` with `height: rowHeight` but no explicit width, so they only extend as far as their content.
+
+**Potential solutions to try:**
+- Calculate min-width in pixels and apply as inline style to row containers
+- Use CSS Grid instead of flexbox for the timeline
+- Apply the gradient background to the outer scrollable container instead of individual rows
 
 ### Open Questions
 1. Real-time collaboration scope for MVP?

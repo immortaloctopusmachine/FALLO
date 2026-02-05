@@ -8,31 +8,27 @@ import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineLeftColumn } from './TimelineLeftColumn';
 import { TimelineEventsRow } from './TimelineEventsRow';
 import { TimelineBlocksRow } from './TimelineBlocksRow';
-import { TimelineUserRow } from './TimelineUserRow';
 import { TimelineFilterPanel } from './TimelineFilterPanel';
 import { BlockEditModal } from './BlockEditModal';
 import { AddBlockDialog } from './AddBlockDialog';
 import { EventEditModal } from './EventEditModal';
+import { TimelineRoleRow } from './TimelineRoleRow';
+import { WeekAvailabilityPopup } from './WeekAvailabilityPopup';
 import type {
   TimelineData,
   BlockType,
   EventType,
   TimelineBlock,
   TimelineEvent as TimelineEventType,
+  Team,
+  User,
+  TimelineMember,
+  UserWeeklyAvailability,
 } from '@/types';
+import { getMonday, getFriday, addBusinessDays } from '@/lib/date-utils';
 
-interface Team {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-}
+// Minimal user info needed for timeline display
+type TimelineUser = Pick<User, 'id' | 'name' | 'email' | 'image'>;
 
 interface TimelineFilters {
   teams: string[];
@@ -44,7 +40,7 @@ interface TimelineFilters {
 interface TimelineViewProps {
   projects: TimelineData[];
   teams: Team[];
-  users: User[];
+  users: TimelineUser[];
   blockTypes: BlockType[];
   eventTypes: EventType[];
   isAdmin: boolean;
@@ -106,6 +102,16 @@ export function TimelineView({
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventBoardId, setEventBoardId] = useState<string>('');
   const [eventDefaultDate, setEventDefaultDate] = useState<Date | undefined>();
+
+  // Availability editing state
+  const [showAvailabilityPopup, setShowAvailabilityPopup] = useState(false);
+  const [availabilityWeekStart, setAvailabilityWeekStart] = useState<Date | null>(null);
+  const [availabilityRoleId, setAvailabilityRoleId] = useState<string>('');
+  const [availabilityRoleName, setAvailabilityRoleName] = useState<string>('');
+  const [availabilityRoleColor, setAvailabilityRoleColor] = useState<string | null>(null);
+  const [availabilityMembers, setAvailabilityMembers] = useState<TimelineMember[]>([]);
+  const [availabilityExisting, setAvailabilityExisting] = useState<UserWeeklyAvailability[]>([]);
+  const [availabilityBoardId, setAvailabilityBoardId] = useState<string>('');
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -172,15 +178,8 @@ export function TimelineView({
   // Transform projects for left column
   const projectRows = useMemo(() => {
     return filteredProjects.map((project) => {
-      // Get unique members for this project
-      const members = new Map<string, User>();
-      project.blocks.forEach((block) => {
-        block.assignments.forEach((assignment) => {
-          if (!members.has(assignment.user.id)) {
-            members.set(assignment.user.id, assignment.user);
-          }
-        });
-      });
+      // Use board members (all users who are members of the board)
+      const boardMembers = project.board.members || [];
 
       return {
         id: project.board.id,
@@ -188,7 +187,7 @@ export function TimelineView({
         teamColor: project.board.team?.color,
         teamName: project.board.team?.name,
         isExpanded: expandedProjects.has(project.board.id),
-        members: Array.from(members.values()),
+        members: boardMembers,
         hasEvents: project.events.length > 0,
       };
     });
@@ -318,6 +317,67 @@ export function TimelineView({
     setEventDefaultDate(undefined);
   }, []);
 
+  // Handle opening availability popup
+  const handleOpenAvailabilityPopup = useCallback((
+    boardId: string,
+    weekStart: Date,
+    roleId: string,
+    roleMembers: TimelineMember[]
+  ) => {
+    const project = projects.find(p => p.board.id === boardId);
+    if (!project) return;
+
+    // Find role info from members
+    const roleMember = roleMembers[0];
+    const role = roleMember?.userCompanyRoles.find(ucr => ucr.companyRole.id === roleId)?.companyRole;
+
+    // Get existing availability for this week and these members
+    const weekKey = getMonday(weekStart).toISOString().split('T')[0];
+    const existingForWeek = project.availability.filter(a => {
+      const availWeekKey = getMonday(new Date(a.weekStart)).toISOString().split('T')[0];
+      return availWeekKey === weekKey && roleMembers.some(m => m.id === a.userId);
+    });
+
+    setAvailabilityBoardId(boardId);
+    setAvailabilityWeekStart(weekStart);
+    setAvailabilityRoleId(roleId);
+    setAvailabilityRoleName(role?.name || 'Unknown Role');
+    setAvailabilityRoleColor(role?.color || null);
+    setAvailabilityMembers(roleMembers);
+    setAvailabilityExisting(existingForWeek);
+    setShowAvailabilityPopup(true);
+  }, [projects]);
+
+  // Handle closing availability popup
+  const handleCloseAvailabilityPopup = useCallback(() => {
+    setShowAvailabilityPopup(false);
+    setAvailabilityWeekStart(null);
+    setAvailabilityRoleId('');
+    setAvailabilityRoleName('');
+    setAvailabilityRoleColor(null);
+    setAvailabilityMembers([]);
+    setAvailabilityExisting([]);
+    setAvailabilityBoardId('');
+  }, []);
+
+  // Handle saving availability
+  const handleSaveAvailability = useCallback(async (
+    boardId: string,
+    entries: { userId: string; weekStart: string; dedication: number }[]
+  ) => {
+    const response = await fetch(`/api/boards/${boardId}/availability`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save availability');
+    }
+
+    router.refresh();
+  }, [router]);
+
   // Handle event move (drag-and-drop day-by-day)
   const handleEventMove = useCallback(async (eventId: string, daysDelta: number, boardId: string) => {
     if (daysDelta === 0) return;
@@ -395,38 +455,6 @@ export function TimelineView({
     setCreateProjectStartDate(undefined);
   }, []);
 
-  // Helper to get Monday of a week
-  const getMonday = useCallback((date: Date): Date => {
-    const result = new Date(date);
-    const day = result.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    result.setDate(result.getDate() + diff);
-    return result;
-  }, []);
-
-  // Helper to get Friday from Monday
-  const getFriday = useCallback((monday: Date): Date => {
-    const result = new Date(monday);
-    result.setDate(result.getDate() + 4);
-    return result;
-  }, []);
-
-  // Helper to add business days to a date
-  const addBusinessDays = useCallback((date: Date, days: number): Date => {
-    const result = new Date(date);
-    let remaining = Math.abs(days);
-    const direction = days > 0 ? 1 : -1;
-
-    while (remaining > 0) {
-      result.setDate(result.getDate() + direction);
-      const dayOfWeek = result.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        remaining--;
-      }
-    }
-    return result;
-  }, []);
-
   // Block group move handler (for drag-and-drop)
   // Moves multiple blocks by a number of weeks (each week = 5 business days)
   // Also moves events that fall within the blocks' date range
@@ -445,7 +473,7 @@ export function TimelineView({
     const boardId = project.board.id;
 
     // Helper: get week key (Monday date string) for a block's start date
-    const getWeekKey = (startDate: string): string => {
+    const _getWeekKey = (startDate: string): string => {
       const monday = getMonday(new Date(startDate));
       return monday.toISOString().split('T')[0];
     };
@@ -630,7 +658,7 @@ export function TimelineView({
       console.error('Failed to move blocks:', error);
       router.refresh();
     }
-  }, [projects, router, getMonday, getFriday, addBusinessDays]);
+  }, [projects, router]);
 
   // Block delete handler (from context menu)
   // Deletes a block and shifts all blocks to the right of it left by one week
@@ -803,6 +831,7 @@ export function TimelineView({
             onAddEvent={(projectId) => handleAddEvent(projectId)}
             rowHeight={ROW_HEIGHT}
             eventRowHeight={28}
+            roleRowHeight={32}
             headerHeight={HEADER_HEIGHT}
             isAdmin={isAdmin}
           />
@@ -812,31 +841,21 @@ export function TimelineView({
             ref={scrollContainerRef}
             className="flex-1 overflow-auto"
           >
-            {/* Grid container - fills viewport width */}
-            <div style={{ minWidth: '100%', width: `max(100%, ${totalDays * COLUMN_WIDTH}px)` }}>
+            {/* Grid container - ensure it fills viewport or content width, whichever is larger */}
+            <div
+              className="flex flex-col bg-background"
+              style={{ minWidth: `max(100%, ${totalDays * COLUMN_WIDTH}px)` }}
+            >
               {/* Date header */}
               <TimelineDateHeader
                 startDate={startDate}
                 endDate={endDate}
                 columnWidth={COLUMN_WIDTH}
-                totalWidth={totalDays * COLUMN_WIDTH}
               />
 
               {/* Project rows */}
               <div>
               {filteredProjects.map((project) => {
-                const isExpanded = expandedProjects.has(project.board.id);
-
-                // Get unique members for this project
-                const members = new Map<string, User>();
-                project.blocks.forEach((block) => {
-                  block.assignments.forEach((assignment) => {
-                    if (!members.has(assignment.user.id)) {
-                      members.set(assignment.user.id, assignment.user);
-                    }
-                  });
-                });
-
                 // Row height for events (smaller)
                 const EVENT_ROW_HEIGHT = 28;
 
@@ -855,7 +874,6 @@ export function TimelineView({
                       onEventMove={(eventId, daysDelta) => handleEventMove(eventId, daysDelta, project.board.id)}
                       selectedEventId={selectedEventId}
                       totalColumns={totalDays}
-                      minWidth={`max(100%, ${totalDays * COLUMN_WIDTH}px)`}
                       isAdmin={isAdmin}
                     />
 
@@ -871,35 +889,46 @@ export function TimelineView({
                       onBlockInsert={handleBlockInsert}
                       selectedBlockId={selectedBlockId}
                       totalColumns={totalDays}
-                      minWidth={`max(100%, ${totalDays * COLUMN_WIDTH}px)`}
                       isAdmin={isAdmin}
                     />
 
-                    {/* User rows when expanded */}
-                    {isExpanded &&
-                      Array.from(members.values()).map((member) => (
-                        <TimelineUserRow
-                          key={member.id}
-                          assignments={project.blocks.flatMap((block) =>
-                            block.assignments.filter((a) => a.user.id === member.id)
-                          )}
+                    {/* Role-based availability rows */}
+                    {(() => {
+                      // Get unique roles from project members, sorted by position
+                      const rolesMap = new Map<string, { id: string; name: string; color: string | null; position: number }>();
+                      project.board.members.forEach(member => {
+                        member.userCompanyRoles.forEach(ucr => {
+                          if (!rolesMap.has(ucr.companyRole.id)) {
+                            rolesMap.set(ucr.companyRole.id, ucr.companyRole);
+                          }
+                        });
+                      });
+                      const uniqueRoles = Array.from(rolesMap.values()).sort((a, b) => a.position - b.position);
+
+                      return uniqueRoles.map(role => (
+                        <TimelineRoleRow
+                          key={`${project.board.id}-${role.id}`}
+                          role={role}
+                          members={project.board.members}
+                          availability={project.availability}
+                          boardId={project.board.id}
                           startDate={startDate}
                           endDate={endDate}
                           columnWidth={COLUMN_WIDTH}
-                          rowHeight={ROW_HEIGHT}
-                          totalColumns={totalDays}
-                          minWidth={`max(100%, ${totalDays * COLUMN_WIDTH}px)`}
+                          rowHeight={32}
+                          onWeekClick={(weekStart, roleId, roleMembers) =>
+                            handleOpenAvailabilityPopup(project.board.id, weekStart, roleId, roleMembers)
+                          }
+                          isAdmin={isAdmin}
                         />
-                      ))}
+                      ));
+                    })()}
                   </div>
                 );
               })}
 
               {filteredProjects.length === 0 && (
-                <div
-                  className="flex items-center justify-center py-24 text-text-tertiary"
-                  style={{ minWidth: `max(100%, ${totalDays * COLUMN_WIDTH}px)` }}
-                >
+                <div className="flex items-center justify-center py-24 text-text-tertiary min-w-full">
                   <div className="text-center">
                     <p className="text-body">No projects match the current filters</p>
                     <p className="text-caption mt-1">
@@ -966,6 +995,22 @@ export function TimelineView({
         onDelete={handleEventModalDelete}
         defaultDate={eventDefaultDate}
       />
+
+      {/* Week Availability Popup */}
+      {showAvailabilityPopup && availabilityWeekStart && (
+        <WeekAvailabilityPopup
+          isOpen={showAvailabilityPopup}
+          onClose={handleCloseAvailabilityPopup}
+          weekStart={availabilityWeekStart}
+          roleId={availabilityRoleId}
+          roleName={availabilityRoleName}
+          roleColor={availabilityRoleColor}
+          members={availabilityMembers}
+          existingAvailability={availabilityExisting}
+          boardId={availabilityBoardId}
+          onSave={handleSaveAvailability}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/timeline - Get all timeline data for a board
 export async function GET(
@@ -8,30 +12,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a board member' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     // Get board with team info
     const board = await prisma.board.findUnique({
@@ -49,7 +36,7 @@ export async function GET(
       },
     });
 
-    // Get timeline blocks with assignments
+    // Get timeline blocks
     const blocks = await prisma.timelineBlock.findMany({
       where: { boardId },
       include: {
@@ -61,20 +48,24 @@ export async function GET(
             phase: true,
           },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
+      },
+      orderBy: [{ startDate: 'asc' }, { position: 'asc' }],
+    });
+
+    // Get weekly availability
+    const availability = await prisma.userWeeklyAvailability.findMany({
+      where: { boardId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
           },
         },
       },
-      orderBy: [{ startDate: 'asc' }, { position: 'asc' }],
+      orderBy: { weekStart: 'asc' },
     });
 
     // Get timeline events
@@ -108,21 +99,30 @@ export async function GET(
       orderBy: { position: 'asc' },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        board,
-        blocks,
-        events,
-        blockTypes,
-        eventTypes,
-      },
+    return apiSuccess({
+      board,
+      blocks: blocks.map((block) => ({
+        id: block.id,
+        startDate: block.startDate.toISOString(),
+        endDate: block.endDate.toISOString(),
+        position: block.position,
+        blockType: block.blockType,
+        list: block.list,
+      })),
+      events,
+      availability: availability.map((a) => ({
+        id: a.id,
+        dedication: a.dedication,
+        weekStart: a.weekStart.toISOString(),
+        userId: a.userId,
+        boardId: a.boardId,
+        user: a.user,
+      })),
+      blockTypes,
+      eventTypes,
     });
   } catch (error) {
     console.error('Failed to fetch timeline:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch timeline' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch timeline');
   }
 }

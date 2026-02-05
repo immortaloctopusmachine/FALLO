@@ -1,22 +1,13 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-// Helper to find the Monday of a given week
-function getMonday(date: Date): Date {
-  const result = new Date(date);
-  const day = result.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + diff);
-  return result;
-}
-
-// Helper to get the Friday of a week given a Monday
-function getFriday(monday: Date): Date {
-  const result = new Date(monday);
-  result.setDate(result.getDate() + 4);
-  return result;
-}
+import { getMonday, getFriday } from '@/lib/date-utils';
+import { getPhaseFromBlockType } from '@/lib/constants';
+import {
+  requireAuth,
+  requireAdmin,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/timeline/blocks - Get all blocks for a board
 export async function GET(
@@ -24,30 +15,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a board member' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const blocks = await prisma.timelineBlock.findMany({
       where: { boardId },
@@ -60,29 +34,21 @@ export async function GET(
             phase: true,
           },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
-          },
-        },
       },
       orderBy: [{ startDate: 'asc' }, { position: 'asc' }],
     });
 
-    return NextResponse.json({ success: true, data: blocks });
+    return apiSuccess(blocks.map((block) => ({
+      id: block.id,
+      startDate: block.startDate.toISOString(),
+      endDate: block.endDate.toISOString(),
+      position: block.position,
+      blockType: block.blockType,
+      list: block.list,
+    })));
   } catch (error) {
     console.error('Failed to fetch timeline blocks:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch timeline blocks' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch timeline blocks');
   }
 }
 
@@ -92,38 +58,21 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { blockTypeId, startDate, endDate, position, listId, createList } = body;
 
     // Validate required fields
     if (!blockTypeId || !startDate || !endDate) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'blockTypeId, startDate, and endDate are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('blockTypeId, startDate, and endDate are required');
     }
 
     // Validate block type exists
@@ -132,10 +81,7 @@ export async function POST(
     });
 
     if (!blockType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block type');
     }
 
     // Calculate position if not provided - count existing blocks of this type
@@ -168,19 +114,8 @@ export async function POST(
 
       const nextPosition = planningLists.length > 0 ? planningLists[0].position + 1 : 0;
 
-      // Map block type to list phase - handle various name formats
-      const phaseMapping: Record<string, string> = {
-        'SPINE_PROTOTYPE': 'SPINE_PROTOTYPE',
-        'SPINE PROTOTYPE': 'SPINE_PROTOTYPE',
-        'CONCEPT': 'CONCEPT',
-        'PRODUCTION': 'PRODUCTION',
-        'TWEAK': 'TWEAK',
-        'QA': 'TWEAK',
-        'MARKETING': 'TWEAK',
-      };
-
-      const blockTypeName = blockType.name.toUpperCase().replace(/\s+/g, '_');
-      const listPhase = phaseMapping[blockTypeName] || phaseMapping[blockType.name.toUpperCase()] || null;
+      // Map block type to list phase using centralized constants
+      const listPhase = getPhaseFromBlockType(blockType.name);
 
       const newList = await prisma.list.create({
         data: {
@@ -188,7 +123,7 @@ export async function POST(
           name: `${blockType.name} ${blockPosition}`,
           position: nextPosition,
           viewType: 'PLANNING',
-          phase: listPhase as 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE' | null,
+          phase: listPhase,
           color: blockType.color,
           startDate: snappedMonday,
           endDate: snappedFriday,
@@ -216,27 +151,19 @@ export async function POST(
             phase: true,
           },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
-          },
-        },
       },
     });
 
-    return NextResponse.json({ success: true, data: block }, { status: 201 });
+    return apiSuccess({
+      id: block.id,
+      startDate: block.startDate.toISOString(),
+      endDate: block.endDate.toISOString(),
+      position: block.position,
+      blockType: block.blockType,
+      list: block.list,
+    }, 201);
   } catch (error) {
     console.error('Failed to create timeline block:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create timeline block' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create timeline block');
   }
 }

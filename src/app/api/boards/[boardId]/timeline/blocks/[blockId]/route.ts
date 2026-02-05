@@ -1,22 +1,12 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-// Helper to find the Monday of a given week
-function getMonday(date: Date): Date {
-  const result = new Date(date);
-  const day = result.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + diff);
-  return result;
-}
-
-// Helper to get the Friday of a week given a Monday
-function getFriday(monday: Date): Date {
-  const result = new Date(monday);
-  result.setDate(result.getDate() + 4);
-  return result;
-}
+import { getMonday, getFriday } from '@/lib/date-utils';
+import {
+  requireAuth,
+  requireAdmin,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/timeline/blocks/[blockId] - Get a single block
 export async function GET(
@@ -24,30 +14,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string; blockId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, blockId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a board member' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const block = await prisma.timelineBlock.findFirst({
       where: {
@@ -63,35 +36,24 @@ export async function GET(
             phase: true,
           },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
-          },
-        },
       },
     });
 
     if (!block) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block');
     }
 
-    return NextResponse.json({ success: true, data: block });
+    return apiSuccess({
+      id: block.id,
+      startDate: block.startDate.toISOString(),
+      endDate: block.endDate.toISOString(),
+      position: block.position,
+      blockType: block.blockType,
+      list: block.list,
+    });
   } catch (error) {
     console.error('Failed to fetch timeline block:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch timeline block' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch timeline block');
   }
 }
 
@@ -101,28 +63,14 @@ export async function PATCH(
   { params }: { params: Promise<{ boardId: string; blockId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, blockId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if block exists
     const existingBlock = await prisma.timelineBlock.findFirst({
@@ -136,10 +84,7 @@ export async function PATCH(
     });
 
     if (!existingBlock) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block');
     }
 
     const body = await request.json();
@@ -185,18 +130,6 @@ export async function PATCH(
             phase: true,
           },
         },
-        assignments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
-          },
-        },
       },
     });
 
@@ -234,13 +167,10 @@ export async function PATCH(
       });
     }
 
-    return NextResponse.json({ success: true, data: block });
+    return apiSuccess(block);
   } catch (error) {
     console.error('Failed to update timeline block:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update timeline block' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update timeline block');
   }
 }
 
@@ -250,28 +180,14 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string; blockId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, blockId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if block exists
     const existingBlock = await prisma.timelineBlock.findFirst({
@@ -282,10 +198,7 @@ export async function DELETE(
     });
 
     if (!existingBlock) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block');
     }
 
     // Parse body for options
@@ -335,18 +248,12 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        deletedBlockId: blockId,
-        deletedListId: deleteLinkedList ? linkedListId : null,
-      }
+    return apiSuccess({
+      deletedBlockId: blockId,
+      deletedListId: deleteLinkedList ? linkedListId : null,
     });
   } catch (error) {
     console.error('Failed to delete timeline block:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete timeline block' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete timeline block');
   }
 }

@@ -306,19 +306,6 @@ export interface EventType {
   position: number;
 }
 
-export interface TimelineAssignment {
-  id: string;
-  dedication: number; // 25, 50, 75, 100
-  startDate: string;
-  endDate: string;
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-    image: string | null;
-  };
-}
-
 export interface TimelineBlock {
   id: string;
   startDate: string;
@@ -330,7 +317,34 @@ export interface TimelineBlock {
     name: string;
     phase: string | null;
   } | null;
-  assignments: TimelineAssignment[];
+}
+
+// User weekly availability per board (project)
+export interface UserWeeklyAvailability {
+  id: string;
+  dedication: number; // 0, 25, 33, 50, 75, 100
+  weekStart: string;  // ISO date (Monday)
+  userId: string;
+  boardId: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+  };
+}
+
+// For grouped display in UI - availability by role for a week
+export interface RoleWeekAvailability {
+  roleId: string;
+  roleName: string;
+  roleColor: string | null;
+  weekStart: string;
+  entries: {
+    userId: string;
+    userName: string | null;
+    dedication: number;
+  }[];
 }
 
 export interface TimelineEvent {
@@ -342,20 +356,40 @@ export interface TimelineEvent {
   eventType: EventType;
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  color: string;
+}
+
+// Member info for timeline display (includes company roles)
+export interface TimelineMember {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  userCompanyRoles: {
+    companyRole: {
+      id: string;
+      name: string;
+      color: string | null;
+      position: number;
+    };
+  }[];
+}
+
 export interface TimelineData {
   board: {
     id: string;
     name: string;
     description: string | null;
     teamId: string | null;
-    team: {
-      id: string;
-      name: string;
-      color: string;
-    } | null;
+    team: Team | null;
+    members: TimelineMember[];
   };
   blocks: TimelineBlock[];
   events: TimelineEvent[];
+  availability: UserWeeklyAvailability[];
   blockTypes: BlockType[];
   eventTypes: EventType[];
 }
