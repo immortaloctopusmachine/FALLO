@@ -33,6 +33,7 @@ import {
   Target,
   LayoutGrid,
   CalendarRange,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +69,11 @@ type EpicHealth = 'on_track' | 'at_risk' | 'behind';
 interface EpicWithHealth extends EpicCard {
   health: EpicHealth;
   healthReason?: string;
+}
+
+interface PlanningListSection extends List {
+  userStories: UserStoryCard[];
+  stagedTasks: TaskCard[];
 }
 
 export function PlanningView({
@@ -119,6 +125,7 @@ export function PlanningView({
   const [selectedTemplate, setSelectedTemplate] = useState<'STANDARD_SLOT' | 'BRANDED_GAME'>('STANDARD_SLOT');
   const [isSyncingTimeline, setIsSyncingTimeline] = useState(false);
   const [collapsedLists, setCollapsedLists] = useState<Set<string>>(new Set());
+  const [releasingTaskIds, setReleasingTaskIds] = useState<Set<string>>(new Set());
 
   // Filter to get Epics and User Stories
   const epics = useMemo(() => {
@@ -126,15 +133,32 @@ export function PlanningView({
     return allCards.filter(card => card.type === 'EPIC') as EpicCard[];
   }, [board.lists]);
 
-  // Filter to only show PLANNING view lists and User Story cards
+  // Filter to only show PLANNING view lists
   const planningLists = useMemo(() => {
     return board.lists
       .filter(list => list.viewType === 'PLANNING')
       .map(list => ({
         ...list,
-        cards: list.cards.filter(card => card.type === 'USER_STORY') as UserStoryCard[],
+        cards: list.cards,
       }));
   }, [board.lists]);
+
+  const planningListSections = useMemo<PlanningListSection[]>(() => {
+    return planningLists.map((list) => {
+      const userStories = list.cards.filter((card) => card.type === 'USER_STORY') as UserStoryCard[];
+      const stagedTasks = list.cards.filter((card) => {
+        if (card.type !== 'TASK') return false;
+        const task = card as TaskCard;
+        return task.taskData?.releaseMode === 'STAGED' && !task.taskData?.releasedAt;
+      }) as TaskCard[];
+
+      return {
+        ...list,
+        userStories,
+        stagedTasks,
+      };
+    });
+  }, [planningLists]);
 
   // Get TASKS view lists for linked card creation
   const taskLists = useMemo(() => {
@@ -236,9 +260,9 @@ export function PlanningView({
   const listDonePoints = useMemo(() => {
     const donePoints: Record<string, number> = {};
 
-    planningLists.forEach(list => {
+    planningListSections.forEach(list => {
       let points = 0;
-      list.cards.forEach(story => {
+      list.userStories.forEach(story => {
         const connectedTasks = (story.connectedTasks || []) as TaskCard[];
         connectedTasks.forEach(task => {
           if (task.listId === doneListId) {
@@ -250,7 +274,7 @@ export function PlanningView({
     });
 
     return donePoints;
-  }, [planningLists, doneListId]);
+  }, [planningListSections, doneListId]);
 
   // Handle list collapse toggle
   const handleCollapseChange = useCallback((listId: string, collapsed: boolean) => {
@@ -279,13 +303,13 @@ export function PlanningView({
 
   const cardToListMap = useMemo(() => {
     const map = new Map<string, string>();
-    planningLists.forEach((list) => {
-      list.cards.forEach((card) => {
+    planningListSections.forEach((list) => {
+      list.userStories.forEach((card) => {
         map.set(card.id, list.id);
       });
     });
     return map;
-  }, [planningLists]);
+  }, [planningListSections]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
@@ -617,6 +641,52 @@ export function PlanningView({
       console.error('Failed to refresh board:', error);
     }
   }, [board.id, setBoard]);
+
+  const handleReleaseStagedTask = useCallback(async (task: TaskCard) => {
+    const releaseTargetListId =
+      task.taskData?.releaseTargetListId ||
+      taskLists.find((list) => list.phase === 'BACKLOG')?.id ||
+      taskLists[0]?.id;
+
+    if (!releaseTargetListId) {
+      alert('No target Tasks list is available for release.');
+      return;
+    }
+
+    setReleasingTaskIds((prev) => new Set(prev).add(task.id));
+
+    try {
+      const response = await fetch(`/api/boards/${board.id}/cards/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listId: releaseTargetListId,
+          taskData: {
+            ...(task.taskData || {}),
+            releaseMode: 'IMMEDIATE',
+            releaseTargetListId,
+            releasedAt: new Date().toISOString(),
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Failed to release task');
+      }
+
+      await handleRefreshBoard();
+    } catch (error) {
+      console.error('Failed to release staged task:', error);
+      alert('Failed to release task. Please try again.');
+    } finally {
+      setReleasingTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+    }
+  }, [board.id, taskLists, handleRefreshBoard]);
 
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
@@ -953,6 +1023,52 @@ export function PlanningView({
     </div>
   );
 
+  const renderPlanningListColumn = (list: PlanningListSection) => (
+    <ListComponent
+      key={list.id}
+      id={list.id}
+      name={list.name}
+      cards={list.userStories}
+      boardId={board.id}
+      onAddCard={handleAddUserStory}
+      onCardClick={handleCardClick}
+      onDeleteList={handleDeleteList}
+      onDetachFromTimeline={handleDetachFromTimeline}
+      cardTypeFilter="USER_STORY"
+      listColor={list.color}
+      showDateRange
+      startDate={list.startDate}
+      endDate={list.endDate}
+      donePoints={listDonePoints[list.id]}
+      timelineBlock={list.timelineBlock}
+      isCollapsible
+      isCollapsed={collapsedLists.has(list.id)}
+      onCollapseChange={handleCollapseChange}
+      secondaryCards={list.stagedTasks}
+      secondarySectionTitle="Staged Tasks"
+      secondaryEmptyText="No staged tasks in this phase."
+      renderSecondaryCardActions={(card) => {
+        const task = card as TaskCard;
+        const isReleasing = releasingTaskIds.has(task.id);
+        return (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 text-caption"
+            disabled={isReleasing}
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleReleaseStagedTask(task);
+            }}
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+            {isReleasing ? 'Releasing...' : 'Release now'}
+          </Button>
+        );
+      }}
+    />
+  );
+
   if (!isMounted) {
     return (
       <div className="flex flex-col h-full">
@@ -968,29 +1084,7 @@ export function PlanningView({
             </div>
           ) : (
             <div className="flex-1 flex gap-4 overflow-x-auto p-4">
-              {planningLists.map((list) => (
-                <ListComponent
-                  key={list.id}
-                  id={list.id}
-                  name={list.name}
-                  cards={list.cards}
-                  boardId={board.id}
-                  onAddCard={handleAddUserStory}
-                  onCardClick={handleCardClick}
-                  onDeleteList={handleDeleteList}
-                  onDetachFromTimeline={handleDetachFromTimeline}
-                  cardTypeFilter="USER_STORY"
-                  listColor={list.color}
-                  showDateRange
-                  startDate={list.startDate}
-                  endDate={list.endDate}
-                  donePoints={listDonePoints[list.id]}
-                  timelineBlock={list.timelineBlock}
-                  isCollapsible
-                  isCollapsed={collapsedLists.has(list.id)}
-                  onCollapseChange={handleCollapseChange}
-                />
-              ))}
+              {planningListSections.map((list) => renderPlanningListColumn(list))}
             </div>
           )}
         </div>
@@ -1076,32 +1170,13 @@ export function PlanningView({
             onDragEnd={handleDragEnd}
           >
             <div className="flex-1 flex gap-4 overflow-x-auto p-4">
-              {planningLists.map((list) => (
+              {planningListSections.map((list) => (
                 <SortableContext
                   key={list.id}
-                  items={list.cards.map((c) => c.id)}
+                  items={list.userStories.map((c) => c.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <ListComponent
-                    id={list.id}
-                    name={list.name}
-                    cards={list.cards}
-                    boardId={board.id}
-                    onAddCard={handleAddUserStory}
-                    onCardClick={handleCardClick}
-                    onDeleteList={handleDeleteList}
-                    onDetachFromTimeline={handleDetachFromTimeline}
-                    cardTypeFilter="USER_STORY"
-                    listColor={list.color}
-                    showDateRange
-                    startDate={list.startDate}
-                    endDate={list.endDate}
-                    donePoints={listDonePoints[list.id]}
-                    timelineBlock={list.timelineBlock}
-                    isCollapsible
-                    isCollapsed={collapsedLists.has(list.id)}
-                    onCollapseChange={handleCollapseChange}
-                  />
+                  {renderPlanningListColumn(list)}
                 </SortableContext>
               ))}
             </div>

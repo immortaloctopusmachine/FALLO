@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 interface CardCompactProps {
   card: Card;
   onClick: () => void;
+  sortable?: boolean;
 }
 
 
@@ -20,7 +21,7 @@ const cardTypeIcons = {
   UTILITY: FileText,
 };
 
-export function CardCompact({ card, onClick }: CardCompactProps) {
+export function CardCompact({ card, onClick, sortable = true }: CardCompactProps) {
   const {
     attributes,
     listeners,
@@ -34,6 +35,7 @@ export function CardCompact({ card, onClick }: CardCompactProps) {
       type: 'card',
       card,
     },
+    disabled: !sortable,
   });
 
   const style = {
@@ -49,8 +51,8 @@ export function CardCompact({ card, onClick }: CardCompactProps) {
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(sortable ? attributes : {})}
+      {...(sortable ? listeners : {})}
       onClick={onClick}
       className={cn(
         'cursor-pointer rounded-md border border-border-subtle bg-surface p-2',
@@ -96,8 +98,20 @@ function TaskCardBadges({ card }: { card: TaskCard }) {
   const hasChecklist = checklistTotal > 0;
   const attachmentCount = card._count?.attachments || card.attachments?.length || 0;
   const commentCount = card._count?.comments || card.comments?.length || 0;
+  const isStaged = card.taskData?.releaseMode === 'STAGED' && !card.taskData?.releasedAt;
+  const scheduledReleaseDate = card.taskData?.scheduledReleaseDate
+    ? new Date(card.taskData.scheduledReleaseDate)
+    : null;
+  const scheduledLabel = scheduledReleaseDate && !Number.isNaN(scheduledReleaseDate.getTime())
+    ? scheduledReleaseDate.toLocaleDateString()
+    : null;
 
-  const showBadges = card.taskData?.storyPoints || attachmentCount > 0 || hasChecklist || (card.assignees?.length ?? 0) > 0;
+  const showBadges =
+    card.taskData?.storyPoints ||
+    attachmentCount > 0 ||
+    hasChecklist ||
+    (card.assignees?.length ?? 0) > 0 ||
+    isStaged;
 
   if (!showBadges) return null;
 
@@ -128,6 +142,12 @@ function TaskCardBadges({ card }: { card: TaskCard }) {
           )}>
             <CheckSquare className="h-3 w-3" />
             {checklistComplete}/{checklistTotal}
+          </span>
+        )}
+        {isStaged && (
+          <span className="flex items-center gap-0.5 rounded bg-card-story/10 px-1.5 py-0.5 text-caption text-card-story">
+            <Calendar className="h-3 w-3" />
+            {scheduledLabel ? `Staged until ${scheduledLabel}` : 'Staged'}
           </span>
         )}
       </div>

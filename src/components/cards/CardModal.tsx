@@ -21,7 +21,7 @@ import { ColorPicker } from './ColorPicker';
 import { AttachmentSection } from './AttachmentSection';
 import { ConnectionPicker } from './ConnectionPicker';
 import { TimeLogSection } from './TimeLogSection';
-import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List, Attachment } from '@/types';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -101,6 +101,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const [isCreatingLinkedCard, setIsCreatingLinkedCard] = useState(false);
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
   const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
+  const [newLinkedTaskDestination, setNewLinkedTaskDestination] = useState<TaskReleaseMode>('IMMEDIATE');
   const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -406,6 +407,8 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
       const linkedData = card.type === 'EPIC'
         ? { userStoryData: { linkedEpicId: card.id } }
         : { taskData: { linkedUserStoryId: card.id } };
+      const isLinkedTaskFromUserStory = card.type === 'USER_STORY';
+      const isStagedTask = isLinkedTaskFromUserStory && newLinkedTaskDestination === 'STAGED';
 
       const response = await fetch(`/api/boards/${boardId}/cards`, {
         method: 'POST',
@@ -413,7 +416,15 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         body: JSON.stringify({
           title: newLinkedCardTitle.trim(),
           type: newCardType,
-          listId: targetListId,
+          listId: isStagedTask ? card.listId : targetListId,
+          ...(isLinkedTaskFromUserStory && {
+            taskDestination: {
+              mode: newLinkedTaskDestination,
+              ...(newLinkedTaskDestination === 'IMMEDIATE' && {
+                immediateListId: targetListId,
+              }),
+            },
+          }),
           ...linkedData,
         }),
       });
@@ -430,6 +441,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         // Clear the input and list selection
         setNewLinkedCardTitle('');
         setNewLinkedCardListId('');
+        setNewLinkedTaskDestination('IMMEDIATE');
         setIsCreatingLinkedCard(false);
 
         // Refresh board to update all counts
@@ -461,6 +473,8 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
       assignees: updatedAssignees,
     } as Card);
   };
+
+  const currentPlanningList = planningLists.find((list) => list.id === card.listId);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -726,15 +740,35 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                       autoFocus
                       disabled={isCreatingLinkedCardLoading}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newLinkedCardListId) handleCreateLinkedCard();
+                        const canCreateImmediate = newLinkedTaskDestination === 'IMMEDIATE' && (
+                          taskLists.length === 0 || !!newLinkedCardListId
+                        );
+                        const canCreateStaged = newLinkedTaskDestination === 'STAGED';
+                        if (e.key === 'Enter' && (canCreateImmediate || canCreateStaged)) {
+                          handleCreateLinkedCard();
+                        }
                         if (e.key === 'Escape') {
                           setIsCreatingLinkedCard(false);
                           setNewLinkedCardTitle('');
                           setNewLinkedCardListId('');
+                          setNewLinkedTaskDestination('IMMEDIATE');
                         }
                       }}
                     />
-                    {taskLists.length > 0 && (
+                    <Select
+                      value={newLinkedTaskDestination}
+                      onValueChange={(value: TaskReleaseMode) => setNewLinkedTaskDestination(value)}
+                      disabled={isCreatingLinkedCardLoading}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="IMMEDIATE">Send now to Tasks list</SelectItem>
+                        <SelectItem value="STAGED">Stage for Friday release</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {newLinkedTaskDestination === 'IMMEDIATE' && taskLists.length > 0 && (
                       <Select
                         value={newLinkedCardListId}
                         onValueChange={setNewLinkedCardListId}
@@ -752,11 +786,20 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                         </SelectContent>
                       </Select>
                     )}
+                    {newLinkedTaskDestination === 'STAGED' && (
+                      <p className="rounded-md border border-border-subtle bg-surface px-3 py-2 text-caption text-text-secondary">
+                        This task will stay in <span className="font-medium text-text-primary">{currentPlanningList?.name ?? 'this planning list'}</span> and move to the Tasks backlog on the Friday before the list start date.
+                      </p>
+                    )}
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         onClick={handleCreateLinkedCard}
-                        disabled={isCreatingLinkedCardLoading || !newLinkedCardTitle.trim() || (taskLists.length > 0 && !newLinkedCardListId)}
+                        disabled={
+                          isCreatingLinkedCardLoading ||
+                          !newLinkedCardTitle.trim() ||
+                          (newLinkedTaskDestination === 'IMMEDIATE' && taskLists.length > 0 && !newLinkedCardListId)
+                        }
                         className="flex-1"
                       >
                         {isCreatingLinkedCardLoading ? 'Creating...' : 'Add Task'}
@@ -768,6 +811,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                           setIsCreatingLinkedCard(false);
                           setNewLinkedCardTitle('');
                           setNewLinkedCardListId('');
+                          setNewLinkedTaskDestination('IMMEDIATE');
                         }}
                         disabled={isCreatingLinkedCardLoading}
                       >
@@ -780,7 +824,10 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                     variant="outline"
                     size="sm"
                     className="w-full justify-start text-card-task border-card-task/30 hover:bg-card-task/10"
-                    onClick={() => setIsCreatingLinkedCard(true)}
+                    onClick={() => {
+                      setIsCreatingLinkedCard(true);
+                      setNewLinkedTaskDestination('IMMEDIATE');
+                    }}
                   >
                     <CheckSquare className="mr-2 h-4 w-4" />
                     Create Linked Task

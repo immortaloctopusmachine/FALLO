@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText, CalendarRange, Unlink, ChevronLeft } from 'lucide-react';
 import {
@@ -63,6 +63,10 @@ interface ListProps {
   isCollapsible?: boolean; // Enable collapse functionality
   isCollapsed?: boolean; // External collapse state
   onCollapseChange?: (listId: string, collapsed: boolean) => void; // Collapse callback
+  secondaryCards?: Card[]; // Optional secondary section cards
+  secondarySectionTitle?: string;
+  secondaryEmptyText?: string;
+  renderSecondaryCardActions?: (card: Card) => ReactNode;
 }
 
 // Get subtle background color based on list name
@@ -111,6 +115,10 @@ export function List({
   isCollapsible,
   isCollapsed,
   onCollapseChange,
+  secondaryCards = [],
+  secondarySectionTitle,
+  secondaryEmptyText = 'No cards in this section.',
+  renderSecondaryCardActions,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -420,6 +428,47 @@ export function List({
             isOver ? 'border-card-task bg-card-task/5' : 'border-border-subtle'
           )}>
             Drop cards here
+          </div>
+        )}
+
+        {/* Optional secondary section */}
+        {(secondarySectionTitle || secondaryCards.length > 0) && (
+          <div className="pt-2">
+            <div className="mb-2 border-t border-border-subtle pt-2">
+              {secondarySectionTitle && (
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-caption font-medium text-text-secondary">
+                    {secondarySectionTitle}
+                  </span>
+                  <span className="text-caption text-text-tertiary">
+                    {secondaryCards.length}
+                  </span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {secondaryCards.map((card) => (
+                  <div key={`secondary-${card.id}`} className="space-y-1">
+                    <CardCompact
+                      card={card}
+                      onClick={() => onCardClick(card)}
+                      sortable={false}
+                    />
+                    {renderSecondaryCardActions && (
+                      <div className="flex justify-end">
+                        {renderSecondaryCardActions(card)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {secondaryCards.length === 0 && (
+                  <div className="rounded-md border border-dashed border-border-subtle bg-background/40 px-2 py-3 text-caption text-text-tertiary">
+                    {secondaryEmptyText}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

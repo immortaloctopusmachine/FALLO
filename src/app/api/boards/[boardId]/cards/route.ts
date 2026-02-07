@@ -5,12 +5,22 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
-import type { CardType } from '@/types';
+import type { CardType, TaskReleaseMode } from '@/types';
 
 // Validation constants
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 10000;
 const VALID_CARD_TYPES: CardType[] = ['TASK', 'USER_STORY', 'EPIC', 'UTILITY'];
+const VALID_TASK_DESTINATION_MODES: TaskReleaseMode[] = ['IMMEDIATE', 'STAGED'];
+
+function getPreviousFriday(date: Date): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() - 1);
+  while (result.getDay() !== 5) {
+    result.setDate(result.getDate() - 1);
+  }
+  return result;
+}
 
 // POST /api/boards/[boardId]/cards - Create a new card
 export async function POST(
@@ -27,7 +37,17 @@ export async function POST(
     if (memberResponse) return memberResponse;
 
     const body = await request.json();
-    const { title, type, listId, description, taskData, userStoryData, epicData, utilityData } = body;
+    const {
+      title,
+      type,
+      listId,
+      description,
+      taskData,
+      userStoryData,
+      epicData,
+      utilityData,
+      taskDestination,
+    } = body;
 
     // Validate title
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
@@ -51,33 +71,117 @@ export async function POST(
       return ApiErrors.validation('List ID is required');
     }
 
-    // Verify list belongs to board
-    const list = await prisma.list.findFirst({
+    // Verify provided list belongs to board
+    const requestedList = await prisma.list.findFirst({
       where: { id: listId, boardId },
     });
 
-    if (!list) {
+    if (!requestedList) {
       return ApiErrors.notFound('List');
     }
 
-    // Get the highest position in the list
-    const lastCard = await prisma.card.findFirst({
-      where: { listId },
-      orderBy: { position: 'desc' },
-    });
-
     const cardType: CardType = type || 'TASK';
+    let targetListId = listId;
 
     // Initialize type-specific data with defaults, merged with any provided data
     const typeData: Record<string, unknown> = {};
     if (cardType === 'TASK') {
-      typeData.taskData = {
-        storyPoints: null,
-        deadline: null,
-        linkedUserStoryId: null,
-        linkedEpicId: null,
-        ...taskData,
-      };
+      const linkedUserStoryId = taskData?.linkedUserStoryId ?? null;
+      const destinationMode: TaskReleaseMode = taskDestination?.mode || 'IMMEDIATE';
+
+      if (!VALID_TASK_DESTINATION_MODES.includes(destinationMode)) {
+        return ApiErrors.validation(`Invalid task destination mode. Must be one of: ${VALID_TASK_DESTINATION_MODES.join(', ')}`);
+      }
+
+      if (linkedUserStoryId && destinationMode === 'STAGED') {
+        const linkedStory = await prisma.card.findFirst({
+          where: {
+            id: linkedUserStoryId,
+            type: 'USER_STORY',
+            archivedAt: null,
+            list: { boardId },
+          },
+          include: {
+            list: {
+              select: {
+                id: true,
+                startDate: true,
+                viewType: true,
+              },
+            },
+          },
+        });
+
+        if (!linkedStory) {
+          return ApiErrors.validation('Linked User Story not found in this board');
+        }
+
+        if (linkedStory.list.viewType !== 'PLANNING') {
+          return ApiErrors.validation('Staged tasks require a linked User Story in a planning list');
+        }
+
+        if (!linkedStory.list.startDate) {
+          return ApiErrors.validation('Cannot stage task: linked User Story list has no start date');
+        }
+
+        const backlogList = await prisma.list.findFirst({
+          where: {
+            boardId,
+            viewType: 'TASKS',
+            phase: 'BACKLOG',
+          },
+          orderBy: { position: 'asc' },
+          select: { id: true },
+        });
+
+        if (!backlogList) {
+          return ApiErrors.validation('Cannot stage task: board has no Backlog list in Tasks view');
+        }
+
+        const scheduledReleaseDate = getPreviousFriday(linkedStory.list.startDate);
+        targetListId = linkedStory.list.id;
+
+        typeData.taskData = {
+          storyPoints: null,
+          deadline: null,
+          linkedUserStoryId: null,
+          linkedEpicId: null,
+          ...taskData,
+          releaseMode: 'STAGED',
+          stagedFromPlanningListId: linkedStory.list.id,
+          scheduledReleaseDate: scheduledReleaseDate.toISOString(),
+          releaseTargetListId: backlogList.id,
+          releasedAt: null,
+        };
+      } else {
+        const immediateTargetListId = taskDestination?.immediateListId || listId;
+        const immediateTargetList = await prisma.list.findFirst({
+          where: { id: immediateTargetListId, boardId },
+          select: { id: true, viewType: true },
+        });
+
+        if (!immediateTargetList) {
+          return ApiErrors.validation('Immediate destination list not found in this board');
+        }
+
+        if (linkedUserStoryId && immediateTargetList.viewType !== 'TASKS') {
+          return ApiErrors.validation('Immediate destination must be a Tasks-view list');
+        }
+
+        targetListId = immediateTargetList.id;
+        typeData.taskData = {
+          storyPoints: null,
+          deadline: null,
+          linkedUserStoryId: null,
+          linkedEpicId: null,
+          ...taskData,
+          releaseMode: 'IMMEDIATE',
+          releaseTargetListId: immediateTargetList.id,
+          stagedFromPlanningListId: null,
+          scheduledReleaseDate: null,
+          releasedAt: new Date().toISOString(),
+        };
+      }
     } else if (cardType === 'USER_STORY') {
       typeData.userStoryData = {
         linkedEpicId: null,
@@ -94,13 +198,19 @@ export async function POST(
       };
     }
 
+    // Get the highest position in the target list
+    const lastCard = await prisma.card.findFirst({
+      where: { listId: targetListId },
+      orderBy: { position: 'desc' },
+    });
+
     const card = await prisma.card.create({
       data: {
         title: title.trim(),
         description: description?.trim() || null,
         type: cardType,
         position: (lastCard?.position ?? -1) + 1,
-        listId,
+        listId: targetListId,
         ...typeData,
       },
       include: {

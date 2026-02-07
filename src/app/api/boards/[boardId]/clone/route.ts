@@ -61,6 +61,8 @@ export async function POST(
 
     // Create ID mapping for cards (old ID -> new ID)
     const cardIdMap = new Map<string, string>();
+    // Create ID mapping for lists (old ID -> new ID)
+    const listIdMap = new Map<string, string>();
 
     // Clone the board using a transaction
     const newBoard = await prisma.$transaction(async (tx) => {
@@ -96,6 +98,7 @@ export async function POST(
             durationWeeks: sourceList.durationWeeks,
           },
         });
+        listIdMap.set(sourceList.id, newList.id);
 
         // Clone cards in this list
         for (const sourceCard of sourceList.cards) {
@@ -190,7 +193,12 @@ export async function POST(
 
     for (const card of newBoardCards) {
       if (card.type === 'TASK' && card.taskData) {
-        const taskData = card.taskData as { linkedUserStoryId?: string; linkedEpicId?: string };
+        const taskData = card.taskData as {
+          linkedUserStoryId?: string;
+          linkedEpicId?: string;
+          stagedFromPlanningListId?: string;
+          releaseTargetListId?: string;
+        };
         let needsUpdate = false;
         const updatedTaskData = { ...taskData };
 
@@ -208,6 +216,24 @@ export async function POST(
           needsUpdate = true;
         } else if (taskData.linkedEpicId) {
           delete updatedTaskData.linkedEpicId;
+          needsUpdate = true;
+        }
+
+        if (taskData.stagedFromPlanningListId) {
+          if (listIdMap.has(taskData.stagedFromPlanningListId)) {
+            updatedTaskData.stagedFromPlanningListId = listIdMap.get(taskData.stagedFromPlanningListId);
+          } else {
+            delete updatedTaskData.stagedFromPlanningListId;
+          }
+          needsUpdate = true;
+        }
+
+        if (taskData.releaseTargetListId) {
+          if (listIdMap.has(taskData.releaseTargetListId)) {
+            updatedTaskData.releaseTargetListId = listIdMap.get(taskData.releaseTargetListId);
+          } else {
+            delete updatedTaskData.releaseTargetListId;
+          }
           needsUpdate = true;
         }
 

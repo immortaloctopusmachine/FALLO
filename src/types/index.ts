@@ -3,6 +3,7 @@ export type CardType = 'TASK' | 'USER_STORY' | 'EPIC' | 'UTILITY';
 export type UtilitySubtype = 'LINK' | 'NOTE' | 'MILESTONE' | 'BLOCKER';
 export type UserStoryFlag = 'COMPLEX' | 'HIGH_RISK' | 'MISSING_DOCS' | 'BLOCKED' | 'NEEDS_REVIEW';
 export type UserPermission = 'VIEWER' | 'MEMBER' | 'ADMIN' | 'SUPER_ADMIN';
+export type TaskReleaseMode = 'IMMEDIATE' | 'STAGED';
 
 // View Types
 export type ListViewType = 'TASKS' | 'PLANNING';
@@ -34,6 +35,12 @@ export interface TaskCardData {
   deadline: string | null;
   linkedUserStoryId: string | null;
   linkedEpicId: string | null;
+  // Task release staging metadata
+  releaseMode?: TaskReleaseMode;
+  stagedFromPlanningListId?: string | null;
+  scheduledReleaseDate?: string | null;
+  releaseTargetListId?: string | null;
+  releasedAt?: string | null;
 }
 
 export interface TaskCard extends BaseCard {

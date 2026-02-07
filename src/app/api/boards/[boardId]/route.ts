@@ -6,6 +6,7 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import { processDueStagedTasks } from '@/lib/task-release';
 
 // GET /api/boards/[boardId] - Get a single board with all details
 export async function GET(
@@ -17,6 +18,14 @@ export async function GET(
     if (authResponse) return authResponse;
 
     const { boardId } = await params;
+
+    // Lazy fallback: process due staged tasks whenever board data is fetched.
+    // This keeps releases flowing even if cron is delayed or unavailable.
+    try {
+      await processDueStagedTasks({ boardId });
+    } catch (releaseError) {
+      console.error('Lazy staged-task release failed:', releaseError);
+    }
 
     const [board, weeklyProgress] = await Promise.all([
       prisma.board.findFirst({
