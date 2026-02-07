@@ -301,6 +301,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-07 | 3.1 | Staged task release system complete: planning staged lane + manual release UI, automatic release engine (`task-release`), lazy fallback on board fetch, secured cron endpoint (`/api/cron/release-staged-tasks`), and release-processor test coverage. | Codex |
 | 2026-02-07 | 6.2 | Client-side caching (Option C) for all 12 dashboard pages: Timeline, Boards, Board detail, Projects, Project detail, Organization, Studios, Studio detail, Teams, Team detail, Users, User detail. TanStack Query hooks, skeleton loading states, thin server auth shells. New /api/organization endpoint, enhanced /api/users and /api/teams endpoints. | Claude |
 | 2026-02-07 | 6.2 | Tech debt cleanup: API helper migration (requireAuth, apiSuccess, ApiErrors), duplicate type removal, date formatting consolidation, hook dependency fixes, input validation improvements. | Claude |
 | 2026-02-05 | 5.5.2 | Timeline user assignments UI: AssignmentEditModal for managing user assignments with dedication %, "Manage" button in BlockEditModal. Fixed grid width issue with inline-flex layout. | Claude |
