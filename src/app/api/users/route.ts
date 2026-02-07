@@ -6,14 +6,18 @@ import {
   ApiErrors,
 } from '@/lib/api-utils';
 
-// GET /api/users - Get all users (admin only)
-export async function GET() {
+// GET /api/users - Get all users
+// ?include=metadata — also return teams, skills, companyRoles for the users page
+export async function GET(request: Request) {
   try {
     const { response } = await requireAuth();
     if (response) return response;
 
-    const users = await prisma.user.findMany({
-      where: { deletedAt: null }, // Exclude soft-deleted users
+    const { searchParams } = new URL(request.url);
+    const includeMetadata = searchParams.get('include') === 'metadata';
+
+    const usersPromise = prisma.user.findMany({
+      where: { deletedAt: null },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -52,6 +56,29 @@ export async function GET() {
       },
     });
 
+    if (includeMetadata) {
+      const [users, teams, skills, companyRoles] = await Promise.all([
+        usersPromise,
+        prisma.team.findMany({
+          where: { archivedAt: null },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+        prisma.skill.findMany({
+          where: { studioId: null },
+          orderBy: { position: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+        prisma.companyRole.findMany({
+          where: { studioId: null },
+          orderBy: { position: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+      ]);
+      return apiSuccess({ users, teams, skills, companyRoles });
+    }
+
+    const users = await usersPromise;
     return apiSuccess(users);
   } catch (error) {
     console.error('Failed to fetch users:', error);

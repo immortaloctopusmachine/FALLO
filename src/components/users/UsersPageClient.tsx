@@ -6,8 +6,10 @@ import { Users, Layers, Plus, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateUserDialog } from './CreateUserDialog';
 import { EditUserDialog } from './EditUserDialog';
+import { useUsersPageData } from '@/hooks/api/use-users';
+import { UsersSkeleton } from '@/components/users/UsersSkeleton';
 
-interface User {
+interface UsersPageUser {
   id: string;
   name: string | null;
   email: string;
@@ -27,7 +29,7 @@ interface User {
       color: string | null;
     };
   }[];
-  userCompanyRoles?: {
+  userCompanyRoles: {
     companyRole: {
       id: string;
       name: string;
@@ -40,41 +42,18 @@ interface User {
   };
 }
 
-interface Team {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface Skill {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-interface CompanyRole {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
 interface UsersPageClientProps {
-  users: User[];
-  teams: Team[];
-  skills: Skill[];
-  companyRoles: CompanyRole[];
   isSuperAdmin: boolean;
 }
 
-export function UsersPageClient({
-  users,
-  teams,
-  skills,
-  companyRoles,
-  isSuperAdmin,
-}: UsersPageClientProps) {
+export function UsersPageClient({ isSuperAdmin }: UsersPageClientProps) {
+  const { data, isLoading } = useUsersPageData();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UsersPageUser | null>(null);
+
+  if (isLoading || !data) return <UsersSkeleton />;
+
+  const { users, teams, skills, companyRoles } = data;
 
   return (
     <main className="p-6 flex-1">

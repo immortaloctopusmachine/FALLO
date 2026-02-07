@@ -6,6 +6,7 @@ import {
 } from '@/lib/api-utils';
 
 // GET /api/users/[userId] - Get a user profile
+// ?include=metadata — also return allTeams, allSkills, allCompanyRoles for user detail page
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> }
@@ -15,8 +16,10 @@ export async function GET(
     if (response) return response;
 
     const { userId } = await params;
+    const { searchParams } = new URL(request.url);
+    const includeMetadata = searchParams.get('include') === 'metadata';
 
-    const user = await prisma.user.findUnique({
+    const userPromise = prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -28,12 +31,27 @@ export async function GET(
         teamMembers: {
           include: {
             team: {
-              select: {
-                id: true,
-                name: true,
-                color: true,
+              include: {
                 studio: {
                   select: { id: true, name: true },
+                },
+                members: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                      },
+                    },
+                  },
+                },
+                _count: {
+                  select: {
+                    boards: { where: { archivedAt: null } },
+                    members: true,
+                  },
                 },
               },
             },
@@ -43,10 +61,16 @@ export async function GET(
           include: {
             skill: true,
           },
+          orderBy: {
+            skill: { position: 'asc' },
+          },
         },
         userCompanyRoles: {
           include: {
             companyRole: true,
+          },
+          orderBy: {
+            companyRole: { position: 'asc' },
           },
         },
         boardMembers: {
@@ -56,6 +80,7 @@ export async function GET(
                 id: true,
                 name: true,
                 archivedAt: true,
+                isTemplate: true,
               },
             },
           },
@@ -69,6 +94,35 @@ export async function GET(
         },
       },
     });
+
+    if (includeMetadata) {
+      const [user, allTeams, allSkills, allCompanyRoles] = await Promise.all([
+        userPromise,
+        prisma.team.findMany({
+          where: { archivedAt: null },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+        prisma.skill.findMany({
+          where: { studioId: null },
+          orderBy: { position: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+        prisma.companyRole.findMany({
+          where: { studioId: null },
+          orderBy: { position: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+      ]);
+
+      if (!user) {
+        return ApiErrors.notFound('User');
+      }
+
+      return apiSuccess({ user, allTeams, allSkills, allCompanyRoles });
+    }
+
+    const user = await userPromise;
 
     if (!user) {
       return ApiErrors.notFound('User');

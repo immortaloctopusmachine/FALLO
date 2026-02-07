@@ -6,107 +6,22 @@ import { Mail, Calendar, Users, Layers, Sparkles, Pencil, Shield, Clock } from '
 import { Button } from '@/components/ui/button';
 import { TeamCard } from '@/components/organization/TeamCard';
 import { EditUserDialog } from './EditUserDialog';
-
-interface Skill {
-  id: string;
-  name: string;
-  color: string | null;
-  description: string | null;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  description: string | null;
-  image: string | null;
-  color: string;
-  studio: { id: string; name: string } | null;
-  members: {
-    user: {
-      id: string;
-      name: string | null;
-      email: string;
-      image: string | null;
-    };
-  }[];
-  _count: {
-    boards: number;
-    members: number;
-  };
-}
-
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-  permission: string;
-  createdAt: Date;
-  teamMembers: {
-    team: Team;
-    title: string | null;
-    permission: string;
-  }[];
-  userSkills: {
-    skill: Skill;
-  }[];
-  userCompanyRoles?: {
-    companyRole: {
-      id: string;
-      name: string;
-      color: string | null;
-      description: string | null;
-    };
-  }[];
-  boardMembers: {
-    board: {
-      id: string;
-      name: string;
-      archivedAt: Date | null;
-      isTemplate: boolean;
-    };
-    permission: string;
-  }[];
-  _count: {
-    assignedCards: number;
-    comments: number;
-  };
-}
-
-interface AllTeam {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface AllSkill {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-interface AllCompanyRole {
-  id: string;
-  name: string;
-  color: string | null;
-}
+import { UserDetailSkeleton } from './UserDetailSkeleton';
+import { useUserDetail } from '@/hooks/api/use-users';
+import { formatDisplayDate } from '@/lib/date-utils';
 
 interface UserDetailClientProps {
-  user: User;
+  userId: string;
   isSuperAdmin: boolean;
-  allTeams: AllTeam[];
-  allSkills: AllSkill[];
-  allCompanyRoles: AllCompanyRole[];
 }
 
-export function UserDetailClient({
-  user,
-  isSuperAdmin,
-  allTeams,
-  allSkills,
-  allCompanyRoles,
-}: UserDetailClientProps) {
+export function UserDetailClient({ userId, isSuperAdmin }: UserDetailClientProps) {
+  const { data, isLoading } = useUserDetail(userId);
   const [showEditDialog, setShowEditDialog] = useState(false);
+
+  if (isLoading || !data) return <UserDetailSkeleton />;
+
+  const { user, allTeams, allSkills, allCompanyRoles } = data;
 
   const activeBoards = user.boardMembers.filter(
     (m) => !m.board.archivedAt && !m.board.isTemplate
@@ -172,7 +87,7 @@ export function UserDetailClient({
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
-                  Joined {new Date(user.createdAt).toLocaleDateString()}
+                  Joined {formatDisplayDate(user.createdAt)}
                 </span>
               </div>
             </div>

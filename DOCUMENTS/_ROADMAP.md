@@ -278,13 +278,14 @@
 | Activity log | 🔴 | - | |
 | Notifications | 🔴 | - | |
 
-### 6.2 Performance 🔴
+### 6.2 Performance 🟡
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
+| Client-side data fetching (Option C) | 🟢 | Claude | All 12 dashboard pages use TanStack Query with skeleton loading |
+| Caching strategy | 🟢 | Claude | TanStack Query with 1min staleTime, instant revisit |
 | List virtualization | 🔴 | - | |
 | Optimistic updates | 🔴 | - | |
 | Image optimization | 🔴 | - | |
-| Caching strategy | 🔴 | - | |
 
 ### 6.3 Deployment 🔴
 | Task | Status | Owner | Notes |
@@ -300,6 +301,8 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-07 | 6.2 | Client-side caching (Option C) for all 12 dashboard pages: Timeline, Boards, Board detail, Projects, Project detail, Organization, Studios, Studio detail, Teams, Team detail, Users, User detail. TanStack Query hooks, skeleton loading states, thin server auth shells. New /api/organization endpoint, enhanced /api/users and /api/teams endpoints. | Claude |
+| 2026-02-07 | 6.2 | Tech debt cleanup: API helper migration (requireAuth, apiSuccess, ApiErrors), duplicate type removal, date formatting consolidation, hook dependency fixes, input validation improvements. | Claude |
 | 2026-02-05 | 5.5.2 | Timeline user assignments UI: AssignmentEditModal for managing user assignments with dedication %, "Manage" button in BlockEditModal. Fixed grid width issue with inline-flex layout. | Claude |
 | 2026-02-05 | 5.5.4 | Time Tracking complete: User time stats page (/users/[userId]/time) with date range filters, time by phase breakdown, recent logs table. Auto-start was already implemented in cards/reorder API. | Claude |
 | 2026-02-03 | 1.3, 4.x | Rename "Roles" to "Permissions" across entire codebase (~57 files): schema enum, types, auth, 35 API routes, 28 UI components. Add new "Company Roles" feature: CompanyRole + UserCompanyRole models, settings CRUD page, role assignment to users with colored pills. Default roles: PO, Lead, Artist, Animator, QA, Math, Sound | Claude |

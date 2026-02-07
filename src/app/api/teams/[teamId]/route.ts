@@ -33,6 +33,13 @@ export async function GET(
                 email: true,
                 image: true,
                 permission: true,
+                userSkills: {
+                  include: {
+                    skill: {
+                      select: { id: true, name: true, color: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -41,6 +48,12 @@ export async function GET(
           where: { archivedAt: null },
           orderBy: { updatedAt: 'desc' },
           include: {
+            members: {
+              select: { id: true, userId: true, permission: true },
+            },
+            lists: {
+              select: { id: true },
+            },
             _count: {
               select: { lists: true, members: true },
             },
