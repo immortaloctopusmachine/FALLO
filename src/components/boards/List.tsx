@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { CardCompact } from '@/components/cards/CardCompact';
 import type { Card, CardType } from '@/types';
 import { cn } from '@/lib/utils';
+import { formatDateRange } from '@/lib/date-utils';
 
 const CARD_TYPES: { value: CardType; label: string; icon: typeof CheckSquare; color: string }[] = [
   { value: 'TASK', label: 'Task', icon: CheckSquare, color: 'text-card-task' },
@@ -120,15 +121,12 @@ export function List({
   const listColor = customListColor ? '' : getListColor(name);
 
   // Format date range
-  const formatDateRange = () => {
+  const getFormattedDateRange = () => {
     if (!showDateRange || !startDate || !endDate) return null;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-    return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
+    return formatDateRange(startDate, endDate);
   };
 
-  const dateRange = formatDateRange();
+  const dateRange = getFormattedDateRange();
 
   // Custom header style with full background color (subtle) when customListColor is provided
   const customColorStyle = customListColor

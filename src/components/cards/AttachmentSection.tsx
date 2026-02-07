@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Paperclip,
@@ -84,26 +84,26 @@ export function AttachmentSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const fetchAttachments = async () => {
-      try {
-        setIsFetching(true);
-        const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/attachments`);
-        const data = await response.json();
-        if (data.success) {
-          setAttachments(data.data);
-          onAttachmentCountChange?.(data.data.length);
-          onAttachmentsChange?.(data.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch attachments:', error);
-      } finally {
-        setIsFetching(false);
+  const fetchAttachments = useCallback(async () => {
+    try {
+      setIsFetching(true);
+      const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/attachments`);
+      const data = await response.json();
+      if (data.success) {
+        setAttachments(data.data);
+        onAttachmentCountChange?.(data.data.length);
+        onAttachmentsChange?.(data.data);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch attachments:', error);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [boardId, cardId, onAttachmentCountChange, onAttachmentsChange]);
 
+  useEffect(() => {
     fetchAttachments();
-  }, [boardId, cardId, onAttachmentCountChange]);
+  }, [fetchAttachments]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

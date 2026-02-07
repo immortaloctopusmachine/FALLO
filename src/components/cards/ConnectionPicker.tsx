@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link2, X, BookOpen, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,13 +38,7 @@ export function ConnectionPicker({
   const label = type === 'USER_STORY' ? 'User Story' : 'Epic';
   const colorClass = type === 'USER_STORY' ? 'text-card-story' : 'text-card-epic';
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchCards();
-    }
-  }, [isOpen, boardId, type]);
-
-  const fetchCards = async () => {
+  const fetchCards = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/boards/${boardId}`);
@@ -61,7 +55,13 @@ export function ConnectionPicker({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [boardId, currentCardId, type]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchCards();
+    }
+  }, [isOpen, fetchCards]);
 
   const filteredCards = cards.filter(
     (card) =>

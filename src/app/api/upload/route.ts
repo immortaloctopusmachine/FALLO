@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
-import { auth } from '@/lib/auth';
+import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -35,40 +35,26 @@ function generateUniqueFilename(originalName: string): string {
 // POST /api/upload
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { response } = await requireAuth();
+    if (response) return response;
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const type = formData.get('type') as string | null; // 'image' or 'attachment'
 
     if (!file) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NO_FILE', message: 'No file provided' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('No file provided');
     }
 
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FILE_TOO_LARGE', message: 'File size exceeds 10MB limit' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('File size exceeds 10MB limit');
     }
 
     // Check file type
     const allowedTypes = type === 'image' ? ALLOWED_IMAGE_TYPES : ALLOWED_FILE_TYPES;
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_TYPE', message: 'File type not allowed' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('File type not allowed');
     }
 
     // Ensure upload directory exists
@@ -88,20 +74,14 @@ export async function POST(request: NextRequest) {
     // Return the public URL
     const url = `/uploads/${filename}`;
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        url,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      },
+    return apiSuccess({
+      url,
+      name: file.name,
+      type: file.type,
+      size: file.size,
     });
   } catch (error) {
     console.error('Failed to upload file:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'UPLOAD_FAILED', message: 'Failed to upload file' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to upload file');
   }
 }

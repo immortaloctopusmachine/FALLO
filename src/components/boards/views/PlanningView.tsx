@@ -576,7 +576,7 @@ export function PlanningView({
     } catch (error) {
       console.error('Failed to add card:', error);
     }
-  }, [board.id]);
+  }, [board.id, setBoard]);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -591,7 +591,7 @@ export function PlanningView({
       })),
     }));
     setSelectedCard(updatedCard);
-  }, []);
+  }, [setBoard]);
 
   const handleCardDelete = useCallback((cardId: string) => {
     setBoard((prev) => ({
@@ -601,7 +601,7 @@ export function PlanningView({
         cards: list.cards.filter((c) => c.id !== cardId),
       })),
     }));
-  }, []);
+  }, [setBoard]);
 
   const handleRefreshBoard = useCallback(async () => {
     try {
@@ -616,7 +616,7 @@ export function PlanningView({
     } catch (error) {
       console.error('Failed to refresh board:', error);
     }
-  }, [board.id]);
+  }, [board.id, setBoard]);
 
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
@@ -637,7 +637,7 @@ export function PlanningView({
     } catch (error) {
       console.error('Failed to delete list:', error);
     }
-  }, [board.id]);
+  }, [board.id, setBoard]);
 
   const handleDetachFromTimeline = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to detach this list from the Timeline? Dates will no longer sync.')) {
@@ -672,7 +672,7 @@ export function PlanningView({
     } catch (error) {
       console.error('Failed to detach from timeline:', error);
     }
-  }, [board.id, board.lists]);
+  }, [board.id, board.lists, setBoard]);
 
   // Sync planning lists to timeline (create missing timeline blocks)
   const handleSyncToTimeline = useCallback(async () => {

@@ -24,12 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-
-interface Team {
-  id: string;
-  name: string;
-  color: string;
-}
+import type { Team, User as BaseUser } from '@/types';
 
 interface Skill {
   id: string;
@@ -44,16 +39,12 @@ interface CompanyRole {
 }
 
 interface UserToEdit {
-  id: string;
-  name: string | null;
-  email: string;
+  id: BaseUser['id'];
+  name: BaseUser['name'];
+  email: BaseUser['email'];
   permission: string;
   teamMembers: {
-    team: {
-      id: string;
-      name: string;
-      color: string;
-    };
+    team: Team;
   }[];
   userSkills: {
     skill: {

@@ -1,7 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { validateImportData, normalizeImportData } from '@/components/spine-tracker/utils';
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // POST /api/boards/[boardId]/spine-tracker/import — Import JSON from standalone app
 export async function POST(
@@ -9,26 +13,13 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response } = await requireAuth();
+    if (response) return response;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    const membership = await prisma.boardMember.findFirst({
-      where: { boardId, userId: session.user.id },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const membershipResult = await requireBoardMember(boardId, session.user.id);
+    if (membershipResult.response) return membershipResult.response;
 
     const body = await request.json();
     const importData = body.data || body;
@@ -53,10 +44,7 @@ export async function POST(
     }
 
     if (!validateImportData(rawData)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'BAD_REQUEST', message: 'Invalid spine tracker data format' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Invalid spine tracker data format');
     }
 
     const normalized = normalizeImportData(rawData);
@@ -74,20 +62,14 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: record.id,
-        version: record.version,
-        skeletonCount: normalized.skeletons.length,
-        updatedAt: record.updatedAt.toISOString(),
-      },
+    return apiSuccess({
+      id: record.id,
+      version: record.version,
+      skeletonCount: normalized.skeletons.length,
+      updatedAt: record.updatedAt.toISOString(),
     });
   } catch (error) {
     console.error('[SPINE_TRACKER_IMPORT]', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL', message: 'Failed to import spine tracker data' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to import spine tracker data');
   }
 }

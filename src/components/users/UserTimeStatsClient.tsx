@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatDisplayDate } from '@/lib/date-utils';
+import type { Board as ProjectBoard, User as BaseUser } from '@/types';
 
 interface TimeLog {
   id: string;
@@ -53,19 +55,9 @@ interface TimeStats {
   timeByPhase: PhaseTime[];
 }
 
-interface Board {
-  id: string;
-  name: string;
-}
-
 interface UserTimeStatsClientProps {
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-    image: string | null;
-  };
-  boards: Board[];
+  user: Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
+  boards: Pick<ProjectBoard, 'id' | 'name'>[];
   currentUserId: string;
 }
 
@@ -129,15 +121,6 @@ export function UserTimeStatsClient({
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -371,7 +354,7 @@ export function UserTimeStatsClient({
                           >
                             <td className="py-2 px-3">
                               <div className="text-body">
-                                {formatDate(log.startTime)}
+                                {formatDisplayDate(log.startTime)}
                               </div>
                               <div className="text-caption text-text-tertiary">
                                 {formatTime(log.startTime)}

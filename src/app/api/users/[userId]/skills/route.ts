@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/users/[userId]/skills - Get user's skills
 export async function GET(
@@ -8,15 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { userId } = await params;
+    const { response } = await requireAuth();
+    if (response) return response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { userId } = await params;
 
     const userSkills = await prisma.userSkill.findMany({
       where: { userId },
@@ -28,13 +27,10 @@ export async function GET(
       },
     });
 
-    return NextResponse.json({ success: true, data: userSkills });
+    return apiSuccess(userSkills);
   } catch (error) {
     console.error('Failed to fetch user skills:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch user skills' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch user skills');
   }
 }
 
@@ -44,37 +40,19 @@ export async function POST(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response } = await requireAuth();
+    if (response) return response;
+
     const { userId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (currentUser?.permission !== 'ADMIN' && currentUser?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const adminResult = await requireAdmin(session.user.id);
+    if (adminResult.response) return adminResult.response;
 
     const body = await request.json();
     const { skillId } = body;
 
     if (!skillId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Skill ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Skill ID is required');
     }
 
     // Check if user exists
@@ -83,10 +61,7 @@ export async function POST(
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
     // Check if skill exists
@@ -95,10 +70,7 @@ export async function POST(
     });
 
     if (!skill) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Skill not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Skill');
     }
 
     // Check if already has skill
@@ -109,10 +81,7 @@ export async function POST(
     });
 
     if (existingUserSkill) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ALREADY_EXISTS', message: 'User already has this skill' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User already has this skill');
     }
 
     const userSkill = await prisma.userSkill.create({
@@ -125,13 +94,10 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, data: userSkill }, { status: 201 });
+    return apiSuccess(userSkill, 201);
   } catch (error) {
     console.error('Failed to add user skill:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to add user skill' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to add user skill');
   }
 }
 
@@ -141,37 +107,19 @@ export async function DELETE(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response } = await requireAuth();
+    if (response) return response;
+
     const { userId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (currentUser?.permission !== 'ADMIN' && currentUser?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const adminResult = await requireAdmin(session.user.id);
+    if (adminResult.response) return adminResult.response;
 
     const { searchParams } = new URL(request.url);
     const skillId = searchParams.get('skillId');
 
     if (!skillId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Skill ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Skill ID is required');
     }
 
     // Check if user skill exists
@@ -182,10 +130,7 @@ export async function DELETE(
     });
 
     if (!existingUserSkill) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User skill not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User skill');
     }
 
     await prisma.userSkill.delete({
@@ -194,12 +139,9 @@ export async function DELETE(
       },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to remove user skill:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to remove user skill' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to remove user skill');
   }
 }

@@ -29,6 +29,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import type { User as BaseUser } from '@/types';
 
 const TEAM_COLORS = [
   '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
@@ -42,12 +43,7 @@ interface Studio {
   color: string | null;
 }
 
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-}
+type TeamUser = Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
 
 interface CreateTeamDialogProps {
   studioId?: string;
@@ -65,7 +61,7 @@ export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialog
   const [error, setError] = useState<string | null>(null);
 
   const [studios, setStudios] = useState<Studio[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<TeamUser[]>([]);
   const [studioOpen, setStudioOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
 

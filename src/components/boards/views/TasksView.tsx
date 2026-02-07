@@ -29,6 +29,7 @@ import { BurnUpChart } from './BurnUpChart';
 import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } from '@/types';
 import { cn } from '@/lib/utils';
 import { DEFAULT_PROJECT_LINKS } from '@/lib/list-templates';
+import { formatDisplayDate } from '@/lib/date-utils';
 
 interface TasksViewProps {
   board: Board;
@@ -381,7 +382,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     } catch (error) {
       console.error('Failed to add card:', error);
     }
-  }, [board.id]);
+  }, [board.id, setBoard]);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -396,7 +397,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       })),
     }));
     setSelectedCard(updatedCard);
-  }, []);
+  }, [setBoard]);
 
   const handleCardDelete = useCallback((cardId: string) => {
     setBoard((prev) => ({
@@ -406,7 +407,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         cards: list.cards.filter((c) => c.id !== cardId),
       })),
     }));
-  }, []);
+  }, [setBoard]);
 
   const handleRefreshBoard = useCallback(async () => {
     try {
@@ -421,7 +422,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     } catch (error) {
       console.error('Failed to refresh board:', error);
     }
-  }, [board.id]);
+  }, [board.id, setBoard]);
 
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
@@ -442,7 +443,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     } catch (error) {
       console.error('Failed to delete list:', error);
     }
-  }, [board.id]);
+  }, [board.id, setBoard]);
 
   const handleAddList = async () => {
     if (!newListName.trim()) return;
@@ -469,14 +470,6 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
   };
 
   // Render sidebar
@@ -515,7 +508,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                     className="rounded-md border border-border-subtle bg-background p-2 text-body"
                   >
                     <div className="text-text-tertiary text-tiny">{item.label}</div>
-                    <div className="font-medium">{formatDate(item.date)}</div>
+                    <div className="font-medium">{formatDisplayDate(item.date)}</div>
                   </div>
                 ))}
               </div>

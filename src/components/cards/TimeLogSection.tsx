@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Clock, Play, Square, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { formatDisplayDate } from '@/lib/date-utils';
 
 interface TimeLog {
   id: string;
@@ -60,12 +61,7 @@ export function TimeLogSection({
   const [manualNotes, setManualNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch time logs
-  useEffect(() => {
-    fetchTimeLogs();
-  }, [boardId, cardId]);
-
-  const fetchTimeLogs = async () => {
+  const fetchTimeLogs = useCallback(async () => {
     try {
       const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/time-logs`);
       const data = await response.json();
@@ -84,7 +80,12 @@ export function TimeLogSection({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [boardId, cardId, currentUserId]);
+
+  // Fetch time logs
+  useEffect(() => {
+    fetchTimeLogs();
+  }, [fetchTimeLogs]);
 
   const handleStartTimer = async () => {
     if (!currentUserId) return;
@@ -103,7 +104,7 @@ export function TimeLogSection({
       const data = await response.json();
       if (data.success) {
         setActiveLog(data.data);
-        fetchTimeLogs();
+        await fetchTimeLogs();
       }
     } catch (error) {
       console.error('Failed to start timer:', error);
@@ -133,7 +134,7 @@ export function TimeLogSection({
       const data = await response.json();
       if (data.success) {
         setActiveLog(null);
-        fetchTimeLogs();
+        await fetchTimeLogs();
       }
     } catch (error) {
       console.error('Failed to stop timer:', error);
@@ -173,7 +174,7 @@ export function TimeLogSection({
         setManualHours('');
         setManualMinutes('');
         setManualNotes('');
-        fetchTimeLogs();
+        await fetchTimeLogs();
       }
     } catch (error) {
       console.error('Failed to add manual time:', error);
@@ -193,7 +194,7 @@ export function TimeLogSection({
 
       const data = await response.json();
       if (data.success) {
-        fetchTimeLogs();
+        await fetchTimeLogs();
       }
     } catch (error) {
       console.error('Failed to delete time log:', error);
@@ -205,14 +206,6 @@ export function TimeLogSection({
     const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
     if (hours === 0) return `${minutes}m`;
     return `${hours}h ${minutes}m`;
-  };
-
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   if (isLoading) {
@@ -356,7 +349,7 @@ export function TimeLogSection({
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-text-tertiary shrink-0">
-                    {formatDate(log.startTime)}
+                    {formatDisplayDate(log.startTime, { month: 'short', day: 'numeric' })}
                   </span>
                   <span className="truncate text-text-secondary">
                     {log.user.name || log.user.email.split('@')[0]}

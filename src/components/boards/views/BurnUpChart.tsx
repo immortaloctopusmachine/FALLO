@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import type { WeeklyProgress } from '@/types';
 
 interface BurnUpChartProps {
@@ -35,14 +35,14 @@ export function BurnUpChart({
   }, [sortedData]);
 
   // Scale functions
-  const xScale = (index: number) => {
+  const xScale = useCallback((index: number) => {
     if (sortedData.length <= 1) return chartPadding.left;
     return chartPadding.left + (index / (sortedData.length - 1)) * (chartWidth - chartPadding.left - chartPadding.right);
-  };
+  }, [chartPadding.left, chartPadding.right, chartWidth, sortedData.length]);
 
-  const yScale = (value: number) => {
+  const yScale = useCallback((value: number) => {
     return chartHeight + chartPadding.top - (value / maxPoints) * chartHeight;
-  };
+  }, [chartHeight, chartPadding.top, maxPoints]);
 
   // Generate path for completed points (burn-up line)
   const completedPath = useMemo(() => {
@@ -50,7 +50,7 @@ export function BurnUpChart({
 
     const points = sortedData.map((d, i) => `${xScale(i)},${yScale(d.completedPoints)}`);
     return `M ${points.join(' L ')}`;
-  }, [sortedData, maxPoints]);
+  }, [sortedData, xScale, yScale]);
 
   // Generate path for total points (scope line)
   const totalPath = useMemo(() => {
@@ -58,7 +58,7 @@ export function BurnUpChart({
 
     const points = sortedData.map((d, i) => `${xScale(i)},${yScale(d.totalStoryPoints)}`);
     return `M ${points.join(' L ')}`;
-  }, [sortedData, maxPoints]);
+  }, [sortedData, xScale, yScale]);
 
   // Generate area fill for completed
   const completedArea = useMemo(() => {
@@ -67,7 +67,7 @@ export function BurnUpChart({
     const points = sortedData.map((d, i) => `${xScale(i)},${yScale(d.completedPoints)}`);
     const baseline = `${xScale(sortedData.length - 1)},${yScale(0)} ${xScale(0)},${yScale(0)}`;
     return `M ${points.join(' L ')} L ${baseline} Z`;
-  }, [sortedData, maxPoints]);
+  }, [sortedData, xScale, yScale]);
 
   // Calculate sprint boundaries
   const sprintBoundaries = useMemo(() => {

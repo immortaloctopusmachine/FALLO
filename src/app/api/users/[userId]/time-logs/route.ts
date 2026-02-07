@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/users/[userId]/time-logs - Get time logs and stats for a user
 export async function GET(
@@ -8,14 +12,17 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { userId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
+    // Allow self-read, or admin access to others' logs
+    if (session.user.id !== userId) {
+      const adminResult = await requireAdmin(session.user.id);
+      if (adminResult.response) {
+        return adminResult.response;
+      }
     }
 
     // Check if user exists
@@ -24,10 +31,7 @@ export async function GET(
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
     // Get query params for filtering
@@ -35,7 +39,16 @@ export async function GET(
     const boardId = searchParams.get('boardId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const limit = parseInt(searchParams.get('limit') || '50');
+
+    let limit = 50;
+    const limitParam = searchParams.get('limit');
+    if (limitParam !== null) {
+      const parsedLimit = Number.parseInt(limitParam, 10);
+      if (Number.isNaN(parsedLimit)) {
+        return ApiErrors.validation('limit must be an integer');
+      }
+      limit = Math.max(1, Math.min(parsedLimit, 100));
+    }
 
     // Build where clause
     const where: Record<string, unknown> = { userId };
@@ -124,31 +137,25 @@ export async function GET(
       .filter((log) => new Date(log.startTime) >= monthStart)
       .reduce((sum, log) => sum + (log.durationMs || 0), 0);
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        logs: timeLogs,
-        stats: {
-          totalMs,
-          totalFormatted: formatDuration(totalMs),
-          thisWeekMs,
-          thisWeekFormatted: formatDuration(thisWeekMs),
-          thisMonthMs,
-          thisMonthFormatted: formatDuration(thisMonthMs),
-          timeByPhase: Object.entries(timeByPhase).map(([phase, ms]) => ({
-            phase,
-            ms,
-            formatted: formatDuration(ms),
-          })),
-        },
+    return apiSuccess({
+      logs: timeLogs,
+      stats: {
+        totalMs,
+        totalFormatted: formatDuration(totalMs),
+        thisWeekMs,
+        thisWeekFormatted: formatDuration(thisWeekMs),
+        thisMonthMs,
+        thisMonthFormatted: formatDuration(thisMonthMs),
+        timeByPhase: Object.entries(timeByPhase).map(([phase, ms]) => ({
+          phase,
+          ms,
+          formatted: formatDuration(ms),
+        })),
       },
     });
   } catch (error) {
     console.error('Failed to fetch user time logs:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch user time logs' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch user time logs');
   }
 }
 

@@ -22,26 +22,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import type { TimelineBlock, BlockType } from '@/types';
+import { formatDisplayDate } from '@/lib/date-utils';
+import type { TimelineBlock, BlockType, List as BoardList, User as BaseUser } from '@/types';
 
-interface List {
-  id: string;
-  name: string;
-  phase: string | null;
-}
-
-interface SimpleUser {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-}
+type SimpleUser = Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
 
 interface BlockEditModalProps {
   block: TimelineBlock | null;
   boardId: string;
   blockTypes: BlockType[];
-  lists: List[];
+  lists: Pick<BoardList, 'id' | 'name' | 'phase'>[];
   users: SimpleUser[];
   isOpen: boolean;
   onClose: () => void;
@@ -179,7 +169,7 @@ export function BlockEditModal({
                 <div className="p-3 rounded-md border border-border bg-surface-subtle">
                   <div className="text-caption text-text-tertiary">Start</div>
                   <div className="text-body font-medium">
-                    {startDate ? new Date(startDate).toLocaleDateString('en-US', {
+                    {startDate ? formatDisplayDate(startDate, {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
@@ -190,7 +180,7 @@ export function BlockEditModal({
                 <div className="p-3 rounded-md border border-border bg-surface-subtle">
                   <div className="text-caption text-text-tertiary">End</div>
                   <div className="text-body font-medium">
-                    {endDate ? new Date(endDate).toLocaleDateString('en-US', {
+                    {endDate ? formatDisplayDate(endDate, {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',

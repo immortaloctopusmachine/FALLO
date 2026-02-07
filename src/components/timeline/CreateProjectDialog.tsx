@@ -28,23 +28,13 @@ import {
 } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BOARD_TEMPLATES, snapToMonday } from '@/lib/list-templates';
-import type { BoardTemplateType } from '@/types';
+import { formatDateInput } from '@/lib/date-utils';
+import type { BoardTemplateType, Team } from '@/types';
 import { cn } from '@/lib/utils';
-
-// Format date as YYYY-MM-DD for input
-function formatDateInput(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
 
 // Check if a date is Monday
 function isMonday(date: Date): boolean {
   return date.getDay() === 1;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  color: string;
 }
 
 interface SelectedMember {

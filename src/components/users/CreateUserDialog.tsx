@@ -14,12 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-
-interface Team {
-  id: string;
-  name: string;
-  color: string;
-}
+import type { Team } from '@/types';
 
 interface Skill {
   id: string;

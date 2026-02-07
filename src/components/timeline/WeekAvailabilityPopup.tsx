@@ -12,7 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { TimelineMember, UserWeeklyAvailability } from '@/types';
-import { getFriday } from '@/lib/date-utils';
+import { getFriday, formatDisplayDate } from '@/lib/date-utils';
 
 interface WeekAvailabilityPopupProps {
   isOpen: boolean;
@@ -50,13 +50,7 @@ export function WeekAvailabilityPopup({
 
   // Format date range for display
   const weekEnd = getFriday(weekStart);
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-  const dateRangeText = `${formatDate(weekStart)} - ${formatDate(weekEnd)}, ${weekStart.getFullYear()}`;
+  const dateRangeText = `${formatDisplayDate(weekStart, { month: 'short', day: 'numeric' })} - ${formatDisplayDate(weekEnd, { month: 'short', day: 'numeric' })}, ${weekStart.getFullYear()}`;
 
   // Primary role info
   const primaryRole = member.userCompanyRoles[0]?.companyRole;

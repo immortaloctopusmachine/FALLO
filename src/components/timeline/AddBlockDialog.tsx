@@ -14,18 +14,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { snapToMonday, getBlockEndDate } from '@/lib/list-templates';
-import type { BlockType } from '@/types';
-
-interface List {
-  id: string;
-  name: string;
-  phase: string | null;
-}
+import type { BlockType, List as BoardList } from '@/types';
 
 interface AddBlockDialogProps {
   boardId: string;
   blockTypes: BlockType[];
-  lists: List[];
+  lists: Pick<BoardList, 'id' | 'name' | 'phase'>[];
   isOpen: boolean;
   onClose: () => void;
   onCreate: (data: {

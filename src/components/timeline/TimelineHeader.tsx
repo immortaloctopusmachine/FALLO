@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, Calendar, Filter, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatMonthYear } from '@/lib/date-utils';
 
 interface TimelineHeaderProps {
   currentDate: Date;
@@ -23,11 +24,6 @@ export function TimelineHeader({
   onCreateProject,
   isAdmin,
 }: TimelineHeaderProps) {
-  const formatDateRange = () => {
-    const options: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric' };
-    return currentDate.toLocaleDateString('en-US', options);
-  };
-
   const navigatePrev = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() - 7);
@@ -60,7 +56,7 @@ export function TimelineHeader({
         </div>
 
         <span className="text-body text-text-secondary font-medium">
-          {formatDateRange()}
+          {formatMonthYear(currentDate)}
         </span>
       </div>
 

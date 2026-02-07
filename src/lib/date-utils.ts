@@ -214,3 +214,33 @@ export function formatDateRange(
 export function formatMonthYear(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
+
+/**
+ * Format a date for display in the UI.
+ *
+ * @param date - The date to format (Date or string)
+ * @param options - Optional Intl formatting overrides
+ * @returns Formatted string like "Jan 5, 2026"
+ */
+export function formatDisplayDate(
+  date: Date | string,
+  options?: Intl.DateTimeFormatOptions
+): string {
+  const parsedDate = typeof date === 'string' ? new Date(date) : date;
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...options,
+  });
+}
+
+/**
+ * Format a Date object for date input values (YYYY-MM-DD).
+ *
+ * @param date - Date to format
+ * @returns Date string in YYYY-MM-DD format
+ */
+export function formatDateInput(date: Date): string {
+  return date.toISOString().split('T')[0];
+}

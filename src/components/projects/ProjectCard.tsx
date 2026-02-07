@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Calendar, Users } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { BoardSettings } from '@/types';
+import { formatDisplayDate } from '@/lib/date-utils';
 
 interface ProjectMember {
   id: string;
@@ -35,11 +36,6 @@ export function ProjectCard({
   const startDate = settings?.projectStartDate;
   const lastTweak = settings?.lastDayAnimationTweaks;
   const releaseDate = settings?.releaseDate;
-
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
 
   const displayMembers = members.slice(0, 5);
   const remainingCount = members.length - 5;
@@ -93,17 +89,17 @@ export function ProjectCard({
               {startDate && (
                 <div className="flex items-center gap-1 text-caption text-text-tertiary">
                   <Calendar className="h-3 w-3" />
-                  <span>Start: {formatDate(startDate)}</span>
+                  <span>Start: {formatDisplayDate(startDate)}</span>
                 </div>
               )}
               {lastTweak && (
                 <div className="text-caption text-text-tertiary">
-                  Tweak: {formatDate(lastTweak)}
+                  Tweak: {formatDisplayDate(lastTweak)}
                 </div>
               )}
               {releaseDate && (
                 <div className="text-caption text-success font-medium">
-                  Release: {formatDate(releaseDate)}
+                  Release: {formatDisplayDate(releaseDate)}
                 </div>
               )}
             </div>

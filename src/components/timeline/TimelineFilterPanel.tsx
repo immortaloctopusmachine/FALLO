@@ -5,20 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { BlockType, EventType } from '@/types';
-
-interface Team {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-}
+import type { BlockType, EventType, Team, User } from '@/types';
 
 interface TimelineFilters {
   teams: string[];
@@ -29,7 +16,7 @@ interface TimelineFilters {
 
 interface TimelineFilterPanelProps {
   teams: Team[];
-  users: User[];
+  users: Pick<User, 'id' | 'name' | 'email' | 'image'>[];
   blockTypes: BlockType[];
   eventTypes: EventType[];
   filters: TimelineFilters;

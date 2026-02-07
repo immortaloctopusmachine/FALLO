@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Users, UserPlus, Crown, Shield, Eye, User, X, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -51,13 +51,7 @@ export function BoardMembersModal({
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchMembers();
-    }
-  }, [isOpen, boardId]);
-
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/boards/${boardId}/members`);
@@ -71,7 +65,13 @@ export function BoardMembersModal({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [boardId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchMembers();
+    }
+  }, [isOpen, fetchMembers]);
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();

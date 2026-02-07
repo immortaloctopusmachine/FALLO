@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { TimelineEvent } from './TimelineEvent';
 import type { TimelineEvent as TimelineEventType } from '@/types';
+import { formatDisplayDate } from '@/lib/date-utils';
 
 interface TimelineEventsRowProps {
   events: TimelineEventType[];
@@ -183,14 +184,6 @@ export function TimelineEventsRow({
   }, [columnWidth]);
 
   // Format date for display
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   return (
     <div
       className="relative border-b border-border-subtle bg-surface-subtle/30 w-full"
@@ -255,7 +248,11 @@ export function TimelineEventsRow({
           style={{ left: emptyContextMenu.x, top: emptyContextMenu.y }}
         >
           <div className="px-3 py-1 text-caption text-text-tertiary border-b border-border">
-            {formatDate(emptyContextMenu.date)}
+            {formatDisplayDate(emptyContextMenu.date, {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+            })}
           </div>
           <button
             className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover"
