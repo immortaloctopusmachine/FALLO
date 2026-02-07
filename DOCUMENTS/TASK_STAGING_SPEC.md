@@ -91,6 +91,7 @@ Phase 3 implementation status:
   - path: `/api/cron/release-staged-tasks`
   - schedule: `0 * * * *`
 - Deployment requirement: set `CRON_SECRET` in environment variables.
+- Setup guide: `DOCUMENTS/CRON_SETUP.md`.
 
 ## Data Contract
 
