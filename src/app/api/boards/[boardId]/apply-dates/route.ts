@@ -1,8 +1,13 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { BOARD_TEMPLATES, calculateListDates } from '@/lib/list-templates';
-import type { BoardTemplateType } from '@/types';
+import {
+  requireAuth,
+  requireBoardAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
+import { PHASE_SEARCH_TERMS } from '@/lib/constants';
+import type { BoardTemplateType, ListPhase } from '@/types';
 
 // POST /api/boards/[boardId]/apply-dates - Apply dates to planning lists based on project start date
 export async function POST(
@@ -10,31 +15,13 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin of this board
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Get board with settings and planning lists
     const board = await prisma.board.findUnique({
@@ -48,10 +35,7 @@ export async function POST(
     });
 
     if (!board) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Board not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Board');
     }
 
     const settings = (board.settings as Record<string, unknown>) || {};
@@ -59,19 +43,13 @@ export async function POST(
     const listTemplate = (settings.listTemplate as BoardTemplateType) || 'STANDARD_SLOT';
 
     if (!projectStartDate) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Project start date not set in board settings' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Project start date not set in board settings');
     }
 
     // Get the template
     const template = BOARD_TEMPLATES[listTemplate];
     if (!template) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid list template' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Invalid list template');
     }
 
     // Calculate dates based on project start date
@@ -137,16 +115,7 @@ export async function POST(
 
       for (const list of planningListsWithDates) {
         // Map list phase to block type search terms
-        const phaseSearchTerms: Record<string, string[]> = {
-          'SPINE_PROTOTYPE': ['spine', 'prototype'],
-          'CONCEPT': ['concept'],
-          'PRODUCTION': ['production'],
-          'TWEAK': ['tweak'],
-          'BACKLOG': ['backlog'],
-          'DONE': ['done', 'complete'],
-        };
-
-        const searchTerms = list.phase ? phaseSearchTerms[list.phase] : null;
+        const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as ListPhase] : null;
         const listNameLower = list.name.toLowerCase();
 
         let blockType = null;
@@ -221,21 +190,15 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: `Applied dates to ${updatedLists.length} lists, created ${createdBlocks.length} timeline blocks`,
-        listsUpdated: updatedLists.length,
-        blocksCreated: createdBlocks.length,
-        lists: updatedLists,
-        blocks: createdBlocks,
-      },
+    return apiSuccess({
+      message: `Applied dates to ${updatedLists.length} lists, created ${createdBlocks.length} timeline blocks`,
+      listsUpdated: updatedLists.length,
+      blocksCreated: createdBlocks.length,
+      lists: updatedLists,
+      blocks: createdBlocks,
     });
   } catch (error) {
     console.error('Failed to apply dates:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to apply dates' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to apply dates');
   }
 }

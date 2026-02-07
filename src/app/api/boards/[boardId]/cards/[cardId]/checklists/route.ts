@@ -1,14 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/cards/[cardId]/checklists
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const { cardId } = await context.params;
+    const { response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { cardId } = await params;
 
     const checklists = await prisma.checklist.findMany({
       where: { cardId },
@@ -20,28 +27,32 @@ export async function GET(request: NextRequest, context: RouteContext) {
       orderBy: { position: 'asc' },
     });
 
-    return NextResponse.json({ success: true, data: checklists });
+    return apiSuccess(checklists);
   } catch (error) {
     console.error('Failed to fetch checklists:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'FETCH_FAILED', message: 'Failed to fetch checklists' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch checklists');
   }
 }
 
 // POST /api/boards/[boardId]/cards/[cardId]/checklists
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const { cardId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, cardId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const body = await request.json();
     const { name, type = 'todo' } = body;
 
     if (!name?.trim()) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_NAME', message: 'Checklist name is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Checklist name is required');
     }
 
     // Get highest position
@@ -62,12 +73,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: checklist });
+    return apiSuccess(checklist);
   } catch (error) {
     console.error('Failed to create checklist:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to create checklist' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create checklist');
   }
 }

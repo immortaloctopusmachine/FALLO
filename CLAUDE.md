@@ -112,6 +112,29 @@ docs(api): document card endpoints
 - [ ] Documentation updated if API/schema changed
 - [ ] No console.log or debug code
 - [ ] Follows design system (GDD.md)
+- [ ] Run `/code-checker` skill for consistency (see below)
+
+## Code Quality Skills
+
+### /code-checker
+Run the code-checker skill to scan for consistency issues and tech debt patterns.
+
+**When to run:**
+- Before committing significant changes
+- After adding new API routes
+- After refactoring shared utilities
+- When reviewing code for quality issues
+- Periodically during development sessions
+
+**What it checks:**
+- Auth pattern consistency (should use `requireAuth()`, `session.user.permission`)
+- Hardcoded values that should use centralized constants
+- Missing input validation in API routes
+- Duplicate type definitions (should use `@/types`)
+- Duplicate utility functions (should use `@/lib/*-utils`)
+- Manual error responses (should use `ApiErrors`)
+
+**Usage:** Type `/code-checker` in Claude Code to run the full check.
 
 ## Code Standards
 
@@ -232,5 +255,6 @@ Key points:
 
 ---
 
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-05*
 *Spine Tracker integration: 2026-02-03*
+*Code-checker skill added: 2026-02-05*

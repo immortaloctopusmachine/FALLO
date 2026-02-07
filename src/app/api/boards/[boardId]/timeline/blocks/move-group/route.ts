@@ -1,58 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-// Helper to find the Monday of a given week (or previous Monday if not Monday)
-function getMonday(date: Date): Date {
-  const result = new Date(date);
-  const day = result.getDay();
-  // If Sunday (0), go back 6 days; otherwise go back (day - 1) days
-  const diff = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + diff);
-  return result;
-}
-
-// Helper to get the Friday of a week given a Monday
-function getFriday(monday: Date): Date {
-  const result = new Date(monday);
-  result.setDate(result.getDate() + 4); // Monday + 4 = Friday
-  return result;
-}
-
-// Helper to move a block's dates by weeks, snapping to Mon-Fri 5-day blocks
-function moveBlockDates(
-  startDate: Date,
-  _endDate: Date,
-  weeksDelta: number
-): { newStartDate: Date; newEndDate: Date } {
-  // Get the Monday of the current week the block starts in
-  const currentMonday = getMonday(startDate);
-
-  // Move by the specified number of weeks (7 calendar days per week)
-  const newMonday = new Date(currentMonday);
-  newMonday.setDate(newMonday.getDate() + weeksDelta * 7);
-
-  // End date is always Friday (5-day block: Mon-Fri)
-  const newFriday = getFriday(newMonday);
-
-  return { newStartDate: newMonday, newEndDate: newFriday };
-}
-
-// Helper to add business days to a date
-function addBusinessDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  let remaining = Math.abs(days);
-  const direction = days > 0 ? 1 : -1;
-
-  while (remaining > 0) {
-    result.setDate(result.getDate() + direction);
-    const dayOfWeek = result.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      remaining--;
-    }
-  }
-  return result;
-}
+import { moveBlockDates, addBusinessDays } from '@/lib/date-utils';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // POST /api/boards/[boardId]/timeline/blocks/move-group
 // Moves multiple blocks by a number of weeks
@@ -61,44 +14,24 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { blockIds, weeksDelta, blockMoves, eventIds, syncToList } = body;
 
     if (!blockIds || !Array.isArray(blockIds) || blockIds.length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'blockIds array is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('blockIds array is required');
     }
 
     if (weeksDelta === undefined || weeksDelta === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'weeksDelta is required and must be non-zero' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('weeksDelta is required and must be non-zero');
     }
 
     // Build per-block delta map (if blockMoves provided, use per-block deltas)
@@ -121,10 +54,7 @@ export async function POST(
     });
 
     if (blocks.length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'No blocks found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('No blocks found');
     }
 
     // Update each block with its specific delta
@@ -134,7 +64,6 @@ export async function POST(
       // Move dates by weeks, snapping start to Monday
       const { newStartDate, newEndDate } = moveBlockDates(
         block.startDate,
-        block.endDate,
         delta
       );
 
@@ -192,15 +121,9 @@ export async function POST(
       movedEventsCount = events.length;
     }
 
-    return NextResponse.json({
-      success: true,
-      data: { movedBlocksCount: blocks.length, movedEventsCount },
-    });
+    return apiSuccess({ movedBlocksCount: blocks.length, movedEventsCount });
   } catch (error) {
     console.error('Failed to move blocks:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to move blocks' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to move blocks');
   }
 }

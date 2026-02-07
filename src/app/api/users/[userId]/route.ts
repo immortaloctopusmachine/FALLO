@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/users/[userId] - Get a user profile
 export async function GET(
@@ -8,15 +11,10 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { userId } = await params;
+    const { response } = await requireAuth();
+    if (response) return response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { userId } = await params;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -73,19 +71,13 @@ export async function GET(
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
-    return NextResponse.json({ success: true, data: user });
+    return apiSuccess(user);
   } catch (error) {
     console.error('Failed to fetch user:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch user' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch user');
   }
 }
 
@@ -95,15 +87,10 @@ export async function PATCH(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { userId } = await params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { userId } = await params;
 
     // Users can only update their own profile, unless admin
     const currentUser = await prisma.user.findUnique({
@@ -116,10 +103,7 @@ export async function PATCH(
     const isSelf = session.user.id === userId;
 
     if (!isAdmin && !isSelf) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } },
-        { status: 403 }
-      );
+      return ApiErrors.forbidden('Access denied');
     }
 
     const body = await request.json();
@@ -131,27 +115,18 @@ export async function PATCH(
     });
 
     if (!existingUser) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
     // Validate permission if provided
     if (permission !== undefined) {
       const validRoles = ['VIEWER', 'MEMBER', 'ADMIN', 'SUPER_ADMIN'];
       if (!validRoles.includes(permission)) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid permission' } },
-          { status: 400 }
-        );
+        return ApiErrors.validation('Invalid permission');
       }
       // Only Super Admins can assign SUPER_ADMIN permission
       if (permission === 'SUPER_ADMIN' && !isSuperAdmin) {
-        return NextResponse.json(
-          { success: false, error: { code: 'FORBIDDEN', message: 'Only Super Admins can assign Super Admin permission' } },
-          { status: 403 }
-        );
+        return ApiErrors.forbidden('Only Super Admins can assign Super Admin permission');
       }
     }
 
@@ -258,13 +233,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: user });
+    return apiSuccess(user);
   } catch (error) {
     console.error('Failed to update user:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update user' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update user');
   }
 }
 
@@ -274,15 +246,10 @@ export async function DELETE(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { userId } = await params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { userId } = await params;
 
     // Only Super Admins can delete users
     const currentUser = await prisma.user.findUnique({
@@ -291,18 +258,12 @@ export async function DELETE(
     });
 
     if (currentUser?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Super Admin access required' } },
-        { status: 403 }
-      );
+      return ApiErrors.forbidden('Super Admin access required');
     }
 
     // Prevent deleting yourself
     if (session.user.id === userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Cannot delete your own account' } },
-        { status: 403 }
-      );
+      return ApiErrors.forbidden('Cannot delete your own account');
     }
 
     // Check if user exists
@@ -312,17 +273,11 @@ export async function DELETE(
     });
 
     if (!existingUser) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
     if (existingUser.deletedAt) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ALREADY_DELETED', message: 'User has already been deleted' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User has already been deleted');
     }
 
     // Soft delete the user (set deletedAt timestamp)
@@ -359,15 +314,9 @@ export async function DELETE(
     // - activities (activity history preserved)
     // - timelineAssignments (timeline data preserved)
 
-    return NextResponse.json({
-      success: true,
-      data: { deletedUserId: userId },
-    });
+    return apiSuccess({ deletedUserId: userId });
   } catch (error) {
     console.error('Failed to delete user:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete user' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete user');
   }
 }

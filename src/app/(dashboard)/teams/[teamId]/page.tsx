@@ -66,12 +66,7 @@ export default async function TeamPage({ params }: TeamPageProps) {
     notFound();
   }
 
-  // Check if user is admin
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { permission: true },
-  });
-  const isAdmin = user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
+  const isAdmin = session.user.permission === 'ADMIN' || session.user.permission === 'SUPER_ADMIN';
 
   // Check if user is admin for each board
   const isAdminForBoard = (board: typeof team.boards[0]) => {

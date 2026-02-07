@@ -57,12 +57,7 @@ export default async function StudioPage({ params }: StudioPageProps) {
     notFound();
   }
 
-  // Check if user is admin
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { permission: true },
-  });
-  const isAdmin = user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
+  const isAdmin = session.user.permission === 'ADMIN' || session.user.permission === 'SUPER_ADMIN';
 
   // Calculate total members across all teams (unique)
   const uniqueMembers = new Set<string>();

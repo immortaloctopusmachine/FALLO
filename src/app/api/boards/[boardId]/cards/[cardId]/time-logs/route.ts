@@ -1,6 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/cards/[cardId]/time-logs - Get time logs for a card
 export async function GET(
@@ -8,29 +13,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user has access to this board
-    const membership = await prisma.boardMember.findUnique({
-      where: {
-        userId_boardId: { userId: session.user.id, boardId },
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a board member' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const timeLogs = await prisma.timeLog.findMany({
       where: { cardId },
@@ -56,20 +45,14 @@ export async function GET(
     // Calculate total time
     const totalMs = timeLogs.reduce((sum, log) => sum + (log.durationMs || 0), 0);
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        logs: timeLogs,
-        totalMs,
-        totalFormatted: formatDuration(totalMs),
-      },
+    return apiSuccess({
+      logs: timeLogs,
+      totalMs,
+      totalFormatted: formatDuration(totalMs),
     });
   } catch (error) {
     console.error('Failed to fetch time logs:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch time logs' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch time logs');
   }
 }
 
@@ -79,38 +62,21 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { userId, listId, startTime, endTime, durationMs, notes } = body;
 
     // Validate required fields
     if (!userId || !listId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'userId and listId are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('userId and listId are required');
     }
 
     // Check if card exists on this board
@@ -122,10 +88,7 @@ export async function POST(
     });
 
     if (!card) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Card not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Card');
     }
 
     // Calculate duration if not provided
@@ -165,13 +128,10 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, data: timeLog }, { status: 201 });
+    return apiSuccess(timeLog, 201);
   } catch (error) {
     console.error('Failed to create time log:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create time log' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create time log');
   }
 }
 

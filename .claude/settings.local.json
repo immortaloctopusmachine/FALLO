@@ -44,7 +44,15 @@
       "Bash(git diff:*)",
       "Bash(del /f \"C:\\\\project-planner\\\\project-planner\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node\")",
       "Bash(npx ts-node:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(npm test:*)",
+      "Bash(set:*)",
+      "Bash(dir:*)",
+      "Bash(xcopy:*)",
+      "Bash(robocopy:*)",
+      "Bash(powershell -Command \"Copy-Item -Path ''skills\\\\code-checker'' -Destination ''.claude\\\\skills\\\\code-checker'' -Recurse -Force\")",
+      "Bash(powershell:*)",
+      "Bash(grep:*)"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",
@@ -59,7 +67,8 @@
       "c:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
       "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]",
       "C:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
-      "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\timeline\\blocks\\[blockId]"
+      "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\timeline\\blocks\\[blockId]",
+      "c:\\project-planner\\project-planner\\src\\app\\(dashboard)\\projects"
     ]
   }
 }

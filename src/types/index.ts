@@ -227,6 +227,7 @@ export interface BoardSettings {
   projectStartDate?: string;           // ISO date string
   lastDayStaticArt?: string;           // ISO date string
   lastDayAnimationTweaks?: string;     // ISO date string
+  releaseDate?: string;                // ISO date string
   listTemplate?: ListTemplateType;     // Which list template is used
 
   // Project links

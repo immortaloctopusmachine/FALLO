@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/settings/block-types/[blockTypeId] - Update a block type
 export async function PATCH(
@@ -8,29 +12,13 @@ export async function PATCH(
   { params }: { params: Promise<{ blockTypeId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { blockTypeId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, color, position } = body;
 
@@ -40,10 +28,7 @@ export async function PATCH(
     });
 
     if (!existingBlockType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block type');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -57,13 +42,10 @@ export async function PATCH(
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: blockType });
+    return apiSuccess(blockType);
   } catch (error) {
     console.error('Failed to update block type:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update block type' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update block type');
   }
 }
 
@@ -73,28 +55,13 @@ export async function DELETE(
   { params }: { params: Promise<{ blockTypeId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { blockTypeId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if block type exists
     const existingBlockType = await prisma.blockType.findUnique({
@@ -105,38 +72,26 @@ export async function DELETE(
     });
 
     if (!existingBlockType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block type');
     }
 
     // Prevent deletion if block type is in use
     if (existingBlockType._count.blocks > 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'IN_USE', message: 'Cannot delete block type that is in use' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Cannot delete block type that is in use');
     }
 
     // Prevent deletion of default block types
     if (existingBlockType.isDefault) {
-      return NextResponse.json(
-        { success: false, error: { code: 'PROTECTED', message: 'Cannot delete default block types' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Cannot delete default block types');
     }
 
     await prisma.blockType.delete({
       where: { id: blockTypeId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete block type:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete block type' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete block type');
   }
 }

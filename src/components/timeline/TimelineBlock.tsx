@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import { cn } from '@/lib/utils';
+import { getContrastColor } from '@/lib/color-utils';
 import type { TimelineBlock as TimelineBlockType } from '@/types';
 
 interface TimelineBlockProps {
@@ -65,22 +66,6 @@ function calculateBlockPositionFast(
     left: daysFromStart * columnWidth,
     width: Math.max(blockDays * columnWidth - 4, columnWidth - 4),
   };
-}
-
-// Memoize contrast color calculation
-const contrastColorCache = new Map<string, string>();
-function getContrastColor(hexColor: string): string {
-  if (contrastColorCache.has(hexColor)) {
-    return contrastColorCache.get(hexColor)!;
-  }
-  const hex = hexColor.replace('#', '');
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  const result = luminance > 0.5 ? '#000000' : '#ffffff';
-  contrastColorCache.set(hexColor, result);
-  return result;
 }
 
 // Long press threshold in milliseconds

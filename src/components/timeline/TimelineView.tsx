@@ -12,7 +12,7 @@ import { TimelineFilterPanel } from './TimelineFilterPanel';
 import { BlockEditModal } from './BlockEditModal';
 import { AddBlockDialog } from './AddBlockDialog';
 import { EventEditModal } from './EventEditModal';
-import { TimelineRoleRow } from './TimelineRoleRow';
+import { TimelineUserAvailabilityRow } from './TimelineUserAvailabilityRow';
 import { WeekAvailabilityPopup } from './WeekAvailabilityPopup';
 import type {
   TimelineData,
@@ -103,13 +103,10 @@ export function TimelineView({
   const [eventBoardId, setEventBoardId] = useState<string>('');
   const [eventDefaultDate, setEventDefaultDate] = useState<Date | undefined>();
 
-  // Availability editing state
+  // Availability editing state (single user)
   const [showAvailabilityPopup, setShowAvailabilityPopup] = useState(false);
   const [availabilityWeekStart, setAvailabilityWeekStart] = useState<Date | null>(null);
-  const [availabilityRoleId, setAvailabilityRoleId] = useState<string>('');
-  const [availabilityRoleName, setAvailabilityRoleName] = useState<string>('');
-  const [availabilityRoleColor, setAvailabilityRoleColor] = useState<string | null>(null);
-  const [availabilityMembers, setAvailabilityMembers] = useState<TimelineMember[]>([]);
+  const [availabilityMember, setAvailabilityMember] = useState<TimelineMember | null>(null);
   const [availabilityExisting, setAvailabilityExisting] = useState<UserWeeklyAvailability[]>([]);
   const [availabilityBoardId, setAvailabilityBoardId] = useState<string>('');
 
@@ -317,33 +314,25 @@ export function TimelineView({
     setEventDefaultDate(undefined);
   }, []);
 
-  // Handle opening availability popup
+  // Handle opening availability popup for a single user
   const handleOpenAvailabilityPopup = useCallback((
     boardId: string,
     weekStart: Date,
-    roleId: string,
-    roleMembers: TimelineMember[]
+    member: TimelineMember
   ) => {
     const project = projects.find(p => p.board.id === boardId);
     if (!project) return;
 
-    // Find role info from members
-    const roleMember = roleMembers[0];
-    const role = roleMember?.userCompanyRoles.find(ucr => ucr.companyRole.id === roleId)?.companyRole;
-
-    // Get existing availability for this week and these members
+    // Get existing availability for this week and this user
     const weekKey = getMonday(weekStart).toISOString().split('T')[0];
     const existingForWeek = project.availability.filter(a => {
       const availWeekKey = getMonday(new Date(a.weekStart)).toISOString().split('T')[0];
-      return availWeekKey === weekKey && roleMembers.some(m => m.id === a.userId);
+      return availWeekKey === weekKey && a.userId === member.id;
     });
 
     setAvailabilityBoardId(boardId);
     setAvailabilityWeekStart(weekStart);
-    setAvailabilityRoleId(roleId);
-    setAvailabilityRoleName(role?.name || 'Unknown Role');
-    setAvailabilityRoleColor(role?.color || null);
-    setAvailabilityMembers(roleMembers);
+    setAvailabilityMember(member);
     setAvailabilityExisting(existingForWeek);
     setShowAvailabilityPopup(true);
   }, [projects]);
@@ -352,10 +341,7 @@ export function TimelineView({
   const handleCloseAvailabilityPopup = useCallback(() => {
     setShowAvailabilityPopup(false);
     setAvailabilityWeekStart(null);
-    setAvailabilityRoleId('');
-    setAvailabilityRoleName('');
-    setAvailabilityRoleColor(null);
-    setAvailabilityMembers([]);
+    setAvailabilityMember(null);
     setAvailabilityExisting([]);
     setAvailabilityBoardId('');
   }, []);
@@ -831,7 +817,7 @@ export function TimelineView({
             onAddEvent={(projectId) => handleAddEvent(projectId)}
             rowHeight={ROW_HEIGHT}
             eventRowHeight={28}
-            roleRowHeight={32}
+            userRowHeight={28}
             headerHeight={HEADER_HEIGHT}
             isAdmin={isAdmin}
           />
@@ -892,37 +878,23 @@ export function TimelineView({
                       isAdmin={isAdmin}
                     />
 
-                    {/* Role-based availability rows */}
-                    {(() => {
-                      // Get unique roles from project members, sorted by position
-                      const rolesMap = new Map<string, { id: string; name: string; color: string | null; position: number }>();
-                      project.board.members.forEach(member => {
-                        member.userCompanyRoles.forEach(ucr => {
-                          if (!rolesMap.has(ucr.companyRole.id)) {
-                            rolesMap.set(ucr.companyRole.id, ucr.companyRole);
-                          }
-                        });
-                      });
-                      const uniqueRoles = Array.from(rolesMap.values()).sort((a, b) => a.position - b.position);
-
-                      return uniqueRoles.map(role => (
-                        <TimelineRoleRow
-                          key={`${project.board.id}-${role.id}`}
-                          role={role}
-                          members={project.board.members}
-                          availability={project.availability}
-                          boardId={project.board.id}
-                          startDate={startDate}
-                          endDate={endDate}
-                          columnWidth={COLUMN_WIDTH}
-                          rowHeight={32}
-                          onWeekClick={(weekStart, roleId, roleMembers) =>
-                            handleOpenAvailabilityPopup(project.board.id, weekStart, roleId, roleMembers)
-                          }
-                          isAdmin={isAdmin}
-                        />
-                      ));
-                    })()}
+                    {/* Individual user availability rows */}
+                    {project.board.members.map(member => (
+                      <TimelineUserAvailabilityRow
+                        key={`${project.board.id}-${member.id}`}
+                        member={member}
+                        availability={project.availability}
+                        boardId={project.board.id}
+                        startDate={startDate}
+                        endDate={endDate}
+                        columnWidth={COLUMN_WIDTH}
+                        rowHeight={28}
+                        onWeekClick={(weekStart, clickedMember) =>
+                          handleOpenAvailabilityPopup(project.board.id, weekStart, clickedMember)
+                        }
+                        isAdmin={isAdmin}
+                      />
+                    ))}
                   </div>
                 );
               })}
@@ -996,16 +968,13 @@ export function TimelineView({
         defaultDate={eventDefaultDate}
       />
 
-      {/* Week Availability Popup */}
-      {showAvailabilityPopup && availabilityWeekStart && (
+      {/* Week Availability Popup (single user) */}
+      {showAvailabilityPopup && availabilityWeekStart && availabilityMember && (
         <WeekAvailabilityPopup
           isOpen={showAvailabilityPopup}
           onClose={handleCloseAvailabilityPopup}
           weekStart={availabilityWeekStart}
-          roleId={availabilityRoleId}
-          roleName={availabilityRoleName}
-          roleColor={availabilityRoleColor}
-          members={availabilityMembers}
+          member={availabilityMember}
           existingAvailability={availabilityExisting}
           boardId={availabilityBoardId}
           onSave={handleSaveAvailability}

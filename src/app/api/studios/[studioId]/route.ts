@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/studios/[studioId] - Get a studio with details
 export async function GET(
@@ -8,15 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ studioId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { studioId } = await params;
+    const { response } = await requireAuth();
+    if (response) return response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { studioId } = await params;
 
     const studio = await prisma.studio.findUnique({
       where: { id: studioId },
@@ -54,19 +53,13 @@ export async function GET(
     });
 
     if (!studio) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Studio not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Studio');
     }
 
-    return NextResponse.json({ success: true, data: studio });
+    return apiSuccess(studio);
   } catch (error) {
     console.error('Failed to fetch studio:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch studio' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch studio');
   }
 }
 
@@ -76,29 +69,13 @@ export async function PATCH(
   { params }: { params: Promise<{ studioId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { studioId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, image, color } = body;
 
@@ -108,10 +85,7 @@ export async function PATCH(
     });
 
     if (!existingStudio) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Studio not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Studio');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -130,13 +104,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: studio });
+    return apiSuccess(studio);
   } catch (error) {
     console.error('Failed to update studio:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update studio' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update studio');
   }
 }
 
@@ -146,28 +117,13 @@ export async function DELETE(
   { params }: { params: Promise<{ studioId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { studioId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if studio exists
     const existingStudio = await prisma.studio.findUnique({
@@ -175,10 +131,7 @@ export async function DELETE(
     });
 
     if (!existingStudio) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Studio not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Studio');
     }
 
     // Soft delete (archive) the studio
@@ -187,12 +140,9 @@ export async function DELETE(
       data: { archivedAt: new Date() },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to archive studio:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to archive studio' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to archive studio');
   }
 }

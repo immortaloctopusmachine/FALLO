@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/settings/roles/[roleId] - Update a company role
 export async function PATCH(
@@ -8,29 +12,13 @@ export async function PATCH(
   { params }: { params: Promise<{ roleId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { roleId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, color, position } = body;
 
@@ -40,10 +28,7 @@ export async function PATCH(
     });
 
     if (!existingRole) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Company role not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Company role');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -57,13 +42,10 @@ export async function PATCH(
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: role });
+    return apiSuccess(role);
   } catch (error) {
     console.error('Failed to update company role:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update company role' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update company role');
   }
 }
 
@@ -73,28 +55,13 @@ export async function DELETE(
   { params }: { params: Promise<{ roleId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { roleId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if role exists
     const existingRole = await prisma.companyRole.findUnique({
@@ -102,10 +69,7 @@ export async function DELETE(
     });
 
     if (!existingRole) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Company role not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Company role');
     }
 
     // Delete role (cascades to userCompanyRoles)
@@ -113,12 +77,9 @@ export async function DELETE(
       where: { id: roleId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete company role:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete company role' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete company role');
   }
 }

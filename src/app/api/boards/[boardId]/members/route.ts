@@ -1,6 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  requireBoardAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 import type { UserPermission } from '@/types';
 
 interface RouteContext {
@@ -10,30 +16,13 @@ interface RouteContext {
 // GET /api/boards/[boardId]/members
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
     const { boardId } = await context.params;
 
-    // Verify membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const members = await prisma.boardMember.findMany({
       where: { boardId },
@@ -52,53 +41,29 @@ export async function GET(request: NextRequest, context: RouteContext) {
       orderBy: { joinedAt: 'asc' },
     });
 
-    return NextResponse.json({ success: true, data: members });
+    return apiSuccess(members);
   } catch (error) {
     console.error('Failed to fetch members:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'FETCH_FAILED', message: 'Failed to fetch members' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch members');
   }
 }
 
 // POST /api/boards/[boardId]/members - Add a member
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
     const { boardId } = await context.params;
 
-    // Check if user is admin of this board
-    const adminMembership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      },
-    });
-
-    if (!adminMembership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Only admins can add members' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { email, permission = 'MEMBER' } = body;
 
     if (!email || typeof email !== 'string') {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Email is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Email is required');
     }
 
     // Find user by email
@@ -107,10 +72,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
     // Check if already a member
@@ -122,10 +84,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (existingMembership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ALREADY_EXISTS', message: 'User is already a member' } },
-        { status: 409 }
-      );
+      return ApiErrors.conflict('User is already a member');
     }
 
     // Add member
@@ -148,53 +107,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: member }, { status: 201 });
+    return apiSuccess(member, 201);
   } catch (error) {
     console.error('Failed to add member:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to add member' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to add member');
   }
 }
 
 // PATCH /api/boards/[boardId]/members - Update member permission
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
     const { boardId } = await context.params;
 
-    // Check if user is admin of this board
-    const adminMembership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      },
-    });
-
-    if (!adminMembership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Only admins can update member roles' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { memberId, permission } = body;
 
     if (!memberId || !permission) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Member ID and permission are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Member ID and permission are required');
     }
 
     // Can't change your own permission (to prevent locking yourself out)
@@ -203,10 +138,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     });
 
     if (memberToUpdate?.userId === session.user.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Cannot change your own permission' } },
-        { status: 403 }
-      );
+      return ApiErrors.forbidden('Cannot change your own permission');
     }
 
     const member = await prisma.boardMember.update({
@@ -225,36 +157,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: member });
+    return apiSuccess(member);
   } catch (error) {
     console.error('Failed to update member:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update member' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update member');
   }
 }
 
 // DELETE /api/boards/[boardId]/members - Remove a member
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
     const { boardId } = await context.params;
     const { searchParams } = new URL(request.url);
     const memberId = searchParams.get('memberId');
 
     if (!memberId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Member ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Member ID is required');
     }
 
     // Get the member to be removed
@@ -263,30 +184,15 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     });
 
     if (!memberToRemove || memberToRemove.boardId !== boardId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Member not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Member');
     }
 
     // Check if user is admin OR removing themselves
     const isSelf = memberToRemove.userId === session.user.id;
 
     if (!isSelf) {
-      const adminMembership = await prisma.boardMember.findFirst({
-        where: {
-          boardId,
-          userId: session.user.id,
-          permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-        },
-      });
-
-      if (!adminMembership) {
-        return NextResponse.json(
-          { success: false, error: { code: 'FORBIDDEN', message: 'Only admins can remove other members' } },
-          { status: 403 }
-        );
-      }
+      const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+      if (adminResponse) return adminResponse;
     }
 
     // Check if this would leave the board with no admins
@@ -299,10 +205,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       });
 
       if (adminCount <= 1) {
-        return NextResponse.json(
-          { success: false, error: { code: 'FORBIDDEN', message: 'Cannot remove the last admin' } },
-          { status: 403 }
-        );
+        return ApiErrors.forbidden('Cannot remove the last admin');
       }
     }
 
@@ -310,12 +213,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       where: { id: memberId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to remove member:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to remove member' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to remove member');
   }
 }

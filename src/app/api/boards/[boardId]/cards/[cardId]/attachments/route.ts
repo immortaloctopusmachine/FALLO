@@ -1,15 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/cards/[cardId]/attachments
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const { cardId } = await context.params;
+    const { response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { cardId } = await params;
 
     const attachments = await prisma.attachment.findMany({
       where: { cardId },
@@ -39,29 +45,32 @@ export async function GET(request: NextRequest, context: RouteContext) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, data: attachments });
+    return apiSuccess(attachments);
   } catch (error) {
     console.error('Failed to fetch attachments:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'FETCH_FAILED', message: 'Failed to fetch attachments' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch attachments');
   }
 }
 
 // POST /api/boards/[boardId]/cards/[cardId]/attachments
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const session = await auth();
-    const { cardId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, cardId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const body = await request.json();
     const { name, url, type, size } = body;
 
     if (!name || !url || !type) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_DATA', message: 'Name, URL, and type are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Name, URL, and type are required');
     }
 
     const attachment = await prisma.attachment.create({
@@ -71,7 +80,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         type,
         size: size || 0,
         cardId,
-        uploaderId: session?.user?.id || null,
+        uploaderId: session.user.id,
       },
       include: {
         uploader: {
@@ -86,12 +95,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: attachment });
+    return apiSuccess(attachment);
   } catch (error) {
     console.error('Failed to create attachment:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to create attachment' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create attachment');
   }
 }

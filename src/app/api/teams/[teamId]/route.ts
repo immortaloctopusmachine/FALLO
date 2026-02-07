@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/teams/[teamId] - Get a team with details
 export async function GET(
@@ -8,15 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { teamId } = await params;
+    const { response } = await requireAuth();
+    if (response) return response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { teamId } = await params;
 
     const team = await prisma.team.findUnique({
       where: { id: teamId },
@@ -57,19 +56,13 @@ export async function GET(
     });
 
     if (!team) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Team not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Team');
     }
 
-    return NextResponse.json({ success: true, data: team });
+    return apiSuccess(team);
   } catch (error) {
     console.error('Failed to fetch team:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch team' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch team');
   }
 }
 
@@ -79,29 +72,13 @@ export async function PATCH(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { teamId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, image, color, position, studioId } = body;
 
@@ -111,10 +88,7 @@ export async function PATCH(
     });
 
     if (!existingTeam) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Team not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Team');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -138,13 +112,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: team });
+    return apiSuccess(team);
   } catch (error) {
     console.error('Failed to update team:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update team' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update team');
   }
 }
 
@@ -154,28 +125,13 @@ export async function DELETE(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { teamId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if team exists
     const existingTeam = await prisma.team.findUnique({
@@ -183,10 +139,7 @@ export async function DELETE(
     });
 
     if (!existingTeam) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Team not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Team');
     }
 
     // Soft delete (archive) the team
@@ -195,12 +148,9 @@ export async function DELETE(
       data: { archivedAt: new Date() },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to archive team:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to archive team' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to archive team');
   }
 }

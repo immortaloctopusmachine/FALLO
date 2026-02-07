@@ -6,5 +6,5 @@ export { TimelineBlock } from './TimelineBlock';
 export { TimelineEvent } from './TimelineEvent';
 export { TimelineProjectRow } from './TimelineProjectRow';
 export { TimelineFilterPanel } from './TimelineFilterPanel';
-export { TimelineRoleRow } from './TimelineRoleRow';
+export { TimelineUserAvailabilityRow } from './TimelineUserAvailabilityRow';
 export { WeekAvailabilityPopup } from './WeekAvailabilityPopup';

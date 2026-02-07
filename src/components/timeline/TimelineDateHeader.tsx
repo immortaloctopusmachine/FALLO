@@ -7,7 +7,6 @@ interface TimelineDateHeaderProps {
   startDate: Date;
   endDate: Date;
   columnWidth: number;
-  totalWidth?: number;
 }
 
 interface DateColumn {
@@ -22,7 +21,6 @@ export function TimelineDateHeader({
   startDate,
   endDate,
   columnWidth,
-  totalWidth,
 }: TimelineDateHeaderProps) {
   const columns = useMemo(() => {
     const cols: DateColumn[] = [];
@@ -105,12 +103,10 @@ export function TimelineDateHeader({
     return groups;
   }, [columns]);
 
-  const minWidthStyle = totalWidth ? `max(100%, ${totalWidth}px)` : '100%';
-
   return (
-    <div className="sticky top-0 z-20 bg-surface border-b border-border">
+    <div className="sticky top-0 z-20 bg-surface border-b border-border w-full">
       {/* Month Row */}
-      <div className="flex border-b border-border-subtle" style={{ minWidth: minWidthStyle }}>
+      <div className="flex border-b border-border-subtle">
         {monthGroups.map((group) => (
           <div
             key={`${group.month}-${group.startIndex}`}
@@ -121,11 +117,11 @@ export function TimelineDateHeader({
           </div>
         ))}
         {/* Fill remaining space */}
-        <div className="flex-1 bg-surface" />
+        <div className="flex-1 bg-surface min-w-0" />
       </div>
 
       {/* Week Row */}
-      <div className="flex border-b border-border-subtle" style={{ minWidth: minWidthStyle }}>
+      <div className="flex border-b border-border-subtle">
         {weekGroups.map((group) => (
           <div
             key={`${group.week}-${group.startIndex}`}
@@ -136,11 +132,11 @@ export function TimelineDateHeader({
           </div>
         ))}
         {/* Fill remaining space */}
-        <div className="flex-1 bg-surface" />
+        <div className="flex-1 bg-surface min-w-0" />
       </div>
 
       {/* Day Row */}
-      <div className="flex" style={{ minWidth: minWidthStyle }}>
+      <div className="flex">
         {columns.map((col, index) => (
           <div
             key={index}
@@ -156,7 +152,7 @@ export function TimelineDateHeader({
           </div>
         ))}
         {/* Fill remaining space */}
-        <div className="flex-1 bg-surface border-r border-border-subtle" />
+        <div className="flex-1 bg-surface border-r border-border-subtle min-w-0" />
       </div>
     </div>
   );

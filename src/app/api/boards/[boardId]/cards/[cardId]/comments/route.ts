@@ -1,38 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/cards/[cardId]/comments
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    const { boardId, cardId } = await context.params;
+    const { boardId, cardId } = await params;
 
-    // Verify membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     // Verify card exists and belongs to this board
     const card = await prisma.card.findFirst({
@@ -43,10 +29,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     });
 
     if (!card) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Card not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Card');
     }
 
     const comments = await prisma.comment.findMany({
@@ -64,36 +47,32 @@ export async function GET(request: NextRequest, context: RouteContext) {
       orderBy: { createdAt: 'asc' },
     });
 
-    return NextResponse.json({ success: true, data: comments });
+    return apiSuccess(comments);
   } catch (error) {
     console.error('Failed to fetch comments:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'FETCH_FAILED', message: 'Failed to fetch comments' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch comments');
   }
 }
 
 // POST /api/boards/[boardId]/cards/[cardId]/comments
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    const { cardId } = await context.params;
+    const { boardId, cardId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const body = await request.json();
     const { content, attachmentId } = body;
 
     if (!content?.trim()) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_CONTENT', message: 'Comment content is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Comment content is required');
     }
 
     const comment = await prisma.comment.create({
@@ -115,12 +94,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: comment });
+    return apiSuccess(comment);
   } catch (error) {
     console.error('Failed to create comment:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to create comment' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create comment');
   }
 }

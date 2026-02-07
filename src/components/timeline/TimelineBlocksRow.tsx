@@ -18,7 +18,6 @@ interface TimelineBlocksRowProps {
   onBlockInsert?: (atBlock: TimelineBlockType) => void;
   selectedBlockId?: string;
   totalColumns: number;
-  minWidth?: string;
   isAdmin?: boolean;
 }
 
@@ -33,7 +32,6 @@ export function TimelineBlocksRow({
   onBlockInsert,
   selectedBlockId,
   totalColumns,
-  minWidth,
   isAdmin = false,
 }: TimelineBlocksRowProps) {
   // Sort blocks by start date to determine order
@@ -177,10 +175,9 @@ export function TimelineBlocksRow({
 
   return (
     <div
-      className="relative border-b border-border-subtle"
+      className="relative border-b border-border-subtle w-full"
       style={{
         height: rowHeight,
-        minWidth: minWidth || '100%',
         ...gridBackground,
       }}
     >

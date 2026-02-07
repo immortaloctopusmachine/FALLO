@@ -1,21 +1,95 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { BOARD_TEMPLATES, calculateListDates } from '@/lib/list-templates';
-import type { BoardTemplateType, ListViewType, ListPhase } from '@/types';
+import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
+import { PHASE_SEARCH_TERMS } from '@/lib/constants';
+import type { BoardTemplateType, ListViewType, ListPhase, BoardSettings } from '@/types';
 
 // GET /api/boards - Get all boards for current user
-export async function GET() {
+// Query params:
+//   ?archived=true  - return archived boards
+//   ?projects=true  - return non-template boards with team + member data
+export async function GET(request: Request) {
   try {
-    const session = await auth();
+    const { session, response } = await requireAuth();
+    if (response) return response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
+    const { searchParams } = new URL(request.url);
+    const archived = searchParams.get('archived') === 'true';
+    const projects = searchParams.get('projects') === 'true';
+
+    if (projects) {
+      const boards = await prisma.board.findMany({
+        where: {
+          members: {
+            some: {
+              userId: session.user.id,
+            },
+          },
+          archivedAt: null,
+          isTemplate: false,
+        },
+        include: {
+          team: {
+            select: { id: true, name: true, color: true },
+          },
+          members: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      return apiSuccess(boards);
     }
 
+    if (archived) {
+      const boards = await prisma.board.findMany({
+        where: {
+          members: {
+            some: {
+              userId: session.user.id,
+            },
+          },
+          archivedAt: { not: null },
+        },
+        include: {
+          members: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
+              },
+            },
+          },
+          lists: {
+            orderBy: { position: 'asc' },
+            include: {
+              _count: {
+                select: { cards: true },
+              },
+            },
+          },
+        },
+        orderBy: { archivedAt: 'desc' },
+      });
+
+      return apiSuccess(boards);
+    }
+
+    // Default: active boards with members + lists
     const boards = await prisma.board.findMany({
       where: {
         members: {
@@ -50,36 +124,24 @@ export async function GET() {
       orderBy: { updatedAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, data: boards });
+    return apiSuccess(boards);
   } catch (error) {
     console.error('Failed to fetch boards:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch boards' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch boards');
   }
 }
 
 // POST /api/boards - Create a new board
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response } = await requireAuth();
+    if (response) return response;
 
     const body = await request.json();
-    const { name, description, template = 'BLANK', teamId, startDate } = body;
+    const { name, description, template = 'BLANK', teamId, startDate, memberIds } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Board name is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Board name is required');
     }
 
     // Get template configuration
@@ -122,9 +184,9 @@ export async function POST(request: Request) {
     ];
 
     // Store which template was used in settings (for non-BLANK templates)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const settings: Record<string, any> = templateType !== 'BLANK'
-      ? { listTemplate: templateType }
+    // Using Partial<BoardSettings> to allow incremental building, cast for Prisma JSON field
+    const settings: Partial<BoardSettings> = templateType !== 'BLANK'
+      ? { listTemplate: templateType as BoardSettings['listTemplate'] }
       : {};
 
     // Store project start date in settings
@@ -132,15 +194,23 @@ export async function POST(request: Request) {
       settings.projectStartDate = startDate;
     }
 
-    // If teamId provided, get all team members to add to board
-    let teamMembersToAdd: { userId: string; permission: 'MEMBER' | 'ADMIN' }[] = [];
-    if (teamId) {
+    // Determine which members to add to the board
+    let membersToAdd: { userId: string; permission: 'MEMBER' | 'ADMIN' }[] = [];
+    if (memberIds && Array.isArray(memberIds) && memberIds.length > 0) {
+      // Use explicit member list (from create project dialog)
+      membersToAdd = memberIds
+        .filter((id: string) => id !== session.user.id)
+        .map((id: string) => ({
+          userId: id,
+          permission: 'MEMBER' as const,
+        }));
+    } else if (teamId) {
+      // Fallback: auto-add all team members
       const teamMembers = await prisma.teamMember.findMany({
         where: { teamId },
         select: { userId: true, permission: true },
       });
-      // Add all team members except the creator (who will be added as admin)
-      teamMembersToAdd = teamMembers
+      membersToAdd = teamMembers
         .filter((m) => m.userId !== session.user.id)
         .map((m) => ({
           userId: m.userId,
@@ -152,7 +222,7 @@ export async function POST(request: Request) {
       data: {
         name: name.trim(),
         description: description?.trim() || null,
-        settings,
+        settings: settings as object,
         teamId: teamId || null,
         members: {
           create: [
@@ -160,7 +230,7 @@ export async function POST(request: Request) {
               userId: session.user.id,
               permission: 'ADMIN',
             },
-            ...teamMembersToAdd,
+            ...membersToAdd,
           ],
         },
         lists: {
@@ -199,17 +269,10 @@ export async function POST(request: Request) {
       });
 
       // Create timeline blocks for each planning list
-      const phaseSearchTerms: Record<string, string[]> = {
-        'SPINE_PROTOTYPE': ['spine', 'prototype', 'setup'],
-        'CONCEPT': ['concept'],
-        'PRODUCTION': ['production'],
-        'TWEAK': ['tweak'],
-      };
-
       let blockPosition = 0;
       for (const list of planningLists) {
-        // Find matching block type
-        const searchTerms = list.phase ? phaseSearchTerms[list.phase] : null;
+        // Find matching block type using centralized phase search terms
+        const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
         const listNameLower = list.name.toLowerCase();
 
         let blockType = null;
@@ -283,12 +346,9 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, data: board }, { status: 201 });
+    return apiSuccess(board, 201);
   } catch (error) {
     console.error('Failed to create board:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create board' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create board');
   }
 }

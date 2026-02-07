@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Layers, Zap, FileText, Calendar } from 'lucide-react';
+import { Plus, Layers, Zap, FileText, Calendar, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,6 +13,20 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BOARD_TEMPLATES, snapToMonday } from '@/lib/list-templates';
 import type { BoardTemplateType } from '@/types';
 import { cn } from '@/lib/utils';
@@ -31,6 +45,18 @@ interface Team {
   id: string;
   name: string;
   color: string;
+}
+
+interface SelectedMember {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  companyRoles: {
+    id: string;
+    name: string;
+    color: string | null;
+  }[];
 }
 
 interface ProjectTemplate {
@@ -70,6 +96,11 @@ export function CreateProjectDialog({
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Member selection state
+  const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
+  const [allUsers, setAllUsers] = useState<SelectedMember[]>([]);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+
   // Set default start date when provided (snap to Monday)
   useEffect(() => {
     if (defaultStartDate) {
@@ -91,9 +122,40 @@ export function CreateProjectDialog({
       setSelectedTeamId('');
       setTemplate('STANDARD_SLOT');
       setSelectedProjectTemplate(null);
+      setSelectedMembers([]);
       setError(null);
     }
   }, [isOpen, defaultStartDate]);
+
+  // Fetch all users when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/users')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.data) {
+            setAllUsers(
+              data.data.map((u: {
+                id: string;
+                name: string | null;
+                email: string;
+                image: string | null;
+                userCompanyRoles?: { companyRole: { id: string; name: string; color: string | null } }[];
+              }) => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                image: u.image,
+                companyRoles: (u.userCompanyRoles || []).map(
+                  (ucr: { companyRole: { id: string; name: string; color: string | null } }) => ucr.companyRole
+                ),
+              }))
+            );
+          }
+        })
+        .catch(console.error);
+    }
+  }, [isOpen]);
 
   // Fetch project templates when dialog opens
   useEffect(() => {
@@ -118,6 +180,57 @@ export function CreateProjectDialog({
         .finally(() => setIsLoadingTemplates(false));
     }
   }, [isOpen]);
+
+  // When team changes, auto-populate with team members
+  const handleTeamChange = async (teamId: string) => {
+    setSelectedTeamId(teamId);
+
+    if (!teamId) {
+      setSelectedMembers([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/teams/${teamId}/members`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        const teamMembers: SelectedMember[] = data.data.map(
+          (m: {
+            user: {
+              id: string;
+              name: string | null;
+              email: string;
+              image: string | null;
+              userCompanyRoles?: { companyRole: { id: string; name: string; color: string | null } }[];
+            };
+          }) => ({
+            id: m.user.id,
+            name: m.user.name,
+            email: m.user.email,
+            image: m.user.image,
+            companyRoles: (m.user.userCompanyRoles || []).map(
+              (ucr: { companyRole: { id: string; name: string; color: string | null } }) => ucr.companyRole
+            ),
+          })
+        );
+        setSelectedMembers(teamMembers);
+      }
+    } catch (err) {
+      console.error('Failed to fetch team members:', err);
+    }
+  };
+
+  const handleAddUser = (user: SelectedMember) => {
+    setSelectedMembers(prev => [...prev, user]);
+    setAddUserOpen(false);
+  };
+
+  const handleRemoveUser = (userId: string) => {
+    setSelectedMembers(prev => prev.filter(m => m.id !== userId));
+  };
+
+  const selectedMemberIds = selectedMembers.map(m => m.id);
+  const availableUsers = allUsers.filter(u => !selectedMemberIds.includes(u.id));
 
   const handleSelectProjectTemplate = (templateId: string) => {
     setSelectedProjectTemplate(templateId);
@@ -146,6 +259,10 @@ export function CreateProjectDialog({
     try {
       let response;
 
+      const memberIds = selectedMembers.length > 0
+        ? selectedMembers.map(m => m.id)
+        : undefined;
+
       if (selectedProjectTemplate) {
         // Clone from project template
         response = await fetch(`/api/boards/${selectedProjectTemplate}/clone`, {
@@ -156,6 +273,7 @@ export function CreateProjectDialog({
             asTemplate: false,
             startDate: startDate || undefined,
             teamId: selectedTeamId || undefined,
+            memberIds,
           }),
         });
       } else {
@@ -168,6 +286,7 @@ export function CreateProjectDialog({
             template,
             startDate: startDate || undefined,
             teamId: selectedTeamId || undefined,
+            memberIds,
           }),
         });
       }
@@ -190,7 +309,7 @@ export function CreateProjectDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
           <DialogDescription>
@@ -248,7 +367,7 @@ export function CreateProjectDialog({
             <select
               id="team"
               value={selectedTeamId}
-              onChange={(e) => setSelectedTeamId(e.target.value)}
+              onChange={(e) => handleTeamChange(e.target.value)}
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-body shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="">No team</option>
@@ -258,6 +377,100 @@ export function CreateProjectDialog({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Team Members */}
+          <div className="space-y-2">
+            <Label>Team Members</Label>
+
+            {/* Add user */}
+            <Popover open={addUserOpen} onOpenChange={setAddUserOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="w-full justify-start">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  <span className="text-text-tertiary">Add user...</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search users..." />
+                  <CommandList>
+                    <CommandEmpty>No users available.</CommandEmpty>
+                    <CommandGroup>
+                      {availableUsers.map(user => (
+                        <CommandItem
+                          key={user.id}
+                          value={user.name || user.email}
+                          onSelect={() => handleAddUser(user)}
+                        >
+                          <Avatar className="h-6 w-6 mr-2">
+                            <AvatarImage src={user.image || undefined} />
+                            <AvatarFallback className="text-tiny">
+                              {(user.name || user.email)[0].toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span>{user.name || 'Unnamed'}</span>
+                            <span className="text-tiny text-text-tertiary">{user.email}</span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* Selected members list */}
+            {selectedMembers.length > 0 && (
+              <div className="rounded-lg border border-border overflow-hidden max-h-48 overflow-y-auto">
+                <div className="divide-y divide-border">
+                  {selectedMembers.map(member => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between px-3 py-2 hover:bg-surface-hover"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar className="h-6 w-6 flex-shrink-0">
+                          <AvatarImage src={member.image || undefined} />
+                          <AvatarFallback className="text-tiny">
+                            {(member.name || member.email)[0].toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-body truncate">
+                          {member.name || member.email}
+                        </span>
+                        {member.companyRoles.map(role => (
+                          <span
+                            key={role.id}
+                            className="px-1.5 py-0.5 rounded-full text-tiny font-medium flex-shrink-0"
+                            style={{
+                              backgroundColor: `${role.color || '#71717a'}20`,
+                              color: role.color || '#71717a',
+                            }}
+                          >
+                            {role.name}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveUser(member.id)}
+                        className="p-1 rounded-md text-text-tertiary hover:text-red-500 hover:bg-red-500/10 flex-shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedMembers.length === 0 && (
+              <p className="text-caption text-text-tertiary">
+                Select a team to auto-populate members, or add users manually.
+              </p>
+            )}
           </div>
 
           {/* Template Selection */}

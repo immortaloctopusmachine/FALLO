@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
+
+// Validation constants
+const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 10000;
 
 // GET /api/boards/[boardId]/cards/[cardId] - Get card details
 export async function GET(
@@ -8,30 +17,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const card = await prisma.card.findFirst({
       where: {
@@ -94,10 +86,7 @@ export async function GET(
     });
 
     if (!card) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Card not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Card');
     }
 
     // For User Story cards, fetch connected tasks and compute stats
@@ -170,11 +159,7 @@ export async function GET(
             totalStoryPoints,
           }
         },
-        {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-          },
-        }
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
       );
     }
 
@@ -244,28 +229,17 @@ export async function GET(
             totalStoryPoints,
           }
         },
-        {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-          },
-        }
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
       );
     }
 
     return NextResponse.json(
       { success: true, data: card },
-      {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-        },
-      }
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     );
   } catch (error) {
     console.error('Failed to fetch card:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch card' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch card');
   }
 }
 
@@ -275,33 +249,31 @@ export async function PATCH(
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const body = await request.json();
     const { title, description, position, listId, color, featureImage, featureImagePosition, taskData, userStoryData, epicData, utilityData } = body;
+
+    // Validate title if provided
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.trim().length === 0) {
+        return ApiErrors.validation('Card title cannot be empty');
+      }
+      if (title.trim().length > MAX_TITLE_LENGTH) {
+        return ApiErrors.validation(`Card title cannot exceed ${MAX_TITLE_LENGTH} characters`);
+      }
+    }
+
+    // Validate description length if provided
+    if (description && typeof description === 'string' && description.length > MAX_DESCRIPTION_LENGTH) {
+      return ApiErrors.validation(`Card description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters`);
+    }
 
     const card = await prisma.card.update({
       where: { id: cardId },
@@ -345,13 +317,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: card });
+    return apiSuccess(card);
   } catch (error) {
     console.error('Failed to update card:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update card' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update card');
   }
 }
 
@@ -361,42 +330,22 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     await prisma.card.update({
       where: { id: cardId },
       data: { archivedAt: new Date() },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete card:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete card' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete card');
   }
 }

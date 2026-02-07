@@ -1,6 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  requireBoardAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/boards/[boardId]/lists/[listId] - Update list
 export async function PATCH(
@@ -8,30 +13,13 @@ export async function PATCH(
   { params }: { params: Promise<{ boardId: string; listId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, listId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const body = await request.json();
     const { name, position, color, phase, durationWeeks, durationDays, startDate, endDate } = body;
@@ -56,13 +44,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: list });
+    return apiSuccess(list);
   } catch (error) {
     console.error('Failed to update list:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update list' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update list');
   }
 }
 
@@ -72,42 +57,21 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string; listId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, listId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized to delete lists' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+    if (adminResponse) return adminResponse;
 
     await prisma.list.delete({
       where: { id: listId, boardId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete list:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete list' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete list');
   }
 }

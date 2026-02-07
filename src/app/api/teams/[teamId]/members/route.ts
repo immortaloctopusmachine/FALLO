@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/teams/[teamId]/members - Get team members
 export async function GET(
@@ -8,15 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { teamId } = await params;
+    const { response } = await requireAuth();
+    if (response) return response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { teamId } = await params;
 
     const members = await prisma.teamMember.findMany({
       where: { teamId },
@@ -34,18 +33,26 @@ export async function GET(
                 skill: true,
               },
             },
+            userCompanyRoles: {
+              include: {
+                companyRole: {
+                  select: {
+                    id: true,
+                    name: true,
+                    color: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
 
-    return NextResponse.json({ success: true, data: members });
+    return apiSuccess(members);
   } catch (error) {
     console.error('Failed to fetch team members:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch team members' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch team members');
   }
 }
 
@@ -55,37 +62,18 @@ export async function POST(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { teamId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { userId, permission = 'MEMBER', title } = body;
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'User ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User ID is required');
     }
 
     // Check if team exists
@@ -94,10 +82,7 @@ export async function POST(
     });
 
     if (!team || team.archivedAt) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Team not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Team');
     }
 
     // Check if user exists
@@ -106,10 +91,7 @@ export async function POST(
     });
 
     if (!targetUser) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('User');
     }
 
     // Check if already a member
@@ -120,10 +102,7 @@ export async function POST(
     });
 
     if (existingMember) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ALREADY_EXISTS', message: 'User is already a team member' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User is already a team member');
     }
 
     // Add member to team
@@ -167,13 +146,10 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({ success: true, data: member }, { status: 201 });
+    return apiSuccess(member, 201);
   } catch (error) {
     console.error('Failed to add team member:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to add team member' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to add team member');
   }
 }
 
@@ -183,37 +159,18 @@ export async function DELETE(
   { params }: { params: Promise<{ teamId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { teamId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'User ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User ID is required');
     }
 
     // Check if member exists
@@ -224,10 +181,7 @@ export async function DELETE(
     });
 
     if (!existingMember) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Team member not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Team member');
     }
 
     // Remove member from team
@@ -237,12 +191,9 @@ export async function DELETE(
       },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to remove team member:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to remove team member' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to remove team member');
   }
 }

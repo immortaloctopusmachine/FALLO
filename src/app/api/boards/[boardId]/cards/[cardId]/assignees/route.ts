@@ -1,14 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/cards/[cardId]/assignees
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const { cardId } = await context.params;
+    const { response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { cardId } = await params;
 
     const assignees = await prisma.cardUser.findMany({
       where: { cardId },
@@ -25,28 +32,32 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: assignees });
+    return apiSuccess(assignees);
   } catch (error) {
     console.error('Failed to fetch assignees:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'FETCH_FAILED', message: 'Failed to fetch assignees' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch assignees');
   }
 }
 
 // POST /api/boards/[boardId]/cards/[cardId]/assignees
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const { cardId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, cardId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const body = await request.json();
     const { userId } = body;
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_USER', message: 'User ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User ID is required');
     }
 
     // Check if already assigned
@@ -57,10 +68,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ALREADY_ASSIGNED', message: 'User is already assigned' } },
-        { status: 400 }
-      );
+      return ApiErrors.conflict('User is already assigned');
     }
 
     const assignee = await prisma.cardUser.create({
@@ -78,28 +86,32 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: assignee });
+    return apiSuccess(assignee);
   } catch (error) {
     console.error('Failed to add assignee:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to add assignee' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to add assignee');
   }
 }
 
 // DELETE /api/boards/[boardId]/cards/[cardId]/assignees
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string }> }
+) {
   try {
-    const { cardId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, cardId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_USER', message: 'User ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('User ID is required');
     }
 
     await prisma.cardUser.delete({
@@ -108,12 +120,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to remove assignee:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'DELETE_FAILED', message: 'Failed to remove assignee' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to remove assignee');
   }
 }

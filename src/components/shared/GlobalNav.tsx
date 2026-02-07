@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Calendar,
+  FolderKanban,
   LayoutGrid,
   Building2,
   Users,
@@ -19,6 +20,7 @@ interface GlobalNavProps {
 
 const navItems = [
   { href: '/timeline', label: 'Timeline', icon: Calendar },
+  { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/boards', label: 'Boards', icon: LayoutGrid },
   { href: '/organization', label: 'Organization', icon: Building2 },
   { href: '/teams', label: 'Teams', icon: Users },

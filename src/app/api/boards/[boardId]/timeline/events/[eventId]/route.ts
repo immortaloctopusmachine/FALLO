@@ -1,6 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/timeline/events/[eventId] - Get a single event
 export async function GET(
@@ -8,30 +13,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string; eventId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, eventId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a board member' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const event = await prisma.timelineEvent.findFirst({
       where: {
@@ -44,19 +32,13 @@ export async function GET(
     });
 
     if (!event) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Event not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Event');
     }
 
-    return NextResponse.json({ success: true, data: event });
+    return apiSuccess(event);
   } catch (error) {
     console.error('Failed to fetch timeline event:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch timeline event' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch timeline event');
   }
 }
 
@@ -66,28 +48,14 @@ export async function PATCH(
   { params }: { params: Promise<{ boardId: string; eventId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, eventId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if event exists
     const existingEvent = await prisma.timelineEvent.findFirst({
@@ -98,10 +66,7 @@ export async function PATCH(
     });
 
     if (!existingEvent) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Event not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Event');
     }
 
     const body = await request.json();
@@ -122,13 +87,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: event });
+    return apiSuccess(event);
   } catch (error) {
     console.error('Failed to update timeline event:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update timeline event' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update timeline event');
   }
 }
 
@@ -138,28 +100,14 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string; eventId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, eventId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if event exists
     const existingEvent = await prisma.timelineEvent.findFirst({
@@ -170,22 +118,16 @@ export async function DELETE(
     });
 
     if (!existingEvent) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Event not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Event');
     }
 
     await prisma.timelineEvent.delete({
       where: { id: eventId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete timeline event:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete timeline event' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete timeline event');
   }
 }

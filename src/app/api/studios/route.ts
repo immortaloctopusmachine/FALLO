@@ -1,18 +1,16 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/studios - Get all studios
 export async function GET() {
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { response } = await requireAuth();
+    if (response) return response;
 
     const studios = await prisma.studio.findMany({
       where: {
@@ -32,49 +30,27 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, data: studios });
+    return apiSuccess(studios);
   } catch (error) {
     console.error('Failed to fetch studios:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch studios' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch studios');
   }
 }
 
 // POST /api/studios - Create a new studio
 export async function POST(request: Request) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { name, description, image, color } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Studio name is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Studio name is required');
     }
 
     const studio = await prisma.studio.create({
@@ -91,12 +67,9 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: studio }, { status: 201 });
+    return apiSuccess(studio, 201);
   } catch (error) {
     console.error('Failed to create studio:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create studio' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create studio');
   }
 }

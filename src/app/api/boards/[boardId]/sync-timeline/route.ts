@@ -1,6 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
+import { PHASE_SEARCH_TERMS } from '@/lib/constants';
 
 // POST /api/boards/[boardId]/sync-timeline - Create timeline blocks for existing planning lists
 export async function POST(
@@ -8,31 +13,13 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin of this board
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Get all planning lists without timeline blocks
     const planningLists = await prisma.list.findMany({
@@ -47,10 +34,7 @@ export async function POST(
     });
 
     if (planningLists.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: { message: 'No planning lists need timeline blocks', created: 0 },
-      });
+      return apiSuccess({ message: 'No planning lists need timeline blocks', created: 0 });
     }
 
     // Get the highest position for timeline blocks in this board
@@ -64,16 +48,7 @@ export async function POST(
 
     for (const list of planningLists) {
       // Find matching block type based on phase or list name
-      const phaseSearchTerms: Record<string, string[]> = {
-        'SPINE_PROTOTYPE': ['spine', 'prototype'],
-        'CONCEPT': ['concept'],
-        'PRODUCTION': ['production'],
-        'TWEAK': ['tweak'],
-        'BACKLOG': ['backlog'],
-        'DONE': ['done', 'complete'],
-      };
-
-      const searchTerms = list.phase ? phaseSearchTerms[list.phase] : null;
+      const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
       const listNameLower = list.name.toLowerCase();
 
       let blockType = null;
@@ -176,19 +151,13 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: `Created ${createdBlocks.length} timeline blocks`,
-        created: createdBlocks.length,
-        blocks: createdBlocks,
-      },
+    return apiSuccess({
+      message: `Created ${createdBlocks.length} timeline blocks`,
+      created: createdBlocks.length,
+      blocks: createdBlocks,
     });
   } catch (error) {
     console.error('Failed to sync timeline blocks:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to sync timeline blocks' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to sync timeline blocks');
   }
 }

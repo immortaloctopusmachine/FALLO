@@ -56,13 +56,6 @@ export default async function OrganizationPage() {
     }),
   ]);
 
-  // Check if user is admin
-  const currentUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { permission: true },
-  });
-  const isAdmin = currentUser?.permission === 'ADMIN' || currentUser?.permission === 'SUPER_ADMIN';
-
   // Calculate stats
   const totalTeams = teams.length;
   const totalUsers = users.length;

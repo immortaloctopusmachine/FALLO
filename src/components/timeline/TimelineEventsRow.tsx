@@ -16,7 +16,6 @@ interface TimelineEventsRowProps {
   onEventMove?: (eventId: string, daysDelta: number) => void;
   selectedEventId?: string;
   totalColumns: number;
-  minWidth?: string;
   isAdmin?: boolean;
 }
 
@@ -32,7 +31,6 @@ export function TimelineEventsRow({
   onEventMove,
   selectedEventId,
   totalColumns,
-  minWidth,
   isAdmin = false,
 }: TimelineEventsRowProps) {
   // Drag state for events
@@ -195,10 +193,9 @@ export function TimelineEventsRow({
 
   return (
     <div
-      className="relative border-b border-border-subtle bg-surface-subtle/30"
+      className="relative border-b border-border-subtle bg-surface-subtle/30 w-full"
       style={{
         height: rowHeight,
-        minWidth: minWidth || '100%',
         ...gridBackground,
       }}
       onContextMenu={handleRowContextMenu}

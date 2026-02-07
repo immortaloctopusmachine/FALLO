@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/settings/event-types/[eventTypeId] - Update an event type
 export async function PATCH(
@@ -8,29 +12,13 @@ export async function PATCH(
   { params }: { params: Promise<{ eventTypeId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { eventTypeId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, color, icon, position } = body;
 
@@ -40,10 +28,7 @@ export async function PATCH(
     });
 
     if (!existingEventType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Event type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Event type');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -58,13 +43,10 @@ export async function PATCH(
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: eventType });
+    return apiSuccess(eventType);
   } catch (error) {
     console.error('Failed to update event type:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update event type' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update event type');
   }
 }
 
@@ -74,28 +56,13 @@ export async function DELETE(
   { params }: { params: Promise<{ eventTypeId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { eventTypeId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if event type exists
     const existingEventType = await prisma.eventType.findUnique({
@@ -106,38 +73,26 @@ export async function DELETE(
     });
 
     if (!existingEventType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Event type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Event type');
     }
 
     // Prevent deletion if event type is in use
     if (existingEventType._count.events > 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'IN_USE', message: 'Cannot delete event type that is in use' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Cannot delete event type that is in use');
     }
 
     // Prevent deletion of default event types
     if (existingEventType.isDefault) {
-      return NextResponse.json(
-        { success: false, error: { code: 'PROTECTED', message: 'Cannot delete default event types' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Cannot delete default event types');
     }
 
     await prisma.eventType.delete({
       where: { id: eventTypeId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete event type:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete event type' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete event type');
   }
 }

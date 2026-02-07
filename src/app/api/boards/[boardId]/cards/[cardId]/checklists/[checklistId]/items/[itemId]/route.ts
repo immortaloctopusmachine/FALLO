@@ -1,14 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string; checklistId: string; itemId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/boards/[boardId]/cards/[cardId]/checklists/[checklistId]/items/[itemId]
-export async function PATCH(request: NextRequest, context: RouteContext) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string; checklistId: string; itemId: string }> }
+) {
   try {
-    const { itemId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, itemId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const body = await request.json();
     const { content, isComplete, position } = body;
 
@@ -22,31 +33,34 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       data: updates,
     });
 
-    return NextResponse.json({ success: true, data: item });
+    return apiSuccess(item);
   } catch (error) {
     console.error('Failed to update checklist item:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update checklist item' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update checklist item');
   }
 }
 
 // DELETE /api/boards/[boardId]/cards/[cardId]/checklists/[checklistId]/items/[itemId]
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string; checklistId: string; itemId: string }> }
+) {
   try {
-    const { itemId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, itemId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     await prisma.checklistItem.delete({
       where: { id: itemId },
     });
 
-    return NextResponse.json({ success: true });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete checklist item:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete checklist item' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete checklist item');
   }
 }

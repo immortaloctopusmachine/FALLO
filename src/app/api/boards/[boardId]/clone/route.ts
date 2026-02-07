@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 import type { Prisma } from '@prisma/client';
 
 // POST /api/boards/[boardId]/clone - Clone a board (works with regular boards and templates)
@@ -9,15 +12,10 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
-    const { boardId } = await params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { boardId } = await params;
 
     // Get the source board with all its data
     const sourceBoard = await prisma.board.findFirst({
@@ -53,10 +51,7 @@ export async function POST(
     });
 
     if (!sourceBoard) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Board not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Board');
     }
 
     const body = await request.json();
@@ -281,12 +276,9 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, data: completeBoard }, { status: 201 });
+    return apiSuccess(completeBoard, 201);
   } catch (error) {
     console.error('Failed to clone board:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to clone board' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to clone board');
   }
 }

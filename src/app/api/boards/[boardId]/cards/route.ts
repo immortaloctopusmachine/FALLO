@@ -1,7 +1,16 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 import type { CardType } from '@/types';
+
+// Validation constants
+const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 10000;
+const VALID_CARD_TYPES: CardType[] = ['TASK', 'USER_STORY', 'EPIC', 'UTILITY'];
 
 // POST /api/boards/[boardId]/cards - Create a new card
 export async function POST(
@@ -9,46 +18,37 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const body = await request.json();
     const { title, type, listId, description, taskData, userStoryData, epicData, utilityData } = body;
 
+    // Validate title
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Card title is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Card title is required');
+    }
+    if (title.trim().length > MAX_TITLE_LENGTH) {
+      return ApiErrors.validation(`Card title cannot exceed ${MAX_TITLE_LENGTH} characters`);
+    }
+
+    // Validate description length if provided
+    if (description && typeof description === 'string' && description.length > MAX_DESCRIPTION_LENGTH) {
+      return ApiErrors.validation(`Card description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters`);
+    }
+
+    // Validate card type if provided
+    if (type && !VALID_CARD_TYPES.includes(type)) {
+      return ApiErrors.validation(`Invalid card type. Must be one of: ${VALID_CARD_TYPES.join(', ')}`);
     }
 
     if (!listId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'List ID is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('List ID is required');
     }
 
     // Verify list belongs to board
@@ -57,10 +57,7 @@ export async function POST(
     });
 
     if (!list) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'List not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('List');
     }
 
     // Get the highest position in the list
@@ -140,12 +137,9 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, data: card }, { status: 201 });
+    return apiSuccess(card, 201);
   } catch (error) {
     console.error('Failed to create card:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create card' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create card');
   }
 }

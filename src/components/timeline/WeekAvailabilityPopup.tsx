@@ -18,10 +18,7 @@ interface WeekAvailabilityPopupProps {
   isOpen: boolean;
   onClose: () => void;
   weekStart: Date;
-  roleId: string;
-  roleName: string;
-  roleColor: string | null;
-  members: TimelineMember[];
+  member: TimelineMember;
   existingAvailability: UserWeeklyAvailability[];
   boardId: string;
   onSave: (
@@ -37,27 +34,19 @@ export function WeekAvailabilityPopup({
   isOpen,
   onClose,
   weekStart,
-  roleId: _roleId,
-  roleName,
-  roleColor,
-  members,
+  member,
   existingAvailability,
   boardId,
   onSave,
 }: WeekAvailabilityPopupProps) {
-  // State for each user's dedication
-  const [dedications, setDedications] = useState<Map<string, number>>(new Map());
+  const [dedication, setDedication] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize dedications from existing availability
+  // Initialize dedication from existing availability
   useEffect(() => {
-    const initial = new Map<string, number>();
-    members.forEach(member => {
-      const existing = existingAvailability.find(a => a.userId === member.id);
-      initial.set(member.id, existing?.dedication ?? 0);
-    });
-    setDedications(initial);
-  }, [members, existingAvailability]);
+    const existing = existingAvailability.find(a => a.userId === member.id);
+    setDedication(existing?.dedication ?? 0);
+  }, [member, existingAvailability]);
 
   // Format date range for display
   const weekEnd = getFriday(weekStart);
@@ -69,110 +58,78 @@ export function WeekAvailabilityPopup({
   };
   const dateRangeText = `${formatDate(weekStart)} - ${formatDate(weekEnd)}, ${weekStart.getFullYear()}`;
 
-  // Handle dedication change
-  const handleDedicationChange = useCallback((userId: string, dedication: number) => {
-    setDedications(prev => {
-      const next = new Map(prev);
-      next.set(userId, dedication);
-      return next;
-    });
-  }, []);
+  // Primary role info
+  const primaryRole = member.userCompanyRoles[0]?.companyRole;
 
   // Handle save
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      const entries = Array.from(dedications.entries()).map(([userId, dedication]) => ({
-        userId,
+      await onSave(boardId, [{
+        userId: member.id,
         weekStart: weekStart.toISOString().split('T')[0],
         dedication,
-      }));
-
-      await onSave(boardId, entries);
+      }]);
       onClose();
     } catch (error) {
       console.error('Failed to save availability:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [dedications, weekStart, boardId, onSave, onClose]);
+  }, [dedication, weekStart, boardId, member.id, onSave, onClose]);
 
-  // Check if any changes were made
-  const hasChanges = useCallback(() => {
-    for (const member of members) {
-      const existing = existingAvailability.find(a => a.userId === member.id);
-      const currentDedication = dedications.get(member.id) ?? 0;
-      const existingDedication = existing?.dedication ?? 0;
-      if (currentDedication !== existingDedication) {
-        return true;
-      }
-    }
-    return false;
-  }, [members, existingAvailability, dedications]);
+  // Check if changed
+  const existingDedication = existingAvailability.find(a => a.userId === member.id)?.dedication ?? 0;
+  const hasChanges = dedication !== existingDedication;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {roleColor && (
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: roleColor }}
-              />
-            )}
-            {roleName} Availability
+            <Avatar className="h-7 w-7">
+              <AvatarImage src={member.image || undefined} />
+              <AvatarFallback className="text-caption">
+                {(member.name || member.email)[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {member.name || member.email}
           </DialogTitle>
           <DialogDescription>
             Set availability for the week of {dateRangeText}
+            {primaryRole && (
+              <span
+                className="ml-2 px-2 py-0.5 rounded-full text-tiny font-medium"
+                style={{
+                  backgroundColor: `${primaryRole.color || '#71717a'}20`,
+                  color: primaryRole.color || '#71717a',
+                }}
+              >
+                {primaryRole.name}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4">
-          {members.length === 0 ? (
-            <div className="text-center text-text-tertiary py-4">
-              No team members with this role
-            </div>
-          ) : (
-            members.map(member => {
-              const currentDedication = dedications.get(member.id) ?? 0;
-
-              return (
-                <div key={member.id} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={member.image || undefined} />
-                      <AvatarFallback className="text-caption">
-                        {(member.name || member.email)[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-body font-medium">
-                      {member.name || member.email}
-                    </span>
-                  </div>
-
-                  {/* Dedication selector */}
-                  <div className="flex gap-1 flex-wrap">
-                    {DEDICATION_OPTIONS.map(option => (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => handleDedicationChange(member.id, option)}
-                        className={cn(
-                          'px-3 py-1.5 rounded-md text-caption font-medium transition-colors',
-                          currentDedication === option
-                            ? 'bg-success text-white'
-                            : 'bg-surface-subtle hover:bg-surface-active text-text-secondary'
-                        )}
-                      >
-                        {option}%
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })
-          )}
+        <div className="mt-4">
+          {/* Dedication selector */}
+          <div className="flex gap-2 flex-wrap justify-center">
+            {DEDICATION_OPTIONS.map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setDedication(option)}
+                className={cn(
+                  'px-4 py-2 rounded-md text-body font-medium transition-colors',
+                  dedication === option
+                    ? 'bg-success text-white'
+                    : 'bg-surface-subtle hover:bg-surface-active text-text-secondary'
+                )}
+              >
+                {option}%
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Actions */}
@@ -182,7 +139,7 @@ export function WeekAvailabilityPopup({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isSaving || !hasChanges()}
+            disabled={isSaving || !hasChanges}
           >
             {isSaving ? 'Saving...' : 'Save'}
           </Button>

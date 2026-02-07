@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // POST /api/boards/[boardId]/lists - Create a new list
 export async function POST(
@@ -8,39 +12,19 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const body = await request.json();
     const { name, viewType, phase, color, durationWeeks, durationDays, startDate, endDate } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'List name is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('List name is required');
     }
 
     // Validate viewType if provided
@@ -204,22 +188,16 @@ export async function POST(
     }
 
     // Return list with timeline block info
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...list,
-        timelineBlockId: timelineBlock?.id || null,
-        timelineBlock: timelineBlock ? {
-          id: timelineBlock.id,
-          blockType: timelineBlock.blockType,
-        } : null,
-      },
-    }, { status: 201 });
+    return apiSuccess({
+      ...list,
+      timelineBlockId: timelineBlock?.id || null,
+      timelineBlock: timelineBlock ? {
+        id: timelineBlock.id,
+        blockType: timelineBlock.blockType,
+      } : null,
+    }, 201);
   } catch (error) {
     console.error('Failed to create list:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create list' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create list');
   }
 }

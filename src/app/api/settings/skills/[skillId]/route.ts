@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/settings/skills/[skillId] - Update a skill
 export async function PATCH(
@@ -8,29 +12,13 @@ export async function PATCH(
   { params }: { params: Promise<{ skillId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { skillId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, color, position } = body;
 
@@ -40,10 +28,7 @@ export async function PATCH(
     });
 
     if (!existingSkill) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Skill not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Skill');
     }
 
     const updateData: Record<string, unknown> = {};
@@ -57,13 +42,10 @@ export async function PATCH(
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: skill });
+    return apiSuccess(skill);
   } catch (error) {
     console.error('Failed to update skill:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update skill' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update skill');
   }
 }
 
@@ -73,28 +55,13 @@ export async function DELETE(
   { params }: { params: Promise<{ skillId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { skillId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if skill exists
     const existingSkill = await prisma.skill.findUnique({
@@ -102,10 +69,7 @@ export async function DELETE(
     });
 
     if (!existingSkill) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Skill not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Skill');
     }
 
     // Delete skill (cascades to userSkills)
@@ -113,12 +77,9 @@ export async function DELETE(
       where: { id: skillId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete skill:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete skill' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete skill');
   }
 }

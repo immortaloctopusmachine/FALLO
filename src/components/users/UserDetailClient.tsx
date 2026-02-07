@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Mail, Calendar, Users, Layers, Sparkles, Pencil, Shield } from 'lucide-react';
+import { Mail, Calendar, Users, Layers, Sparkles, Pencil, Shield, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TeamCard } from '@/components/organization/TeamCard';
 import { EditUserDialog } from './EditUserDialog';
@@ -177,16 +177,24 @@ export function UserDetailClient({
               </div>
             </div>
           </div>
-          {isSuperAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowEditDialog(true)}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Edit User
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <Link href={`/users/${user.id}/time`}>
+              <Button variant="outline" size="sm">
+                <Clock className="h-4 w-4 mr-1" />
+                Time Stats
+              </Button>
+            </Link>
+            {isSuperAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditDialog(true)}
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Edit User
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Stats */}

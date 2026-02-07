@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // POST /api/boards/[boardId]/unarchive - Restore an archived board
 export async function POST(
@@ -8,31 +12,13 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin of this board
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-        permission: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized to restore this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if the board exists and is archived
     const board = await prisma.board.findUnique({
@@ -41,17 +27,11 @@ export async function POST(
     });
 
     if (!board) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Board not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Board');
     }
 
     if (!board.archivedAt) {
-      return NextResponse.json(
-        { success: false, error: { code: 'BAD_REQUEST', message: 'Board is not archived' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Board is not archived');
     }
 
     // Unarchive the board
@@ -60,12 +40,9 @@ export async function POST(
       data: { archivedAt: null },
     });
 
-    return NextResponse.json({ success: true, data: updatedBoard });
+    return apiSuccess(updatedBoard);
   } catch (error) {
     console.error('Failed to unarchive board:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to unarchive board' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to unarchive board');
   }
 }

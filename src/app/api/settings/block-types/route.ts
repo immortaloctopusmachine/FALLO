@@ -1,18 +1,16 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/settings/block-types - Get all block types
 export async function GET() {
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { response } = await requireAuth();
+    if (response) return response;
 
     const blockTypes = await prisma.blockType.findMany({
       where: {
@@ -26,56 +24,31 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, data: blockTypes });
+    return apiSuccess(blockTypes);
   } catch (error) {
     console.error('Failed to fetch block types:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch block types' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch block types');
   }
 }
 
 // POST /api/settings/block-types - Create a new block type
 export async function POST(request: Request) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { name, description, color } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Block type name is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Block type name is required');
     }
 
     if (!color || typeof color !== 'string') {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Block type color is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Block type color is required');
     }
 
     // Get the highest position
@@ -95,12 +68,9 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: blockType }, { status: 201 });
+    return apiSuccess(blockType, 201);
   } catch (error) {
     console.error('Failed to create block type:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create block type' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create block type');
   }
 }

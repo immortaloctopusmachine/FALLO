@@ -1,19 +1,16 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth/password';
+import {
+  requireAuth,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/users - Get all users (admin only)
 export async function GET() {
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { response } = await requireAuth();
+    if (response) return response;
 
     const users = await prisma.user.findMany({
       where: { deletedAt: null }, // Exclude soft-deleted users
@@ -55,27 +52,18 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, data: users });
+    return apiSuccess(users);
   } catch (error) {
     console.error('Failed to fetch users:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch users' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch users');
   }
 }
 
 // POST /api/users - Create a new user (Super Admin only)
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
     // Only Super Admins can create users
     const currentUser = await prisma.user.findUnique({
@@ -84,10 +72,7 @@ export async function POST(request: Request) {
     });
 
     if (currentUser?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Super Admin access required' } },
-        { status: 403 }
-      );
+      return ApiErrors.forbidden('Super Admin access required');
     }
 
     const body = await request.json();
@@ -95,36 +80,24 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (!email || !password) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Email and password are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Email and password are required');
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid email format' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Invalid email format');
     }
 
     // Validate password strength (min 8 characters)
     if (password.length < 8) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 8 characters' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Password must be at least 8 characters');
     }
 
     // Validate permission if provided
     const validRoles = ['VIEWER', 'MEMBER', 'ADMIN', 'SUPER_ADMIN'];
     if (permission && !validRoles.includes(permission)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid permission' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Invalid permission');
     }
 
     // Check if email already exists
@@ -133,10 +106,7 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { success: false, error: { code: 'CONFLICT', message: 'A user with this email already exists' } },
-        { status: 409 }
-      );
+      return ApiErrors.conflict('A user with this email already exists');
     }
 
     // Hash password
@@ -226,12 +196,9 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: completeUser }, { status: 201 });
+    return apiSuccess(completeUser, 201);
   } catch (error) {
     console.error('Failed to create user:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create user' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create user');
   }
 }

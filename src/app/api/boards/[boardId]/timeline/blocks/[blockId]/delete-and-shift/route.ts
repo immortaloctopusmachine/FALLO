@@ -1,33 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-// Helper to find the Monday of a given week
-function getMonday(date: Date): Date {
-  const result = new Date(date);
-  const day = result.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + diff);
-  return result;
-}
-
-// Helper to get the Friday of a week given a Monday
-function getFriday(monday: Date): Date {
-  const result = new Date(monday);
-  result.setDate(result.getDate() + 4);
-  return result;
-}
-
-// Helper to shift a block by weeks (negative for left), snapping to Mon-Fri
-function shiftBlockByWeeks(
-  startDate: Date,
-  weeks: number
-): { newStartDate: Date; newEndDate: Date } {
-  const currentMonday = getMonday(startDate);
-  const newMonday = new Date(currentMonday);
-  newMonday.setDate(newMonday.getDate() + weeks * 7);
-  return { newStartDate: newMonday, newEndDate: getFriday(newMonday) };
-}
+import { moveBlockDates } from '@/lib/date-utils';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // DELETE /api/boards/[boardId]/timeline/blocks/[blockId]/delete-and-shift
 // Deletes a block and shifts all blocks to the right of it left by one week
@@ -36,28 +14,14 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string; blockId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, blockId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Get the block to delete
     const blockToDelete = await prisma.timelineBlock.findFirst({
@@ -68,10 +32,7 @@ export async function DELETE(
     });
 
     if (!blockToDelete) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Block not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Block');
     }
 
     // Parse body for options
@@ -140,7 +101,7 @@ export async function DELETE(
     // Shift all blocks to the left by one week, snapping to Mon-Fri
     if (blocksToShift.length > 0) {
       const shiftUpdates = blocksToShift.map(async (block) => {
-        const { newStartDate, newEndDate } = shiftBlockByWeeks(block.startDate, -1);
+        const { newStartDate, newEndDate } = moveBlockDates(block.startDate, -1);
 
         // Update the block
         await prisma.timelineBlock.update({
@@ -166,19 +127,13 @@ export async function DELETE(
       await Promise.all(shiftUpdates);
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        deletedBlockId: blockId,
-        deletedListId: deleteLinkedList ? linkedListId : null,
-        shiftedCount: blocksToShift.length,
-      },
+    return apiSuccess({
+      deletedBlockId: blockId,
+      deletedListId: deleteLinkedList ? linkedListId : null,
+      shiftedCount: blocksToShift.length,
     });
   } catch (error) {
     console.error('Failed to delete and shift blocks:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete and shift blocks' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete and shift blocks');
   }
 }

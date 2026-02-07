@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // Helper to check if a list is an "in progress" list (for time tracking)
 function isInProgressList(listName: string): boolean {
@@ -20,39 +24,19 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const body = await request.json();
     const { cardId, sourceListId, destinationListId, newPosition } = body;
 
     if (!cardId || !sourceListId || !destinationListId || newPosition === undefined) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Missing required fields');
     }
 
     // Verify lists belong to board
@@ -64,10 +48,7 @@ export async function POST(
     });
 
     if (lists.length !== (sourceListId === destinationListId ? 1 : 2)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Lists not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Lists');
     }
 
     // Check if we need to track time (only when moving between different lists)
@@ -219,12 +200,9 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to reorder cards:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to reorder cards' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to reorder cards');
   }
 }

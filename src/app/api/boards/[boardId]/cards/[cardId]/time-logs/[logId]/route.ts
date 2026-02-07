@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/boards/[boardId]/cards/[cardId]/time-logs/[logId] - Update a time log (admin only)
 export async function PATCH(
@@ -8,28 +12,14 @@ export async function PATCH(
   { params }: { params: Promise<{ boardId: string; cardId: string; logId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId, logId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if time log exists
     const existingLog = await prisma.timeLog.findFirst({
@@ -43,10 +33,7 @@ export async function PATCH(
     });
 
     if (!existingLog) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Time log not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Time log');
     }
 
     const body = await request.json();
@@ -87,13 +74,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ success: true, data: timeLog });
+    return apiSuccess(timeLog);
   } catch (error) {
     console.error('Failed to update time log:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update time log' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update time log');
   }
 }
 
@@ -103,28 +87,14 @@ export async function DELETE(
   { params }: { params: Promise<{ boardId: string; cardId: string; logId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId, cardId, logId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     // Check if time log exists
     const existingLog = await prisma.timeLog.findFirst({
@@ -138,22 +108,16 @@ export async function DELETE(
     });
 
     if (!existingLog) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Time log not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Time log');
     }
 
     await prisma.timeLog.delete({
       where: { id: logId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete time log:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete time log' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete time log');
   }
 }

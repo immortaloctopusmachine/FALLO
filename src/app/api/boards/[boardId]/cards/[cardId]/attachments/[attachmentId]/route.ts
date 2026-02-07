@@ -1,49 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { unlink } from 'fs/promises';
 import path from 'path';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string; attachmentId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/boards/[boardId]/cards/[cardId]/attachments/[attachmentId] - Rename attachment
-export async function PATCH(request: NextRequest, context: RouteContext) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string; attachmentId: string }> }
+) {
   try {
-    const session = await auth();
-    const { boardId, attachmentId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+    const { boardId, attachmentId } = await params;
 
-    // Check board membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a member of this board' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const body = await request.json();
     const { name } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Attachment name is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Attachment name is required');
     }
 
     const attachment = await prisma.attachment.update({
@@ -74,20 +57,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: attachment });
+    return apiSuccess(attachment);
   } catch (error) {
     console.error('Failed to rename attachment:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to rename attachment' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to rename attachment');
   }
 }
 
 // DELETE /api/boards/[boardId]/cards/[cardId]/attachments/[attachmentId]
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string; attachmentId: string }> }
+) {
   try {
-    const { attachmentId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, attachmentId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     // Get the attachment to find the file path
     const attachment = await prisma.attachment.findUnique({
@@ -95,10 +84,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     });
 
     if (!attachment) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Attachment not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Attachment');
     }
 
     // Delete from database
@@ -117,12 +103,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete attachment:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete attachment' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete attachment');
   }
 }

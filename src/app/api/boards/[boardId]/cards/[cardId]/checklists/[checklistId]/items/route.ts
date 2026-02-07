@@ -1,22 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-interface RouteContext {
-  params: Promise<{ boardId: string; cardId: string; checklistId: string }>;
-}
+import {
+  requireAuth,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // POST /api/boards/[boardId]/cards/[cardId]/checklists/[checklistId]/items
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ boardId: string; cardId: string; checklistId: string }> }
+) {
   try {
-    const { checklistId } = await context.params;
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { boardId, checklistId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
     const body = await request.json();
     const { content } = body;
 
     if (!content?.trim()) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_CONTENT', message: 'Item content is required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('Item content is required');
     }
 
     // Get highest position
@@ -33,12 +41,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json({ success: true, data: item });
+    return apiSuccess(item);
   } catch (error) {
     console.error('Failed to create checklist item:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to create checklist item' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create checklist item');
   }
 }

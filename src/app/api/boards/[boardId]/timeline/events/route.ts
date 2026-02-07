@@ -1,6 +1,11 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  requireBoardMember,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/timeline/events - Get all events for a board
 export async function GET(
@@ -8,30 +13,13 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check membership
-    const membership = await prisma.boardMember.findFirst({
-      where: {
-        boardId,
-        userId: session.user.id,
-      },
-    });
-
-    if (!membership) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a board member' } },
-        { status: 403 }
-      );
-    }
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
 
     const events = await prisma.timelineEvent.findMany({
       where: { boardId },
@@ -41,13 +29,10 @@ export async function GET(
       orderBy: { startDate: 'asc' },
     });
 
-    return NextResponse.json({ success: true, data: events });
+    return apiSuccess(events);
   } catch (error) {
     console.error('Failed to fetch timeline events:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch timeline events' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to fetch timeline events');
   }
 }
 
@@ -57,38 +42,21 @@ export async function POST(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
     const { boardId } = await params;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
 
     const body = await request.json();
     const { title, description, eventTypeId, startDate, endDate } = body;
 
     // Validate required fields
     if (!title || !eventTypeId || !startDate) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'title, eventTypeId, and startDate are required' } },
-        { status: 400 }
-      );
+      return ApiErrors.validation('title, eventTypeId, and startDate are required');
     }
 
     // Validate event type exists
@@ -97,10 +65,7 @@ export async function POST(
     });
 
     if (!eventType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Event type not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Event type');
     }
 
     // For single-day events, endDate equals startDate
@@ -120,12 +85,9 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, data: event }, { status: 201 });
+    return apiSuccess(event, 201);
   } catch (error) {
     console.error('Failed to create timeline event:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create timeline event' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to create timeline event');
   }
 }

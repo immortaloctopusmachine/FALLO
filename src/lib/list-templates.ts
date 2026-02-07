@@ -1,4 +1,5 @@
 import type { ListPhase, BoardTemplateType, ListViewType } from '@/types';
+import { addBusinessDays, snapToMonday } from '@/lib/date-utils';
 
 // List template definition
 export interface ListTemplateItem {
@@ -115,59 +116,8 @@ export const DEFAULT_PROJECT_LINKS = {
   gameNameBrainstorming: 'https://docs.google.com/spreadsheets/d/1gsDa2F9ojf5jCtJMqPgF0xFhoVgxw5tsNpEMORCuEJg/edit#gid=235114580',
 };
 
-// Helper to add business days (skipping weekends)
-export function addBusinessDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  let remainingDays = Math.abs(days);
-  const direction = days >= 0 ? 1 : -1;
-
-  while (remainingDays > 0) {
-    result.setDate(result.getDate() + direction);
-    const dayOfWeek = result.getDay();
-    // Skip weekends (0 = Sunday, 6 = Saturday)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      remainingDays--;
-    }
-  }
-
-  return result;
-}
-
-// Snap a date to the nearest Monday (for block starts)
-export function snapToMonday(date: Date): Date {
-  const result = new Date(date);
-  const dayOfWeek = result.getDay();
-
-  // If Sunday, move to next Monday
-  if (dayOfWeek === 0) {
-    result.setDate(result.getDate() + 1);
-  }
-  // If Saturday, move to next Monday
-  else if (dayOfWeek === 6) {
-    result.setDate(result.getDate() + 2);
-  }
-  // Otherwise, move to previous Monday
-  else if (dayOfWeek !== 1) {
-    result.setDate(result.getDate() - (dayOfWeek - 1));
-  }
-
-  return result;
-}
-
-// Get the end date for a 5-day block starting on a Monday
-export function getBlockEndDate(startDate: Date): Date {
-  // A 5-day block starting Monday ends on Friday
-  const result = new Date(startDate);
-  result.setDate(result.getDate() + 4); // Monday + 4 = Friday
-  return result;
-}
-
-// Move a block by weeks (5 business days = 1 week)
-export function moveBlockByWeeks(startDate: Date, weeks: number): Date {
-  const result = new Date(startDate);
-  result.setDate(result.getDate() + (weeks * 7));
-  return snapToMonday(result);
-}
+// Re-export date utilities for backwards compatibility
+export { addBusinessDays, snapToMonday, getBlockEndDate, moveBlockByWeeks, formatDateRange } from '@/lib/date-utils';
 
 // Calculate list dates based on project start date
 // Project start date is snapped to Monday to ensure all blocks align to week boundaries
@@ -206,28 +156,6 @@ export function calculateListDates(
   }
 
   return dates;
-}
-
-// Format date range for display
-export function formatDateRange(startDate: Date | string, endDate: Date | string): string {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const formatOptions: Intl.DateTimeFormatOptions = {
-    month: 'short',
-    day: 'numeric',
-  };
-
-  const startStr = start.toLocaleDateString('en-US', formatOptions);
-  const endStr = end.toLocaleDateString('en-US', formatOptions);
-
-  // Include year if different from current year
-  const currentYear = new Date().getFullYear();
-  if (start.getFullYear() !== currentYear || end.getFullYear() !== currentYear) {
-    return `${startStr} - ${endStr}, ${end.getFullYear()}`;
-  }
-
-  return `${startStr} - ${endStr}`;
 }
 
 // Get the "Done" list ID from task lists

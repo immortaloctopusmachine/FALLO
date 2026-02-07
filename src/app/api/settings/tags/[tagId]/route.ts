@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  apiSuccess,
+  ApiErrors,
+} from '@/lib/api-utils';
 
 // PATCH /api/settings/tags/[tagId] - Update a tag
 export async function PATCH(
@@ -8,29 +12,13 @@ export async function PATCH(
   { params }: { params: Promise<{ tagId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { tagId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, description, color, position } = body;
 
@@ -40,10 +28,7 @@ export async function PATCH(
     });
 
     if (!existingTag) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Tag not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Tag');
     }
 
     // Check for duplicate name if name is changing
@@ -57,10 +42,7 @@ export async function PATCH(
       });
 
       if (duplicate) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'A tag with this name already exists' } },
-          { status: 400 }
-        );
+        return ApiErrors.validation('A tag with this name already exists');
       }
     }
 
@@ -75,13 +57,10 @@ export async function PATCH(
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: tag });
+    return apiSuccess(tag);
   } catch (error) {
     console.error('Failed to update tag:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update tag' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to update tag');
   }
 }
 
@@ -91,28 +70,13 @@ export async function DELETE(
   { params }: { params: Promise<{ tagId: string }> }
 ) {
   try {
-    const session = await auth();
+    const { session, response: authResponse } = await requireAuth();
+    if (authResponse) return authResponse;
+
+    const { response: adminResponse } = await requireAdmin(session.user.id);
+    if (adminResponse) return adminResponse;
+
     const { tagId } = await params;
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { permission: true },
-    });
-
-    if (user?.permission !== 'ADMIN' && user?.permission !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } },
-        { status: 403 }
-      );
-    }
 
     // Check if tag exists
     const existingTag = await prisma.tag.findUnique({
@@ -120,10 +84,7 @@ export async function DELETE(
     });
 
     if (!existingTag) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Tag not found' } },
-        { status: 404 }
-      );
+      return ApiErrors.notFound('Tag');
     }
 
     // Delete tag (cascades to cardTags)
@@ -131,12 +92,9 @@ export async function DELETE(
       where: { id: tagId },
     });
 
-    return NextResponse.json({ success: true, data: null });
+    return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete tag:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete tag' } },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to delete tag');
   }
 }
