@@ -7,7 +7,7 @@ Created: 2026-02-07
 Configure automatic release of staged tasks via:
 
 - endpoint: `/api/cron/release-staged-tasks`
-- schedule: hourly (`0 * * * *`) from `vercel.json`
+- schedule: daily (`0 6 * * *`) from `vercel.json` (Hobby plan compatible)
 
 ## Prerequisites
 

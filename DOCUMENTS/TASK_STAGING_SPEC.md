@@ -86,10 +86,10 @@ Phase 3 implementation status:
 
 ### Scheduling
 
-- Recommended cadence: hourly.
+- Recommended cadence: hourly (or daily on Vercel Hobby plan).
 - Repository config includes `vercel.json` cron:
   - path: `/api/cron/release-staged-tasks`
-  - schedule: `0 * * * *`
+  - schedule: `0 6 * * *` (daily)
 - Deployment requirement: set `CRON_SECRET` in environment variables.
 - Setup guide: `DOCUMENTS/CRON_SETUP.md`.
 
