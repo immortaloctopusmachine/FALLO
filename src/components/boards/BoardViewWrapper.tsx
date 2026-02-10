@@ -1,20 +1,34 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { BoardHeader } from './BoardHeader';
 import { BoardView } from './BoardView';
 import { BoardSettingsModal } from './BoardSettingsModal';
 import { BoardMembersModal } from './BoardMembersModal';
-import { TasksView, PlanningView } from './views';
-import { SpineTrackerView } from '@/components/spine-tracker';
 import type { Board, BoardViewMode, BoardSettings, WeeklyProgress } from '@/types';
+import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
+import { cn } from '@/lib/utils';
+
+const TasksView = dynamic(
+  () => import('./views/TasksView').then((module) => module.TasksView)
+);
+const PlanningView = dynamic(
+  () => import('./views/PlanningView').then((module) => module.PlanningView)
+);
+const SpineTrackerView = dynamic(
+  () => import('@/components/spine-tracker').then((module) => module.SpineTrackerView)
+);
 
 interface BoardViewWrapperProps {
   board: Board;
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
   isAdmin?: boolean;
+  hasFullData?: boolean;
+  isLoadingFullData?: boolean;
+  onLoadFullData?: () => Promise<void>;
 }
 
 export function BoardViewWrapper({
@@ -22,6 +36,9 @@ export function BoardViewWrapper({
   currentUserId,
   weeklyProgress = [],
   isAdmin = false,
+  hasFullData = true,
+  isLoadingFullData = false,
+  onLoadFullData,
 }: BoardViewWrapperProps) {
   const router = useRouter();
   const [board, setBoard] = useState(initialBoard);
@@ -29,14 +46,17 @@ export function BoardViewWrapper({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
 
-  const handleViewModeChange = (mode: BoardViewMode) => {
-    setViewMode(mode);
-  };
+  useEffect(() => {
+    setBoard(initialBoard);
+  }, [initialBoard]);
 
-  // Callback to update board state from child views
-  const handleBoardUpdate = useCallback((updatedBoard: Board) => {
-    setBoard(updatedBoard);
-  }, []);
+  const handleViewModeChange = async (mode: BoardViewMode) => {
+    setViewMode(mode);
+
+    if (mode === 'planning' && !hasFullData && onLoadFullData) {
+      await onLoadFullData();
+    }
+  };
 
   const handleSaveSettings = async (newSettings: BoardSettings) => {
     const response = await fetch(`/api/boards/${board.id}`, {
@@ -59,8 +79,10 @@ export function BoardViewWrapper({
     router.refresh();
   };
 
+  const bgStyle = getBoardBackgroundStyle(board.settings);
+
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className={cn("flex h-screen flex-col", !bgStyle && "bg-background")} style={bgStyle}>
       <BoardHeader
         name={board.name}
         memberCount={board.members.length}
@@ -75,16 +97,20 @@ export function BoardViewWrapper({
             board={board}
             currentUserId={currentUserId}
             weeklyProgress={weeklyProgress}
-            onBoardUpdate={handleBoardUpdate}
           />
         ) : viewMode === 'planning' ? (
-          <PlanningView
-            board={board}
-            currentUserId={currentUserId}
-            weeklyProgress={weeklyProgress}
-            isAdmin={isAdmin}
-            onBoardUpdate={handleBoardUpdate}
-          />
+          isLoadingFullData && !hasFullData ? (
+            <div className="flex h-full items-center justify-center text-text-tertiary">
+              Loading planning data...
+            </div>
+          ) : (
+            <PlanningView
+              board={board}
+              currentUserId={currentUserId}
+              weeklyProgress={weeklyProgress}
+              isAdmin={isAdmin}
+            />
+          )
         ) : viewMode === 'spine' ? (
           <SpineTrackerView boardId={board.id} />
         ) : (

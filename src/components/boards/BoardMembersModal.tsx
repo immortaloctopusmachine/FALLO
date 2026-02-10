@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Users, UserPlus, Crown, Shield, Eye, User, X, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -243,9 +244,11 @@ export function BoardMembersModal({
                         isDeleted && "grayscale"
                       )}>
                         {member.user.image ? (
-                          <img
+                          <Image
                             src={member.user.image}
                             alt={member.user.name || ''}
+                            width={32}
+                            height={32}
                             className="h-full w-full object-cover"
                           />
                         ) : (

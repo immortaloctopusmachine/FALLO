@@ -2,15 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sparkles, Tag, Layers, Calendar, Users, ArrowLeft } from 'lucide-react';
+import { Sparkles, Tag, Layers, Calendar, Users, ArrowLeft, Plug, Library } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const settingsNav = [
+  { name: 'Integrations', href: '/settings/integrations', icon: Plug },
   { name: 'Skills', href: '/settings/skills', icon: Sparkles },
   { name: 'Roles', href: '/settings/roles', icon: Users },
   { name: 'Tags', href: '/settings/tags', icon: Tag },
   { name: 'Block Types', href: '/settings/block-types', icon: Layers },
   { name: 'Event Types', href: '/settings/event-types', icon: Calendar },
+  { name: 'Core Templates', href: '/settings/core-project-templates', icon: Library },
 ];
 
 export default function SettingsLayout({

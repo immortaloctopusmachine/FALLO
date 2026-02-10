@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { X, Check, ChevronsUpDown, Building2, Trash2, Upload, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -302,7 +303,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
                 <div className="flex items-center gap-3">
                   {image ? (
                     <div className="relative h-16 w-32 rounded-md overflow-hidden bg-surface-hover">
-                      <img src={image} alt="" className="h-full w-full object-cover" />
+                      <Image src={image} alt="" fill sizes="128px" className="object-cover" />
                       <button
                         type="button"
                         onClick={() => setImage('')}
@@ -471,7 +472,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
                             >
                               <div className="h-6 w-6 rounded-full bg-surface-hover overflow-hidden mr-2">
                                 {user.image ? (
-                                  <img src={user.image} alt="" className="h-full w-full object-cover" />
+                                  <Image src={user.image} alt="" width={24} height={24} className="h-full w-full object-cover" />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-tiny font-medium text-text-secondary">
                                     {(user.name || user.email).charAt(0).toUpperCase()}
@@ -505,9 +506,11 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
                         <div className="flex items-center gap-3">
                           <div className="h-9 w-9 rounded-full bg-surface-hover overflow-hidden">
                             {member.user.image ? (
-                              <img
+                              <Image
                                 src={member.user.image}
                                 alt=""
+                                width={36}
+                                height={36}
                                 className="h-full w-full object-cover"
                               />
                             ) : (

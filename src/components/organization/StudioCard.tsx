@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Building2, Users, Layers } from 'lucide-react';
+import { Building2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StudioCardProps {

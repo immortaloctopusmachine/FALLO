@@ -16,9 +16,11 @@ interface TimelineBlocksRowProps {
   onBlockGroupMove?: (blockIds: string[], weeksDelta: number) => void;
   onBlockDelete?: (block: TimelineBlockType) => void;
   onBlockInsert?: (atBlock: TimelineBlockType) => void;
+  onAddBlock?: (date: Date) => void;
   selectedBlockId?: string;
   totalColumns: number;
   isAdmin?: boolean;
+  showBlockMetrics?: boolean;
 }
 
 export function TimelineBlocksRow({
@@ -30,9 +32,11 @@ export function TimelineBlocksRow({
   onBlockGroupMove,
   onBlockDelete,
   onBlockInsert,
+  onAddBlock,
   selectedBlockId,
-  totalColumns,
+  totalColumns: _totalColumns,
   isAdmin = false,
+  showBlockMetrics = true,
 }: TimelineBlocksRowProps) {
   // Sort blocks by start date to determine order
   const sortedBlocks = useMemo(() => {
@@ -50,6 +54,11 @@ export function TimelineBlocksRow({
   // Context menu state for blocks
   const [contextMenu, setContextMenu] = useState<{
     block: TimelineBlockType;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [emptyContextMenu, setEmptyContextMenu] = useState<{
+    date: Date;
     x: number;
     y: number;
   } | null>(null);
@@ -126,6 +135,9 @@ export function TimelineBlocksRow({
 
   // Handle block context menu
   const handleContextMenu = useCallback((block: TimelineBlockType, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEmptyContextMenu(null);
     setContextMenu({
       block,
       x: e.clientX,
@@ -133,14 +145,58 @@ export function TimelineBlocksRow({
     });
   }, []);
 
+  const getDateFromPosition = useCallback((clientX: number, rowElement: HTMLElement): Date => {
+    const rect = rowElement.getBoundingClientRect();
+    const relativeX = clientX - rect.left + rowElement.scrollLeft;
+    const columnIndex = Math.floor(relativeX / columnWidth);
+
+    let businessDaysCount = 0;
+    const current = new Date(startDate);
+
+    while (businessDaysCount < columnIndex) {
+      current.setDate(current.getDate() + 1);
+      const dayOfWeek = current.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        businessDaysCount++;
+      }
+    }
+
+    while (current.getDay() === 0 || current.getDay() === 6) {
+      current.setDate(current.getDate() + 1);
+    }
+
+    const day = current.getDay();
+    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+    current.setDate(diff);
+    current.setHours(0, 0, 0, 0);
+    return current;
+  }, [columnWidth, startDate]);
+
+  const handleRowContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isAdmin) return;
+
+    e.preventDefault();
+    setContextMenu(null);
+
+    const date = getDateFromPosition(e.clientX, e.currentTarget);
+    setEmptyContextMenu({
+      date,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }, [isAdmin, getDateFromPosition]);
+
   // Close context menu
   useEffect(() => {
-    const handleClick = () => setContextMenu(null);
-    if (contextMenu) {
+    const handleClick = () => {
+      setContextMenu(null);
+      setEmptyContextMenu(null);
+    };
+    if (contextMenu || emptyContextMenu) {
       document.addEventListener('click', handleClick);
       return () => document.removeEventListener('click', handleClick);
     }
-  }, [contextMenu]);
+  }, [contextMenu, emptyContextMenu]);
 
   // Pre-compute the set of dragging block IDs for O(1) lookup
   const draggingBlockIds = useMemo(() => {
@@ -180,6 +236,7 @@ export function TimelineBlocksRow({
         height: rowHeight,
         ...gridBackground,
       }}
+      onContextMenu={handleRowContextMenu}
     >
       {/* Today indicator */}
       <TodayIndicator startDate={startDate} columnWidth={columnWidth} />
@@ -202,6 +259,7 @@ export function TimelineBlocksRow({
             isDragging={blockIsDragging}
             dragOffset={blockIsDragging ? dragOffset : 0}
             isAdmin={isAdmin}
+            showMetrics={showBlockMetrics}
           />
         );
       })}
@@ -239,6 +297,23 @@ export function TimelineBlocksRow({
             }}
           >
             Delete Block
+          </button>
+        </div>
+      )}
+
+      {emptyContextMenu && (
+        <div
+          className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50"
+          style={{ left: emptyContextMenu.x, top: emptyContextMenu.y }}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover"
+            onClick={() => {
+              onAddBlock?.(emptyContextMenu.date);
+              setEmptyContextMenu(null);
+            }}
+          >
+            Add Block Here
           </button>
         </div>
       )}

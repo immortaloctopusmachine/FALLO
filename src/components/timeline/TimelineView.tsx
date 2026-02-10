@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, ChevronRight, Flag, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TimelineHeader } from './TimelineHeader';
 import { CreateProjectDialog } from './CreateProjectDialog';
 import { TimelineDateHeader } from './TimelineDateHeader';
-import { TimelineLeftColumn } from './TimelineLeftColumn';
 import { TimelineEventsRow } from './TimelineEventsRow';
 import { TimelineBlocksRow } from './TimelineBlocksRow';
 import { TimelineFilterPanel } from './TimelineFilterPanel';
@@ -14,6 +15,22 @@ import { AddBlockDialog } from './AddBlockDialog';
 import { EventEditModal } from './EventEditModal';
 import { TimelineUserAvailabilityRow } from './TimelineUserAvailabilityRow';
 import { WeekAvailabilityPopup } from './WeekAvailabilityPopup';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type {
   TimelineData,
   BlockType,
@@ -25,7 +42,7 @@ import type {
   TimelineMember,
   UserWeeklyAvailability,
 } from '@/types';
-import { getMonday, getFriday, addBusinessDays } from '@/lib/date-utils';
+import { getMonday, getFriday, addBusinessDays, formatLocalDateKey } from '@/lib/date-utils';
 
 // Minimal user info needed for timeline display
 type TimelineUser = Pick<User, 'id' | 'name' | 'email' | 'image'>;
@@ -49,9 +66,38 @@ interface TimelineViewProps {
 
 // Constants for layout - fixed values for consistent alignment
 const ROW_HEIGHT = 48;
-const HEADER_HEIGHT = 72; // Fixed: Month row (~28px) + Week row (~20px) + Day row (~24px)
+const EVENT_ROW_HEIGHT = 28;
+const USER_ROW_HEIGHT = 28;
 const COLUMN_WIDTH = 32; // Fixed column width for day view
 const WEEKS_TO_SHOW = 8; // Show 8 weeks (40 business days)
+const LEFT_COLUMN_WIDTH = 376;
+const COLLAPSED_PROJECTS_STORAGE_KEY = 'timeline.collapsedProjectIds';
+const SHOW_BLOCK_INFO_STORAGE_KEY = 'timeline.showBlockInfo';
+type TimelineDisplayRow = {
+  id: string;
+  userId: string;
+  member: TimelineMember;
+  roles: {
+    id: string;
+    name: string;
+    color: string | null;
+  }[];
+};
+
+interface BlockDeleteListOption {
+  id: string;
+  name: string;
+  position: number;
+}
+
+interface BlockDeleteOptions {
+  blockId: string;
+  linkedList: { id: string; name: string } | null;
+  cardCount: number;
+  availableLists: BlockDeleteListOption[];
+  recommendedListId: string | null;
+  requiresCardDeletion: boolean;
+}
 
 export function TimelineView({
   projects: initialProjects,
@@ -62,6 +108,24 @@ export function TimelineView({
   isAdmin,
   openCreateDialog = false,
 }: TimelineViewProps) {
+  const getTeamTint = useCallback((color: string | null | undefined, alpha = '12') => {
+    if (!color) return 'var(--surface)';
+    if (color.startsWith('#') && color.length === 7) {
+      return `${color}${alpha}`;
+    }
+    return 'var(--surface)';
+  }, []);
+
+  const getOpaqueTeamTint = useCallback((color: string | null | undefined, amount = 0.12) => {
+    if (!color || !color.startsWith('#') || color.length !== 7) return '#f8fafc';
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    const mix = (channel: number) => Math.round(255 * (1 - amount) + channel * amount);
+    const toHex = (channel: number) => mix(channel).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }, []);
+
   // Local state for optimistic updates
   const [projects, setProjects] = useState(initialProjects);
 
@@ -73,11 +137,16 @@ export function TimelineView({
   // State
   const [currentDate, setCurrentDate] = useState(() => {
     const today = new Date();
-    // Start from beginning of current week (Monday)
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    today.setDate(diff);
-    return today;
+    today.setHours(0, 0, 0, 0);
+
+    // Center "today" in the visible business-day window.
+    const centeredStart = addBusinessDays(today, -Math.floor((WEEKS_TO_SHOW * 5) / 2));
+
+    // Snap to start of week (Monday) for cleaner month/week headers.
+    const day = centeredStart.getDay();
+    const diff = centeredStart.getDate() - day + (day === 0 ? -6 : 1);
+    centeredStart.setDate(diff);
+    return centeredStart;
   });
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<TimelineFilters>({
@@ -86,12 +155,31 @@ export function TimelineView({
     blockTypes: [],
     eventTypes: [],
   });
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [selectedBlockId, setSelectedBlockId] = useState<string>();
   const [selectedEventId, setSelectedEventId] = useState<string>();
+  const [showBlockInfo, setShowBlockInfo] = useState(true);
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
+    () => new Set(initialProjects.map((project) => project.board.id))
+  );
+  const [userContextMenu, setUserContextMenu] = useState<{
+    userId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [projectContextMenu, setProjectContextMenu] = useState<{
+    projectId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [createProjectStartDate, setCreateProjectStartDate] = useState<Date | undefined>();
   const [editingBlock, setEditingBlock] = useState<TimelineBlock | null>(null);
+  const [pendingDeleteBlock, setPendingDeleteBlock] = useState<TimelineBlock | null>(null);
+  const [deleteOptions, setDeleteOptions] = useState<BlockDeleteOptions | null>(null);
+  const [deleteDestinationListId, setDeleteDestinationListId] = useState<string>('');
+  const [deleteCardsInstead, setDeleteCardsInstead] = useState(false);
+  const [isDeletingBlock, setIsDeletingBlock] = useState(false);
+  const [isLoadingDeleteOptions, setIsLoadingDeleteOptions] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [addBlockBoardId, setAddBlockBoardId] = useState<string>('');
   const [addBlockStartDate, setAddBlockStartDate] = useState<Date | undefined>();
@@ -109,9 +197,82 @@ export function TimelineView({
   const [availabilityMember, setAvailabilityMember] = useState<TimelineMember | null>(null);
   const [availabilityExisting, setAvailabilityExisting] = useState<UserWeeklyAvailability[]>([]);
   const [availabilityBoardId, setAvailabilityBoardId] = useState<string>('');
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [timelineScrollTop, setTimelineScrollTop] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(84);
+  const dateHeaderRef = useRef<HTMLDivElement | null>(null);
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const knownProjectIdsRef = useRef<Set<string>>(
+    new Set(initialProjects.map((project) => project.board.id))
+  );
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
+  const [hasLoadedCollapsedState, setHasLoadedCollapsedState] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const raw = window.sessionStorage.getItem(COLLAPSED_PROJECTS_STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+
+      const restored = new Set(
+        parsed.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      );
+      if (restored.size > 0 || parsed.length === 0) {
+        setCollapsedProjectIds(restored);
+      }
+    } catch {
+      // Ignore invalid session data
+    } finally {
+      setHasLoadedCollapsedState(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    setCollapsedProjectIds((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+
+      for (const project of initialProjects) {
+        const projectId = project.board.id;
+        if (!knownProjectIdsRef.current.has(projectId)) {
+          knownProjectIdsRef.current.add(projectId);
+          next.add(projectId); // New projects start collapsed by default
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [initialProjects]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hasLoadedCollapsedState) return;
+    window.sessionStorage.setItem(
+      COLLAPSED_PROJECTS_STORAGE_KEY,
+      JSON.stringify(Array.from(collapsedProjectIds))
+    );
+  }, [collapsedProjectIds, hasLoadedCollapsedState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.sessionStorage.getItem(SHOW_BLOCK_INFO_STORAGE_KEY);
+    if (stored === '0') setShowBlockInfo(false);
+    if (stored === '1') setShowBlockInfo(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(SHOW_BLOCK_INFO_STORAGE_KEY, showBlockInfo ? '1' : '0');
+  }, [showBlockInfo]);
+
+  const queryClient = useQueryClient();
+  const refreshTimeline = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['timeline'] });
+  }, [queryClient]);
 
   // Open create dialog if requested via prop (e.g., from Boards page)
   useEffect(() => {
@@ -122,8 +283,54 @@ export function TimelineView({
     }
   }, [openCreateDialog]);
 
-  // Calculate date range - fixed 8 weeks
-  const { startDate, endDate, totalDays } = useMemo(() => {
+  useEffect(() => {
+    const element = dateHeaderRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      setHeaderHeight(element.offsetHeight || 84);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const element = timelineScrollRef.current;
+    if (!element) return;
+
+    const updateWidth = () => {
+      setTimelineViewportWidth(element.clientWidth);
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!userContextMenu && !projectContextMenu) return;
+
+    const closeMenus = () => {
+      setUserContextMenu(null);
+      setProjectContextMenu(null);
+    };
+    document.addEventListener('click', closeMenus);
+    document.addEventListener('scroll', closeMenus, true);
+
+    return () => {
+      document.removeEventListener('click', closeMenus);
+      document.removeEventListener('scroll', closeMenus, true);
+    };
+  }, [userContextMenu, projectContextMenu]);
+
+  // Base date range - fixed 8 weeks
+  const { startDate, totalDays: baseTotalDays } = useMemo(() => {
     const start = new Date(currentDate);
     const end = new Date(currentDate);
     end.setDate(end.getDate() + WEEKS_TO_SHOW * 7);
@@ -172,27 +379,211 @@ export function TimelineView({
     });
   }, [projects, filters]);
 
-  // Transform projects for left column
-  const projectRows = useMemo(() => {
-    return filteredProjects.map((project) => {
-      // Use board members (all users who are members of the board)
-      const boardMembers = project.board.members || [];
+  const getBusinessDayOffset = useCallback((targetDate: Date) => {
+    const target = new Date(targetDate);
+    target.setHours(0, 0, 0, 0);
 
-      return {
-        id: project.board.id,
-        name: project.board.name,
-        teamColor: project.board.team?.color,
-        teamName: project.board.team?.name,
-        isExpanded: expandedProjects.has(project.board.id),
-        members: boardMembers,
-        hasEvents: project.events.length > 0,
-      };
-    });
-  }, [filteredProjects, expandedProjects]);
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    if (target <= start) return 0;
+
+    let count = 0;
+    const cursor = new Date(start);
+    while (cursor < target) {
+      const day = cursor.getDay();
+      if (day !== 0 && day !== 6) count++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return count;
+  }, [startDate]);
+
+  const contentTotalDays = useMemo(() => {
+    let maxColumns = baseTotalDays;
+
+    for (const project of filteredProjects) {
+      for (const block of project.blocks) {
+        const endOffset = getBusinessDayOffset(new Date(block.endDate)) + 1;
+        if (endOffset > maxColumns) maxColumns = endOffset;
+      }
+      for (const event of project.events) {
+        const endOffset = getBusinessDayOffset(new Date(event.endDate)) + 1;
+        if (endOffset > maxColumns) maxColumns = endOffset;
+      }
+      for (const availability of project.availability) {
+        const weekEnd = addBusinessDays(new Date(availability.weekStart), 4);
+        const endOffset = getBusinessDayOffset(weekEnd) + 1;
+        if (endOffset > maxColumns) maxColumns = endOffset;
+      }
+    }
+
+    // Add one extra week of breathing room past the latest content.
+    return maxColumns + 5;
+  }, [filteredProjects, baseTotalDays, getBusinessDayOffset]);
+
+  const viewportTotalDays = useMemo(() => {
+    if (!timelineViewportWidth) return 0;
+    return Math.ceil(timelineViewportWidth / COLUMN_WIDTH);
+  }, [timelineViewportWidth]);
+
+  const displayTotalDays = useMemo(
+    () => Math.max(baseTotalDays, contentTotalDays, viewportTotalDays),
+    [baseTotalDays, contentTotalDays, viewportTotalDays]
+  );
+
+  const displayEndDate = useMemo(
+    () => addBusinessDays(new Date(startDate), Math.max(0, displayTotalDays - 1)),
+    [startDate, displayTotalDays]
+  );
+
+  const getProjectDisplayRows = useCallback((project: TimelineData) => {
+    const assignments = project.board.projectRoleAssignments || [];
+
+    if (assignments.length > 0) {
+      const byUser = new Map<string, TimelineDisplayRow>();
+      for (const assignment of assignments) {
+        const member = project.board.members.find((m) => m.id === assignment.userId);
+        if (!member) continue;
+
+        const existing = byUser.get(member.id);
+        if (existing) {
+          // Avoid duplicate role tags for same role on same user
+          if (!existing.roles.some((role) => role.id === assignment.roleId)) {
+            existing.roles.push({
+              id: assignment.roleId,
+              name: assignment.roleName,
+              color: assignment.roleColor,
+            });
+          }
+          continue;
+        }
+
+        byUser.set(member.id, {
+          id: assignment.id,
+          userId: member.id,
+          member,
+          roles: [
+            {
+              id: assignment.roleId,
+              name: assignment.roleName,
+              color: assignment.roleColor,
+            },
+          ],
+        });
+      }
+      const rows = Array.from(byUser.values());
+
+      if (rows.length > 0) return rows;
+    }
+
+    // Fallback to board members if no project-role rows are configured yet.
+    return project.board.members.map((member) => ({
+      id: `member-${project.board.id}-${member.id}`,
+      userId: member.id,
+      member,
+      roles: member.userCompanyRoles.map((ucr) => ({
+        id: ucr.companyRole.id,
+        name: ucr.companyRole.name,
+        color: ucr.companyRole.color,
+      })),
+    }));
+  }, []);
+
+  const renderCompactRoleTags = useCallback((roles: TimelineDisplayRow['roles']) => {
+    if (roles.length === 0) {
+      return (
+        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-text-tertiary bg-surface-hover">
+          No role
+        </span>
+      );
+    }
+
+    const visibleRoles = roles.slice(0, 2);
+    const hiddenCount = roles.length - visibleRoles.length;
+    const allRoleNames = roles.map((role) => role.name).join(', ');
+
+    return (
+      <>
+        {visibleRoles.map((role) => (
+          <span
+            key={role.id}
+            className="text-[10px] px-1.5 py-0.5 rounded font-medium truncate"
+            style={{
+              backgroundColor: `${role.color || 'var(--text-tertiary)'}22`,
+              color: role.color || 'var(--text-tertiary)',
+            }}
+            title={allRoleNames}
+          >
+            {role.name}
+          </span>
+        ))}
+        {hiddenCount > 0 ? (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded font-medium text-text-tertiary bg-surface-hover"
+            title={allRoleNames}
+          >
+            +{hiddenCount}
+          </span>
+        ) : null}
+      </>
+    );
+  }, []);
+
+  const projectViews = useMemo(
+    () =>
+      filteredProjects.map((project) => ({
+        project,
+        displayRows: getProjectDisplayRows(project),
+        teamTint: getTeamTint(project.board.team?.color, '14'),
+        teamTintSoft: getTeamTint(project.board.team?.color, '0D'),
+        teamTintRow: getTeamTint(project.board.team?.color, '10'),
+        leftTeamTint: getOpaqueTeamTint(project.board.team?.color, 0.1),
+        leftTeamTintSoft: getOpaqueTeamTint(project.board.team?.color, 0.07),
+        leftTeamTintRow: getOpaqueTeamTint(project.board.team?.color, 0.08),
+      })),
+    [filteredProjects, getProjectDisplayRows, getTeamTint, getOpaqueTeamTint]
+  );
 
   // Handlers
-  const handleToggleProject = useCallback((projectId: string) => {
-    setExpandedProjects((prev) => {
+
+  const handleTodayClick = useCallback(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const centeredStart = addBusinessDays(today, -Math.floor((WEEKS_TO_SHOW * 5) / 2));
+    const day = centeredStart.getDay();
+    const diff = centeredStart.getDate() - day + (day === 0 ? -6 : 1);
+    centeredStart.setDate(diff);
+
+    setCurrentDate(centeredStart);
+  }, []);
+
+  const handleTimelineWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const element = e.currentTarget;
+    const canScrollHorizontally = element.scrollWidth > element.clientWidth;
+    if (!canScrollHorizontally) return;
+
+    const atTop = element.scrollTop <= 0;
+    const atBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 1;
+
+    // Horizontal scroll support:
+    // - Shift + wheel always scrolls horizontally
+    // - At vertical bounds, wheel continues horizontally
+    const shouldScrollHorizontally =
+      e.shiftKey || (e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom);
+
+    if (!shouldScrollHorizontally || Math.abs(e.deltaY) < 0.5) return;
+
+    element.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, []);
+
+  const handleTimelineScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setTimelineScrollTop(e.currentTarget.scrollTop);
+  }, []);
+
+  const handleToggleProjectCollapse = useCallback((projectId: string) => {
+    setCollapsedProjectIds((prev) => {
       const next = new Set(prev);
       if (next.has(projectId)) {
         next.delete(projectId);
@@ -203,13 +594,78 @@ export function TimelineView({
     });
   }, []);
 
-  const handleTodayClick = useCallback(() => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    today.setDate(diff);
-    setCurrentDate(today);
+  const handleCollapseAllProjects = useCallback(() => {
+    setCollapsedProjectIds((prev) => {
+      const next = new Set(prev);
+      for (const item of projectViews) {
+        next.add(item.project.board.id);
+      }
+      return next;
+    });
+  }, [projectViews]);
+
+  const handleExpandAllProjects = useCallback(() => {
+    setCollapsedProjectIds((prev) => {
+      const next = new Set(prev);
+      for (const item of projectViews) {
+        next.delete(item.project.board.id);
+      }
+      return next;
+    });
+  }, [projectViews]);
+
+  const allVisibleProjectsCollapsed = useMemo(
+    () =>
+      projectViews.length > 0 &&
+      projectViews.every((item) => collapsedProjectIds.has(item.project.board.id)),
+    [projectViews, collapsedProjectIds]
+  );
+
+  const handleToggleAllMembers = useCallback(() => {
+    if (allVisibleProjectsCollapsed) {
+      handleExpandAllProjects();
+    } else {
+      handleCollapseAllProjects();
+    }
+  }, [allVisibleProjectsCollapsed, handleExpandAllProjects, handleCollapseAllProjects]);
+
+  const handleUserContextMenu = useCallback((
+    e: React.MouseEvent<HTMLDivElement>,
+    userId: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setProjectContextMenu(null);
+    setUserContextMenu({
+      userId,
+      x: e.clientX,
+      y: e.clientY,
+    });
   }, []);
+
+  const handleProjectContextMenu = useCallback((
+    e: React.MouseEvent<HTMLDivElement>,
+    projectId: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setUserContextMenu(null);
+    setProjectContextMenu({
+      projectId,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }, []);
+
+  const handleOpenUserPage = useCallback((userId: string) => {
+    router.push(`/users/${userId}`);
+    setUserContextMenu(null);
+  }, [router]);
+
+  const handleOpenProjectPage = useCallback((projectId: string) => {
+    router.push(`/projects/${projectId}`);
+    setProjectContextMenu(null);
+  }, [router]);
 
   const handleBlockClick = useCallback((block: TimelineBlock) => {
     setSelectedBlockId(block.id);
@@ -244,12 +700,12 @@ export function TimelineView({
       });
 
       if (response.ok) {
-        router.refresh();
+        await refreshTimeline();
       }
     } catch (error) {
       console.error('Failed to delete event:', error);
     }
-  }, [router]);
+  }, [refreshTimeline]);
 
   const handleAddEvent = useCallback((boardId: string, date?: Date) => {
     setEditingEvent(null);
@@ -292,8 +748,8 @@ export function TimelineView({
       }
     }
 
-    router.refresh();
-  }, [eventBoardId, router]);
+    await refreshTimeline();
+  }, [eventBoardId, refreshTimeline]);
 
   const handleEventModalDelete = useCallback(async (eventId: string) => {
     const response = await fetch(`/api/boards/${eventBoardId}/timeline/events/${eventId}`, {
@@ -304,8 +760,8 @@ export function TimelineView({
       throw new Error('Failed to delete event');
     }
 
-    router.refresh();
-  }, [eventBoardId, router]);
+    await refreshTimeline();
+  }, [eventBoardId, refreshTimeline]);
 
   const handleCloseEventModal = useCallback(() => {
     setShowEventModal(false);
@@ -324,9 +780,9 @@ export function TimelineView({
     if (!project) return;
 
     // Get existing availability for this week and this user
-    const weekKey = getMonday(weekStart).toISOString().split('T')[0];
+    const weekKey = formatLocalDateKey(getMonday(weekStart));
     const existingForWeek = project.availability.filter(a => {
-      const availWeekKey = getMonday(new Date(a.weekStart)).toISOString().split('T')[0];
+      const availWeekKey = formatLocalDateKey(getMonday(new Date(a.weekStart)));
       return availWeekKey === weekKey && a.userId === member.id;
     });
 
@@ -361,8 +817,8 @@ export function TimelineView({
       throw new Error('Failed to save availability');
     }
 
-    router.refresh();
-  }, [router]);
+    await refreshTimeline();
+  }, [refreshTimeline]);
 
   // Handle event move (drag-and-drop day-by-day)
   const handleEventMove = useCallback(async (eventId: string, daysDelta: number, boardId: string) => {
@@ -423,13 +879,13 @@ export function TimelineView({
       });
 
       if (!response.ok) {
-        router.refresh();
+        await refreshTimeline();
       }
     } catch (error) {
       console.error('Failed to move event:', error);
-      router.refresh();
+      await refreshTimeline();
     }
-  }, [projects, router]);
+  }, [projects, refreshTimeline]);
 
   const handleCreateProject = useCallback(() => {
     setCreateProjectStartDate(undefined);
@@ -638,13 +1094,13 @@ export function TimelineView({
 
       if (!response.ok) {
         // Revert on error by refreshing
-        router.refresh();
+        await refreshTimeline();
       }
     } catch (error) {
       console.error('Failed to move blocks:', error);
-      router.refresh();
+      await refreshTimeline();
     }
-  }, [projects, router]);
+  }, [projects, refreshTimeline]);
 
   // Block delete handler (from context menu)
   // Deletes a block and shifts all blocks to the right of it left by one week
@@ -652,27 +1108,106 @@ export function TimelineView({
     const project = projects.find(p => p.blocks.some(b => b.id === block.id));
     if (!project) return;
 
-    if (!confirm(`Delete timeline block "${block.blockType.name} ${block.position}"? Blocks to the right will shift left.`)) {
+    setPendingDeleteBlock(block);
+    setDeleteOptions(null);
+    setDeleteDestinationListId('');
+    setDeleteCardsInstead(false);
+    setIsLoadingDeleteOptions(true);
+
+    try {
+      const response = await fetch(
+        `/api/boards/${project.board.id}/timeline/blocks/${block.id}/delete-options`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to load block delete options');
+      }
+
+      const json = await response.json();
+      const options = json.data as BlockDeleteOptions;
+      setDeleteOptions(options);
+      if (options.recommendedListId) {
+        setDeleteDestinationListId(options.recommendedListId);
+      }
+    } catch (error) {
+      console.error('Failed to load block delete options:', error);
+      setPendingDeleteBlock(null);
+      setDeleteOptions(null);
+    } finally {
+      setIsLoadingDeleteOptions(false);
+    }
+  }, [projects]);
+
+  const handleCancelBlockDelete = useCallback(() => {
+    setPendingDeleteBlock(null);
+    setDeleteOptions(null);
+    setDeleteDestinationListId('');
+    setDeleteCardsInstead(false);
+    setIsLoadingDeleteOptions(false);
+    setIsDeletingBlock(false);
+  }, []);
+
+  const handleConfirmBlockDelete = useCallback(async () => {
+    if (!pendingDeleteBlock) return;
+    const project = projects.find(p => p.blocks.some(b => b.id === pendingDeleteBlock.id));
+    if (!project) return;
+
+    const options = deleteOptions;
+    const hasCards = (options?.cardCount ?? 0) > 0;
+    const requiresDestination = hasCards && !options?.requiresCardDeletion;
+
+    if (requiresDestination && !deleteDestinationListId) {
+      return;
+    }
+    if (options?.requiresCardDeletion && hasCards && !deleteCardsInstead) {
       return;
     }
 
+    setIsDeletingBlock(true);
     try {
-      // Use the delete-and-shift endpoint
-      const response = await fetch(`/api/boards/${project.board.id}/timeline/blocks/${block.id}/delete-and-shift`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          syncToList: true,
-        }),
-      });
+      const response = await fetch(
+        `/api/boards/${project.board.id}/timeline/blocks/${pendingDeleteBlock.id}/delete-and-shift`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            syncToList: true,
+            destinationListId: requiresDestination ? deleteDestinationListId : null,
+            deleteCards: options?.requiresCardDeletion ? deleteCardsInstead : false,
+          }),
+        }
+      );
 
-      if (response.ok) {
-        router.refresh();
+      if (!response.ok) {
+        throw new Error('Failed to delete block');
       }
+
+      setProjects((prev) =>
+        prev.map((projectData) => ({
+          ...projectData,
+          blocks: projectData.blocks.filter((b) => b.id !== pendingDeleteBlock.id),
+        }))
+      );
+      if (selectedBlockId === pendingDeleteBlock.id) {
+        setSelectedBlockId(undefined);
+      }
+
+      await refreshTimeline();
+      handleCancelBlockDelete();
     } catch (error) {
       console.error('Failed to delete block:', error);
+    } finally {
+      setIsDeletingBlock(false);
     }
-  }, [projects, router]);
+  }, [
+    pendingDeleteBlock,
+    projects,
+    deleteOptions,
+    deleteDestinationListId,
+    deleteCardsInstead,
+    selectedBlockId,
+    refreshTimeline,
+    handleCancelBlockDelete,
+  ]);
 
   // Block edit modal save handler
   const handleBlockSave = useCallback(async (
@@ -698,29 +1233,25 @@ export function TimelineView({
       throw new Error('Failed to update block');
     }
 
-    router.refresh();
-  }, [projects, router]);
+    await refreshTimeline();
+  }, [projects, refreshTimeline]);
 
   // Block delete from modal handler
   const handleBlockDeleteFromModal = useCallback(async (blockId: string) => {
     const project = projects.find(p => p.blocks.some(b => b.id === blockId));
     if (!project) return;
+    const block = project.blocks.find((b) => b.id === blockId);
+    if (!block) return;
 
-    const response = await fetch(`/api/boards/${project.board.id}/timeline/blocks/${blockId}`, {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to delete block');
-    }
-
-    router.refresh();
-  }, [projects, router]);
+    setEditingBlock(null);
+    await handleBlockDelete(block);
+  }, [projects, handleBlockDelete]);
 
   // Add block handler
   const handleAddBlock = useCallback((boardId: string, blockStartDate?: Date) => {
     setAddBlockBoardId(boardId);
     setAddBlockStartDate(blockStartDate);
+    setInsertBeforeBlockId(null);
     setShowAddBlock(true);
   }, []);
 
@@ -773,8 +1304,8 @@ export function TimelineView({
       }
     }
 
-    router.refresh();
-  }, [addBlockBoardId, insertBeforeBlockId, router]);
+    await refreshTimeline();
+  }, [addBlockBoardId, insertBeforeBlockId, refreshTimeline]);
 
   // Close add block dialog
   const handleCloseAddBlock = useCallback(() => {
@@ -791,8 +1322,7 @@ export function TimelineView({
         currentDate={currentDate}
         onDateChange={setCurrentDate}
         onTodayClick={handleTodayClick}
-        onFilterToggle={() => setShowFilters(!showFilters)}
-        showFilters={showFilters}
+        showFilterButton={false}
         onCreateProject={handleCreateProject}
         isAdmin={isAdmin}
       />
@@ -807,110 +1337,225 @@ export function TimelineView({
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Timeline container */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left column - Project names */}
-          <TimelineLeftColumn
-            projects={projectRows}
-            onToggleProject={handleToggleProject}
-            onAddBlock={(projectId) => handleAddBlock(projectId)}
-            onAddEvent={(projectId) => handleAddEvent(projectId)}
-            rowHeight={ROW_HEIGHT}
-            eventRowHeight={28}
-            userRowHeight={28}
-            headerHeight={HEADER_HEIGHT}
-            isAdmin={isAdmin}
-          />
-
-          {/* Scrollable grid area */}
+        <div
+          className="w-[376px] flex-shrink-0 border-r border-border bg-surface overflow-hidden relative z-30"
+          style={{ width: LEFT_COLUMN_WIDTH }}
+        >
           <div
-            ref={scrollContainerRef}
-            className="flex-1 overflow-auto"
+            className="border-b border-border bg-surface px-3 py-2 flex flex-col justify-end gap-2"
+            style={{ height: headerHeight }}
           >
-            {/* Grid container - ensure it fills viewport or content width, whichever is larger */}
-            <div
-              className="flex flex-col bg-background"
-              style={{ minWidth: `max(100%, ${totalDays * COLUMN_WIDTH}px)` }}
-            >
-              {/* Date header */}
+            <span className="text-caption font-medium text-text-secondary">Projects</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                variant={showFilters ? 'secondary' : 'outline'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setShowFilters((prev) => !prev)}
+              >
+                Filters
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={handleToggleAllMembers}
+              >
+                {allVisibleProjectsCollapsed ? 'Show Members' : 'Hide Members'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setShowBlockInfo((prev) => !prev)}
+              >
+                {showBlockInfo ? 'Hide Block Info' : 'Show Block Info'}
+              </Button>
+            </div>
+          </div>
+          <div style={{ transform: `translateY(-${timelineScrollTop}px)` }}>
+            {projectViews.map((item) => {
+              const isCollapsed = collapsedProjectIds.has(item.project.board.id);
+              return (
+                <div key={item.project.board.id} className="mb-2">
+                <div
+                  className="flex items-center gap-2 px-3 pl-4 border-b border-border-subtle"
+                  style={{ height: EVENT_ROW_HEIGHT, backgroundColor: item.leftTeamTintSoft }}
+                >
+                  <Flag className="h-3 w-3 text-text-tertiary" />
+                  <span className="text-tiny text-text-tertiary">Events</span>
+                </div>
+
+                <div
+                  className="flex items-center gap-2 px-3 border-b border-border-subtle"
+                  style={{
+                    height: ROW_HEIGHT,
+                    borderLeftWidth: item.project.board.team?.color ? 4 : 0,
+                    borderLeftColor: item.project.board.team?.color || undefined,
+                    backgroundColor: item.leftTeamTint,
+                  }}
+                  onContextMenu={(e) => handleProjectContextMenu(e, item.project.board.id)}
+                >
+                  {item.project.board.team?.color ? (
+                    <div
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: item.project.board.team.color }}
+                    />
+                  ) : null}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-body font-medium text-text-primary truncate">
+                      {item.project.board.name}
+                    </div>
+                    {item.project.board.team?.name ? (
+                      <div className="text-tiny text-text-tertiary truncate">
+                        {item.project.board.team.name}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1 text-text-tertiary">
+                    <Users className="h-3.5 w-3.5" />
+                    <span className="text-tiny">{item.displayRows.length}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="ml-1 rounded p-1 text-text-tertiary hover:bg-surface-hover"
+                    onClick={() => handleToggleProjectCollapse(item.project.board.id)}
+                    title={isCollapsed ? 'Show members' : 'Hide members'}
+                  >
+                    {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+
+                {!isCollapsed && item.displayRows.map((row) => (
+                  <div
+                    key={`${item.project.board.id}-${row.userId}`}
+                    className="flex items-center gap-1.5 px-3 pl-5 border-b border-border-subtle"
+                    style={{ height: USER_ROW_HEIGHT, backgroundColor: item.leftTeamTintRow }}
+                    onContextMenu={(e) => handleUserContextMenu(e, row.userId)}
+                  >
+                    <Avatar className="h-5 w-5 flex-shrink-0">
+                      <AvatarImage src={row.member.image || undefined} />
+                      <AvatarFallback className="text-[9px]">
+                        {(row.member.name || row.member.email)[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-caption truncate flex-1 text-text-secondary">
+                      {row.member.name || row.member.email}
+                    </span>
+                    <div className="flex items-center gap-1 max-w-[132px] overflow-hidden">
+                      {renderCompactRoleTags(row.roles)}
+                    </div>
+                  </div>
+                ))}
+
+                <div
+                  className="h-2 border-b border-border"
+                  style={{ backgroundColor: item.leftTeamTintSoft }}
+                />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div
+          className="flex-1 overflow-auto"
+          ref={timelineScrollRef}
+          onWheel={handleTimelineWheel}
+          onScroll={handleTimelineScroll}
+        >
+          <div
+            className="min-w-full bg-background"
+            style={{ width: displayTotalDays * COLUMN_WIDTH }}
+          >
+            <div ref={dateHeaderRef} className="sticky top-0 z-20">
               <TimelineDateHeader
                 startDate={startDate}
-                endDate={endDate}
+                endDate={displayEndDate}
                 columnWidth={COLUMN_WIDTH}
               />
-
-              {/* Project rows */}
-              <div>
-              {filteredProjects.map((project) => {
-                // Row height for events (smaller)
-                const EVENT_ROW_HEIGHT = 28;
-
-                return (
-                  <div key={project.board.id}>
-                    {/* Events row (separate row above blocks) */}
-                    <TimelineEventsRow
-                      events={project.events}
-                      startDate={startDate}
-                      columnWidth={COLUMN_WIDTH}
-                      rowHeight={EVENT_ROW_HEIGHT}
-                      onEventClick={(event) => handleEventClick(event, project.board.id)}
-                      onEventEdit={(event) => handleEventEdit(event, project.board.id)}
-                      onEventDelete={(event) => handleEventDelete(event, project.board.id)}
-                      onAddEvent={(date) => handleAddEvent(project.board.id, date)}
-                      onEventMove={(eventId, daysDelta) => handleEventMove(eventId, daysDelta, project.board.id)}
-                      selectedEventId={selectedEventId}
-                      totalColumns={totalDays}
-                      isAdmin={isAdmin}
-                    />
-
-                    {/* Blocks row */}
-                    <TimelineBlocksRow
-                      blocks={project.blocks}
-                      startDate={startDate}
-                      columnWidth={COLUMN_WIDTH}
-                      rowHeight={ROW_HEIGHT}
-                      onBlockClick={handleBlockClick}
-                      onBlockGroupMove={handleBlockGroupMove}
-                      onBlockDelete={handleBlockDelete}
-                      onBlockInsert={handleBlockInsert}
-                      selectedBlockId={selectedBlockId}
-                      totalColumns={totalDays}
-                      isAdmin={isAdmin}
-                    />
-
-                    {/* Individual user availability rows */}
-                    {project.board.members.map(member => (
-                      <TimelineUserAvailabilityRow
-                        key={`${project.board.id}-${member.id}`}
-                        member={member}
-                        availability={project.availability}
-                        boardId={project.board.id}
-                        startDate={startDate}
-                        endDate={endDate}
-                        columnWidth={COLUMN_WIDTH}
-                        rowHeight={28}
-                        onWeekClick={(weekStart, clickedMember) =>
-                          handleOpenAvailabilityPopup(project.board.id, weekStart, clickedMember)
-                        }
-                        isAdmin={isAdmin}
-                      />
-                    ))}
-                  </div>
-                );
-              })}
-
-              {filteredProjects.length === 0 && (
-                <div className="flex items-center justify-center py-24 text-text-tertiary min-w-full">
-                  <div className="text-center">
-                    <p className="text-body">No projects match the current filters</p>
-                    <p className="text-caption mt-1">
-                      Try adjusting your filters or create timeline blocks for your boards.
-                    </p>
-                  </div>
-                </div>
-              )}
-              </div>
             </div>
+
+            {projectViews.map((item) => {
+              const isCollapsed = collapsedProjectIds.has(item.project.board.id);
+              return (
+                <div key={item.project.board.id} className="mb-2">
+                <div style={{ backgroundColor: item.teamTintSoft }}>
+                  <TimelineEventsRow
+                    events={item.project.events}
+                    startDate={startDate}
+                    columnWidth={COLUMN_WIDTH}
+                    rowHeight={EVENT_ROW_HEIGHT}
+                    onEventClick={(event) => handleEventClick(event, item.project.board.id)}
+                    onEventEdit={(event) => handleEventEdit(event, item.project.board.id)}
+                    onEventDelete={(event) => handleEventDelete(event, item.project.board.id)}
+                    onAddEvent={(date) => handleAddEvent(item.project.board.id, date)}
+                    onEventMove={(eventId, daysDelta) =>
+                      handleEventMove(eventId, daysDelta, item.project.board.id)
+                    }
+                    selectedEventId={selectedEventId}
+                    totalColumns={displayTotalDays}
+                    isAdmin={isAdmin}
+                  />
+                </div>
+
+                <div style={{ backgroundColor: item.teamTint }}>
+                  <TimelineBlocksRow
+                    blocks={item.project.blocks}
+                    startDate={startDate}
+                    columnWidth={COLUMN_WIDTH}
+                    rowHeight={ROW_HEIGHT}
+                    onBlockClick={handleBlockClick}
+                    onBlockGroupMove={handleBlockGroupMove}
+                    onBlockDelete={handleBlockDelete}
+                    onBlockInsert={handleBlockInsert}
+                    onAddBlock={(date) => handleAddBlock(item.project.board.id, date)}
+                    selectedBlockId={selectedBlockId}
+                    totalColumns={displayTotalDays}
+                    isAdmin={isAdmin}
+                    showBlockMetrics={showBlockInfo}
+                  />
+                </div>
+
+                {!isCollapsed && item.displayRows.map((row) => (
+                  <div
+                    key={`${item.project.board.id}-availability-${row.userId}`}
+                    style={{ backgroundColor: item.teamTintRow }}
+                  >
+                    <TimelineUserAvailabilityRow
+                      member={row.member}
+                      availability={item.project.availability}
+                      boardId={item.project.board.id}
+                      startDate={startDate}
+                      endDate={displayEndDate}
+                      columnWidth={COLUMN_WIDTH}
+                      rowHeight={USER_ROW_HEIGHT}
+                      onWeekClick={(weekStart, clickedMember) =>
+                        handleOpenAvailabilityPopup(item.project.board.id, weekStart, clickedMember)
+                      }
+                      isAdmin={isAdmin}
+                    />
+                  </div>
+                ))}
+
+                <div
+                  className="h-2 border-b border-border"
+                  style={{ backgroundColor: item.teamTintSoft }}
+                />
+                </div>
+              );
+            })}
+
+            {projectViews.length === 0 && (
+              <div className="flex items-center justify-center py-24 text-text-tertiary min-w-full">
+                <div className="text-center">
+                  <p className="text-body">No projects match the current filters</p>
+                  <p className="text-caption mt-1">
+                    Try adjusting your filters or create timeline blocks for your boards.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -926,7 +1571,129 @@ export function TimelineView({
             onClose={() => setShowFilters(false)}
           />
         )}
+
+        {userContextMenu && (
+          <div
+            className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50 min-w-36"
+            style={{ left: userContextMenu.x, top: userContextMenu.y }}
+          >
+            <button
+              type="button"
+              className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover"
+              onClick={() => handleOpenUserPage(userContextMenu.userId)}
+            >
+              Open user page
+            </button>
+          </div>
+        )}
+
+        {projectContextMenu && (
+          <div
+            className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50 min-w-36"
+            style={{ left: projectContextMenu.x, top: projectContextMenu.y }}
+          >
+            <button
+              type="button"
+              className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover"
+              onClick={() => handleOpenProjectPage(projectContextMenu.projectId)}
+            >
+              Open project page
+            </button>
+          </div>
+        )}
       </div>
+
+      <Dialog open={!!pendingDeleteBlock} onOpenChange={(open) => !open && handleCancelBlockDelete()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Timeline Block</DialogTitle>
+            <DialogDescription>
+              {pendingDeleteBlock
+                ? `Delete "${pendingDeleteBlock.blockType.name} ${pendingDeleteBlock.position}" and shift later blocks left by one week.`
+                : 'Delete this block.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingDeleteOptions ? (
+            <div className="text-caption text-text-secondary">Loading delete options...</div>
+          ) : (
+            <div className="space-y-3">
+              {deleteOptions?.cardCount ? (
+                <>
+                  <div className="text-caption text-text-secondary">
+                    {deleteOptions.cardCount} card(s) exist in linked list{' '}
+                    <span className="font-medium text-text-primary">
+                      {deleteOptions.linkedList?.name}
+                    </span>
+                    .
+                  </div>
+
+                  {deleteOptions.requiresCardDeletion ? (
+                    <div className="space-y-2">
+                      <p className="text-caption text-text-secondary">
+                        This is the only available planning list. Cards must be deleted before the block can be deleted.
+                      </p>
+                      <label className="flex items-center gap-2 text-caption text-text-primary">
+                        <input
+                          type="checkbox"
+                          checked={deleteCardsInstead}
+                          onChange={(e) => setDeleteCardsInstead(e.target.checked)}
+                        />
+                        Delete these cards and then delete the block
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-caption text-text-secondary">
+                        Choose a destination list for the cards.
+                      </p>
+                      <Select
+                        value={deleteDestinationListId}
+                        onValueChange={(value) => setDeleteDestinationListId(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select destination list" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {deleteOptions.availableLists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name}
+                              {deleteOptions.recommendedListId === list.id ? ' (Recommended)' : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-caption text-text-secondary">
+                  No cards exist in the linked list. The block can be deleted directly.
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={handleCancelBlockDelete} disabled={isDeletingBlock}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmBlockDelete}
+                  disabled={
+                    isDeletingBlock ||
+                    isLoadingDeleteOptions ||
+                    (!!deleteOptions?.cardCount &&
+                      ((deleteOptions.requiresCardDeletion && !deleteCardsInstead) ||
+                        (!deleteOptions.requiresCardDeletion && !deleteDestinationListId)))
+                  }
+                >
+                  {isDeletingBlock ? 'Deleting...' : 'Delete Block'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Block Edit Modal */}
       {editingBlock && (

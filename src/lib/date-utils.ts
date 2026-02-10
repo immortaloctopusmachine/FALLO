@@ -244,3 +244,14 @@ export function formatDisplayDate(
 export function formatDateInput(date: Date): string {
   return date.toISOString().split('T')[0];
 }
+
+/**
+ * Format a local date key (YYYY-MM-DD) without UTC conversion.
+ * Use this for UI grouping/comparison where timezone shifts are undesirable.
+ */
+export function formatLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

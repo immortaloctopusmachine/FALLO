@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getMonday, getFriday, moveBlockDates } from '@/lib/date-utils';
+import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
 import {
   requireAuth,
   requireAdmin,
@@ -162,14 +163,34 @@ export async function POST(
       },
     });
 
+    await renumberTimelineBlockPositions(boardId);
+
+    const renumberedBlock = await prisma.timelineBlock.findUnique({
+      where: { id: newBlock.id },
+      include: {
+        blockType: true,
+        list: {
+          select: {
+            id: true,
+            name: true,
+            phase: true,
+          },
+        },
+      },
+    });
+
+    if (!renumberedBlock) {
+      return ApiErrors.notFound('Block');
+    }
+
     return apiSuccess({
       block: {
-        id: newBlock.id,
-        startDate: newBlock.startDate.toISOString(),
-        endDate: newBlock.endDate.toISOString(),
-        position: newBlock.position,
-        blockType: newBlock.blockType,
-        list: newBlock.list,
+        id: renumberedBlock.id,
+        startDate: renumberedBlock.startDate.toISOString(),
+        endDate: renumberedBlock.endDate.toISOString(),
+        position: renumberedBlock.position,
+        blockType: renumberedBlock.blockType,
+        list: renumberedBlock.list,
       },
       shiftedCount: blocksToShift.length,
     }, 201);

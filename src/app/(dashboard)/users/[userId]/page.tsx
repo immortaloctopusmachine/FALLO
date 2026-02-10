@@ -15,6 +15,14 @@ export default async function UserPage({ params }: UserPageProps) {
   }
 
   const isSuperAdmin = session.user.permission === 'SUPER_ADMIN';
+  const canManageSlackLink =
+    session.user.permission === 'ADMIN' || session.user.permission === 'SUPER_ADMIN';
 
-  return <UserDetailClient userId={userId} isSuperAdmin={isSuperAdmin} />;
+  return (
+    <UserDetailClient
+      userId={userId}
+      isSuperAdmin={isSuperAdmin}
+      canManageSlackLink={canManageSlackLink}
+    />
+  );
 }

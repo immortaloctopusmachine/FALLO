@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowLeft, Clock, Calendar, TrendingUp, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -157,9 +158,11 @@ export function UserTimeStatsClient({
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-surface-hover overflow-hidden">
                 {user.image ? (
-                  <img
+                  <Image
                     src={user.image}
                     alt={user.name || user.email}
+                    width={40}
+                    height={40}
                     className="h-full w-full object-cover"
                   />
                 ) : (

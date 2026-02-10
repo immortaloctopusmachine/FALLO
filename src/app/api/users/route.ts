@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth/password';
+import { findSlackUserByName, getSlackUserProfile, isSlackConfigured } from '@/lib/slack';
 import {
   requireAuth,
   apiSuccess,
@@ -24,6 +25,9 @@ export async function GET(request: Request) {
         name: true,
         email: true,
         image: true,
+        slackUserId: true,
+        slackDisplayName: true,
+        slackAvatarUrl: true,
         permission: true,
         createdAt: true,
         teamMembers: {
@@ -103,7 +107,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, password, name, permission, teamIds, skillIds, companyRoleIds } = body;
+    const { email, password, name, permission, teamIds, skillIds, companyRoleIds, slackUserId } = body;
 
     // Validate required fields
     if (!email || !password) {
@@ -139,11 +143,51 @@ export async function POST(request: Request) {
     // Hash password
     const passwordHash = await hashPassword(password);
 
+    let resolvedSlackUserId: string | null = null;
+    let resolvedSlackDisplayName: string | null = null;
+    let resolvedSlackAvatarUrl: string | null = null;
+
+    if (isSlackConfigured()) {
+      if (typeof slackUserId === 'string' && slackUserId.trim()) {
+        const slackUser = await getSlackUserProfile(slackUserId.trim());
+        if (!slackUser) {
+          return ApiErrors.validation('Selected Slack user was not found');
+        }
+        resolvedSlackUserId = slackUser.id;
+        resolvedSlackDisplayName = slackUser.displayName || slackUser.realName || null;
+        resolvedSlackAvatarUrl = slackUser.image192;
+      } else if (typeof name === 'string' && name.trim()) {
+        // Best-effort behind-the-scenes link by name when not explicitly chosen
+        const match = await findSlackUserByName(name.trim());
+        if (match) {
+          resolvedSlackUserId = match.id;
+          resolvedSlackDisplayName = match.displayName || match.realName || null;
+          resolvedSlackAvatarUrl = match.image192;
+        }
+      }
+    }
+
+    if (resolvedSlackUserId) {
+      const existingSlackLink = await prisma.user.findFirst({
+        where: { slackUserId: resolvedSlackUserId },
+        select: { id: true, email: true },
+      });
+      if (existingSlackLink) {
+        return ApiErrors.conflict(
+          `Slack user is already linked to ${existingSlackLink.email}`
+        );
+      }
+    }
+
     // Create the user
     const newUser = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         name: name || null,
+        image: resolvedSlackAvatarUrl || null,
+        slackUserId: resolvedSlackUserId,
+        slackDisplayName: resolvedSlackDisplayName,
+        slackAvatarUrl: resolvedSlackAvatarUrl,
         passwordHash,
         permission: permission || 'MEMBER',
       },
@@ -151,6 +195,10 @@ export async function POST(request: Request) {
         id: true,
         email: true,
         name: true,
+        image: true,
+        slackUserId: true,
+        slackDisplayName: true,
+        slackAvatarUrl: true,
         permission: true,
         createdAt: true,
       },
@@ -197,6 +245,10 @@ export async function POST(request: Request) {
         id: true,
         email: true,
         name: true,
+        image: true,
+        slackUserId: true,
+        slackDisplayName: true,
+        slackAvatarUrl: true,
         permission: true,
         createdAt: true,
         teamMembers: {

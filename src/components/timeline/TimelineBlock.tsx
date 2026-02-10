@@ -18,6 +18,7 @@ interface TimelineBlockProps {
   isDragging?: boolean;
   dragOffset?: number;
   isAdmin?: boolean;
+  showMetrics?: boolean;
 }
 
 // Optimized: Use direct date math instead of loops
@@ -84,6 +85,7 @@ function TimelineBlockComponent({
   isDragging = false,
   dragOffset = 0,
   isAdmin = false,
+  showMetrics = true,
 }: TimelineBlockProps) {
   const blockRef = useRef<HTMLDivElement>(null);
   const [wasDragging, setWasDragging] = useState(false);
@@ -218,13 +220,15 @@ function TimelineBlockComponent({
       onMouseDown={isAdmin ? handleMouseDown : undefined}
       onContextMenu={handleContextMenu}
     >
-      <div className="h-full px-2 py-1 flex items-center overflow-hidden">
-        <span
-          className="text-tiny font-medium truncate select-none"
-          style={{ color: textColor }}
-        >
+      <div className="h-full px-2 py-1 flex flex-col justify-center overflow-hidden">
+        <span className="text-tiny font-medium truncate select-none" style={{ color: textColor }}>
           {block.blockType.name} {block.position}
         </span>
+        {showMetrics && block.metrics && (
+          <span className="text-[10px] truncate opacity-70 select-none" style={{ color: textColor }}>
+            US {block.metrics.userStoryCount} | SP {block.metrics.totalStoryPoints} ({block.metrics.completedStoryPoints} done)
+          </span>
+        )}
       </div>
     </div>
   );

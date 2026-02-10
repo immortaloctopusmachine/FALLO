@@ -5,6 +5,8 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api-client';
 import type { Checklist, ChecklistItem } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -39,7 +41,7 @@ export function SimpleChecklist({
     if (checklist) return checklist.id;
 
     try {
-      const response = await fetch(
+      const newChecklist = await apiFetch<Checklist>(
         `/api/boards/${boardId}/cards/${cardId}/checklists`,
         {
           method: 'POST',
@@ -47,14 +49,11 @@ export function SimpleChecklist({
           body: JSON.stringify({ name: type === 'todo' ? 'Todo' : 'Feedback', type }),
         }
       );
-
-      const data = await response.json();
-      if (data.success) {
-        onUpdate([...checklists, data.data]);
-        return data.data.id;
-      }
+      onUpdate([...checklists, newChecklist]);
+      return newChecklist.id;
     } catch (error) {
       console.error('Failed to create checklist:', error);
+      toast.error('Failed to create checklist');
     }
     return null;
   };
@@ -67,7 +66,7 @@ export function SimpleChecklist({
       const checklistId = await ensureChecklist();
       if (!checklistId) return;
 
-      const response = await fetch(
+      const newItem = await apiFetch<ChecklistItem>(
         `/api/boards/${boardId}/cards/${cardId}/checklists/${checklistId}/items`,
         {
           method: 'POST',
@@ -75,21 +74,18 @@ export function SimpleChecklist({
           body: JSON.stringify({ content: newItemContent.trim() }),
         }
       );
-
-      const data = await response.json();
-      if (data.success) {
-        onUpdate(
-          checklists.map((cl) =>
-            cl.id === checklistId
-              ? { ...cl, items: [...cl.items, data.data] }
-              : cl
-          )
-        );
-        setNewItemContent('');
-        setIsAddingItem(false);
-      }
+      onUpdate(
+        checklists.map((cl) =>
+          cl.id === checklistId
+            ? { ...cl, items: [...cl.items, newItem] }
+            : cl
+        )
+      );
+      setNewItemContent('');
+      setIsAddingItem(false);
     } catch (error) {
       console.error('Failed to add item:', error);
+      toast.error('Failed to add checklist item');
     } finally {
       setIsLoading(false);
     }
@@ -98,8 +94,23 @@ export function SimpleChecklist({
   const handleToggleItem = async (item: ChecklistItem) => {
     if (!checklist) return;
 
+    // Optimistic: update immediately
+    const previousChecklists = checklists;
+    onUpdate(
+      checklists.map((cl) =>
+        cl.id === checklist.id
+          ? {
+              ...cl,
+              items: cl.items.map((i) =>
+                i.id === item.id ? { ...i, isComplete: !item.isComplete } : i
+              ),
+            }
+          : cl
+      )
+    );
+
     try {
-      const response = await fetch(
+      await apiFetch(
         `/api/boards/${boardId}/cards/${cardId}/checklists/${checklist.id}/items/${item.id}`,
         {
           method: 'PATCH',
@@ -107,47 +118,35 @@ export function SimpleChecklist({
           body: JSON.stringify({ isComplete: !item.isComplete }),
         }
       );
-
-      const data = await response.json();
-      if (data.success) {
-        onUpdate(
-          checklists.map((cl) =>
-            cl.id === checklist.id
-              ? {
-                  ...cl,
-                  items: cl.items.map((i) =>
-                    i.id === item.id ? { ...i, isComplete: !item.isComplete } : i
-                  ),
-                }
-              : cl
-          )
-        );
-      }
     } catch (error) {
       console.error('Failed to toggle item:', error);
+      onUpdate(previousChecklists); // Rollback
+      toast.error('Failed to update checklist item');
     }
   };
 
   const handleDeleteItem = async (itemId: string) => {
     if (!checklist) return;
 
+    // Optimistic: remove immediately
+    const previousChecklists = checklists;
+    onUpdate(
+      checklists.map((cl) =>
+        cl.id === checklist.id
+          ? { ...cl, items: cl.items.filter((i) => i.id !== itemId) }
+          : cl
+      )
+    );
+
     try {
-      const response = await fetch(
+      await apiFetch(
         `/api/boards/${boardId}/cards/${cardId}/checklists/${checklist.id}/items/${itemId}`,
         { method: 'DELETE' }
       );
-
-      if (response.ok) {
-        onUpdate(
-          checklists.map((cl) =>
-            cl.id === checklist.id
-              ? { ...cl, items: cl.items.filter((i) => i.id !== itemId) }
-              : cl
-          )
-        );
-      }
     } catch (error) {
       console.error('Failed to delete item:', error);
+      onUpdate(previousChecklists); // Rollback
+      toast.error('Failed to delete checklist item');
     }
   };
 

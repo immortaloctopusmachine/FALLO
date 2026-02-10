@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Users, Layers, Building2 } from 'lucide-react';
 import { useTeam } from '@/hooks/api/use-teams';
 import { BoardCard } from '@/components/boards/BoardCard';
@@ -141,9 +142,11 @@ export function TeamDetailClient({ teamId, currentUserId, isAdmin }: TeamDetailC
                     >
                       <div className="relative h-10 w-10 rounded-full bg-surface-hover overflow-hidden">
                         {member.image ? (
-                          <img
+                          <Image
                             src={member.image}
                             alt={member.name || member.email}
+                            width={40}
+                            height={40}
                             className="h-full w-full object-cover"
                           />
                         ) : (

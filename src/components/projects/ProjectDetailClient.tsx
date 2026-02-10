@@ -66,6 +66,14 @@ interface AvailableUser {
   image: string | null;
 }
 
+interface ProjectRoleAssignment {
+  id: string;
+  roleId: string;
+  roleName: string;
+  roleColor?: string | null;
+  userId: string;
+}
+
 interface ProjectDetailClientProps {
   board: {
     id: string;
@@ -76,12 +84,14 @@ interface ProjectDetailClientProps {
     members: ProjectMember[];
   };
   teams: TeamInfo[];
+  companyRoles: CompanyRoleInfo[];
   isAdmin: boolean;
 }
 
 export function ProjectDetailClient({
   board,
   teams,
+  companyRoles,
   isAdmin,
 }: ProjectDetailClientProps) {
   const router = useRouter();
@@ -100,10 +110,20 @@ export function ProjectDetailClient({
   const [lastTweak, setLastTweak] = useState(board.settings.lastDayAnimationTweaks || '');
   const [releaseDate, setReleaseDate] = useState(board.settings.releaseDate || '');
   const [isSavingDates, setIsSavingDates] = useState(false);
+  const [projectRoleAssignments, setProjectRoleAssignments] = useState<ProjectRoleAssignment[]>(
+    board.settings.projectRoleAssignments || []
+  );
+  const [newRoleId, setNewRoleId] = useState('');
+  const [newUserId, setNewUserId] = useState('');
+  const [isSavingProjectRoles, setIsSavingProjectRoles] = useState(false);
 
   const selectedTeam = teams.find(t => t.id === teamId);
   const memberUserIds = members.map(m => m.user.id);
   const availableUsers = users.filter(u => !memberUserIds.includes(u.id));
+  const membersById = members.reduce<Record<string, ProjectMember['user']>>((acc, member) => {
+    acc[member.user.id] = member.user;
+    return acc;
+  }, {});
 
   // Fetch users for add member dropdown
   useEffect(() => {
@@ -111,6 +131,10 @@ export function ProjectDetailClient({
       fetchUsers();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    setProjectRoleAssignments(board.settings.projectRoleAssignments || []);
+  }, [board.settings.projectRoleAssignments]);
 
   const fetchUsers = async () => {
     try {
@@ -221,6 +245,60 @@ export function ProjectDetailClient({
     }
   };
 
+  const handleAddProjectRoleRow = () => {
+    if (!newRoleId || !newUserId) return;
+    const role = companyRoles.find((r) => r.id === newRoleId);
+    if (!role) return;
+
+    const rowId =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    setProjectRoleAssignments((prev) => [
+      ...prev,
+      {
+        id: rowId,
+        roleId: role.id,
+        roleName: role.name,
+        roleColor: role.color,
+        userId: newUserId,
+      },
+    ]);
+    setNewRoleId('');
+    setNewUserId('');
+  };
+
+  const handleDeleteProjectRoleRow = (rowId: string) => {
+    setProjectRoleAssignments((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
+  const handleSaveProjectRoles = async () => {
+    setIsSavingProjectRoles(true);
+    try {
+      const updatedSettings: BoardSettings = {
+        ...board.settings,
+        projectRoleAssignments,
+      };
+
+      const response = await fetch(`/api/boards/${board.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: updatedSettings }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        router.refresh();
+      }
+    } catch (err) {
+      console.error('Failed to save project role assignments:', err);
+    } finally {
+      setIsSavingProjectRoles(false);
+    }
+  };
+
+  const projectRolesChanged = JSON.stringify(projectRoleAssignments) !== JSON.stringify(board.settings.projectRoleAssignments || []);
+
   // Check if dates changed
   const datesChanged =
     startDate !== (board.settings.projectStartDate || '') ||
@@ -228,7 +306,7 @@ export function ProjectDetailClient({
     releaseDate !== (board.settings.releaseDate || '');
 
   return (
-    <main className="p-6 flex-1 max-w-4xl">
+    <main className="p-6 flex-1 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-semibold text-text-primary">{board.name}</h1>
@@ -493,6 +571,122 @@ export function ProjectDetailClient({
                   size="sm"
                 >
                   {isSavingDates ? 'Saving...' : 'Save Dates'}
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Project Role Rows Section */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-4 w-4 text-text-secondary" />
+            <h2 className="text-title font-medium text-text-secondary">Project Roles</h2>
+          </div>
+
+          <div className="rounded-lg border border-border p-4 space-y-4">
+            {isAdmin && (
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                <select
+                  value={newRoleId}
+                  onChange={(e) => setNewRoleId(e.target.value)}
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-body"
+                >
+                  <option value="">Select role...</option>
+                  {companyRoles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={newUserId}
+                  onChange={(e) => setNewUserId(e.target.value)}
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-body"
+                >
+                  <option value="">Select member...</option>
+                  {members.map((member) => (
+                    <option key={member.user.id} value={member.user.id}>
+                      {member.user.name || member.user.email}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddProjectRoleRow}
+                  disabled={!newRoleId || !newUserId}
+                >
+                  Add Row
+                </Button>
+              </div>
+            )}
+
+            <div className="overflow-hidden rounded-md border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-subtle">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-text-secondary">Role</th>
+                    <th className="px-3 py-2 text-left font-medium text-text-secondary">Name</th>
+                    {isAdmin ? (
+                      <th className="px-3 py-2 text-right font-medium text-text-secondary">Action</th>
+                    ) : null}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {projectRoleAssignments.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-3 text-text-tertiary" colSpan={isAdmin ? 3 : 2}>
+                        No project role rows configured yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    projectRoleAssignments.map((row) => {
+                      const member = membersById[row.userId];
+                      return (
+                        <tr key={row.id} className="bg-surface">
+                          <td className="px-3 py-2">
+                            <span
+                              className="inline-flex rounded-full px-2 py-0.5 text-tiny font-medium"
+                              style={{
+                                backgroundColor: `${row.roleColor || '#71717a'}22`,
+                                color: row.roleColor || '#71717a',
+                              }}
+                            >
+                              {row.roleName}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-text-primary">
+                            {member ? (member.name || member.email) : 'Removed member'}
+                          </td>
+                          {isAdmin ? (
+                            <td className="px-3 py-2 text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteProjectRoleRow(row.id)}
+                              >
+                                Remove
+                              </Button>
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {isAdmin && projectRolesChanged && (
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveProjectRoles}
+                  disabled={isSavingProjectRoles}
+                  size="sm"
+                >
+                  {isSavingProjectRoles ? 'Saving...' : 'Save Project Roles'}
                 </Button>
               </div>
             )}

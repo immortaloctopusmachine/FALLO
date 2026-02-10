@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Layers, Zap, FileText, Calendar, UserPlus, X } from 'lucide-react';
+import { Plus, Layers, FileText, Calendar, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -27,9 +27,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { BOARD_TEMPLATES, snapToMonday } from '@/lib/list-templates';
+import { snapToMonday } from '@/lib/list-templates';
 import { formatDateInput } from '@/lib/date-utils';
-import type { BoardTemplateType, Team } from '@/types';
+import type { Team, CoreProjectTemplate } from '@/types';
 import { cn } from '@/lib/utils';
 
 // Check if a date is Monday
@@ -63,11 +63,18 @@ interface CreateProjectDialogProps {
   teams: Team[];
 }
 
-const TEMPLATE_ICONS = {
-  BLANK: Layers,
-  STANDARD_SLOT: Layers,
-  BRANDED_GAME: Zap,
-} as const;
+async function parseApiResponse(response: Response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as { success?: boolean; data?: { id: string }; error?: { message?: string } };
+  } catch {
+    throw new Error(
+      text.startsWith('<!DOCTYPE')
+        ? 'Server returned HTML instead of JSON. Please refresh and try again.'
+        : 'Invalid server response'
+    );
+  }
+}
 
 export function CreateProjectDialog({
   isOpen,
@@ -79,7 +86,9 @@ export function CreateProjectDialog({
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const [template, setTemplate] = useState<BoardTemplateType>('STANDARD_SLOT');
+  const [coreTemplates, setCoreTemplates] = useState<CoreProjectTemplate[]>([]);
+  const [selectedCoreTemplateId, setSelectedCoreTemplateId] = useState<string>('');
+  const [isLoadingCoreTemplates, setIsLoadingCoreTemplates] = useState(false);
   const [selectedProjectTemplate, setSelectedProjectTemplate] = useState<string | null>(null);
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -110,12 +119,12 @@ export function CreateProjectDialog({
         setStartDate('');
       }
       setSelectedTeamId('');
-      setTemplate('STANDARD_SLOT');
+      setSelectedCoreTemplateId(coreTemplates[0]?.id || '');
       setSelectedProjectTemplate(null);
       setSelectedMembers([]);
       setError(null);
     }
-  }, [isOpen, defaultStartDate]);
+  }, [isOpen, defaultStartDate, coreTemplates]);
 
   // Fetch all users when dialog opens
   useEffect(() => {
@@ -171,6 +180,26 @@ export function CreateProjectDialog({
     }
   }, [isOpen]);
 
+  // Fetch core templates when dialog opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setIsLoadingCoreTemplates(true);
+    fetch('/api/settings/core-project-templates')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.templates) {
+          const templates = data.data.templates as CoreProjectTemplate[];
+          setCoreTemplates(templates);
+          if (!selectedCoreTemplateId && templates.length > 0) {
+            setSelectedCoreTemplateId(templates[0].id);
+          }
+        }
+      })
+      .catch(console.error)
+      .finally(() => setIsLoadingCoreTemplates(false));
+  }, [isOpen, selectedCoreTemplateId]);
+
   // When team changes, auto-populate with team members
   const handleTeamChange = async (teamId: string) => {
     setSelectedTeamId(teamId);
@@ -224,11 +253,11 @@ export function CreateProjectDialog({
 
   const handleSelectProjectTemplate = (templateId: string) => {
     setSelectedProjectTemplate(templateId);
-    setTemplate('BLANK');
+    setSelectedCoreTemplateId('');
   };
 
-  const handleSelectListTemplate = (templateId: BoardTemplateType) => {
-    setTemplate(templateId);
+  const handleSelectCoreTemplate = (templateId: string) => {
+    setSelectedCoreTemplateId(templateId);
     setSelectedProjectTemplate(null);
   };
 
@@ -273,7 +302,7 @@ export function CreateProjectDialog({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name,
-            template,
+            coreTemplateId: selectedCoreTemplateId || undefined,
             startDate: startDate || undefined,
             teamId: selectedTeamId || undefined,
             memberIds,
@@ -281,9 +310,9 @@ export function CreateProjectDialog({
         });
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
-      if (!data.success) {
+      if (!data.success || !data.data?.id) {
         setError(data.error?.message || 'Failed to create project');
         return;
       }
@@ -303,7 +332,7 @@ export function CreateProjectDialog({
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
           <DialogDescription>
-            Create a new project on the timeline. The project will have planning lists with dates based on your template selection.
+            Create a new project on the timeline using a core template (or clone from a project template).
           </DialogDescription>
         </DialogHeader>
 
@@ -465,19 +494,15 @@ export function CreateProjectDialog({
 
           {/* Template Selection */}
           <div className="space-y-2">
-            <Label>Template</Label>
+            <Label>Core Template</Label>
             <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(BOARD_TEMPLATES) as BoardTemplateType[])
-                .filter(key => key !== 'BLANK')
-                .map((key) => {
-                  const tmpl = BOARD_TEMPLATES[key];
-                  const Icon = TEMPLATE_ICONS[key] || Layers;
-                  const isSelected = template === key && !selectedProjectTemplate;
+                {coreTemplates.map((tmpl) => {
+                  const isSelected = selectedCoreTemplateId === tmpl.id && !selectedProjectTemplate;
                   return (
                     <button
-                      key={key}
+                      key={tmpl.id}
                       type="button"
-                      onClick={() => handleSelectListTemplate(key)}
+                      onClick={() => handleSelectCoreTemplate(tmpl.id)}
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-lg border-2 text-left transition-colors',
                         isSelected
@@ -485,7 +510,7 @@ export function CreateProjectDialog({
                           : 'border-border hover:border-success/50 hover:bg-surface-hover'
                       )}
                     >
-                      <Icon className={cn(
+                      <Layers className={cn(
                         'h-5 w-5 mt-0.5 shrink-0',
                         isSelected ? 'text-success' : 'text-text-tertiary'
                       )} />
@@ -497,13 +522,21 @@ export function CreateProjectDialog({
                           {tmpl.name}
                         </div>
                         <div className="text-caption text-text-tertiary mt-0.5">
-                          {tmpl.planningLists.length} planning phases
+                          {tmpl.blocks.length} blocks, {tmpl.events.length} events
                         </div>
                       </div>
                     </button>
                   );
                 })}
             </div>
+            {isLoadingCoreTemplates && (
+              <div className="text-caption text-text-tertiary">Loading core templates...</div>
+            )}
+            {!isLoadingCoreTemplates && coreTemplates.length === 0 && (
+              <div className="text-caption text-warning">
+                No core templates found. Create one in Settings {'>'} Core Templates.
+              </div>
+            )}
 
             {/* Project Templates */}
             {projectTemplates.length > 0 && (
@@ -560,7 +593,15 @@ export function CreateProjectDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !name.trim() || !startDate}>
+            <Button
+              type="submit"
+              disabled={
+                isLoading ||
+                !name.trim() ||
+                !startDate ||
+                (!selectedProjectTemplate && !selectedCoreTemplateId)
+              }
+            >
               {isLoading ? (
                 'Creating...'
               ) : (

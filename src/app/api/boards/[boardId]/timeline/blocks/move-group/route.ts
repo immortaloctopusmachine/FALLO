@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { moveBlockDates, addBusinessDays } from '@/lib/date-utils';
+import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
 import {
   requireAuth,
   requireAdmin,
@@ -91,6 +92,7 @@ export async function POST(
     });
 
     await Promise.all(updates);
+    await renumberTimelineBlockPositions(boardId);
 
     // Also move events if eventIds are provided
     let movedEventsCount = 0;

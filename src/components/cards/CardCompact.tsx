@@ -1,16 +1,20 @@
 'use client';
 
+import { memo } from 'react';
+import Image from 'next/image';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Paperclip, MessageSquare, CheckSquare, BookOpen, Layers, FileText, AlertTriangle, FileQuestion, Zap, Ban, Eye, Link, StickyNote, Milestone, Calendar } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, UserStoryFlag, UtilitySubtype } from '@/types';
 import { cn } from '@/lib/utils';
+import type { ChainLink } from '@/lib/task-presets';
 
 interface CardCompactProps {
   card: Card;
   onClick: () => void;
   sortable?: boolean;
+  dependencyChain?: ChainLink[] | null;
 }
 
 
@@ -21,7 +25,7 @@ const cardTypeIcons = {
   UTILITY: FileText,
 };
 
-export function CardCompact({ card, onClick, sortable = true }: CardCompactProps) {
+export const CardCompact = memo(function CardCompact({ card, onClick, sortable = true, dependencyChain }: CardCompactProps) {
   const {
     attributes,
     listeners,
@@ -62,11 +66,13 @@ export function CardCompact({ card, onClick, sortable = true }: CardCompactProps
     >
       {/* Feature Image */}
       {card.featureImage && (
-        <div className="-mx-2 -mt-2 mb-2">
-          <img
+        <div className="-mx-2 -mt-2 mb-2 h-20 relative">
+          <Image
             src={card.featureImage}
             alt=""
-            className="h-20 w-full rounded-t object-cover"
+            fill
+            sizes="264px"
+            className="rounded-t object-cover"
             style={{ objectPosition: `center ${card.featureImagePosition ?? 50}%` }}
           />
         </div>
@@ -80,6 +86,33 @@ export function CardCompact({ card, onClick, sortable = true }: CardCompactProps
         </h4>
       </div>
 
+      {/* Dependency chain (Task cards only) */}
+      {dependencyChain && dependencyChain.length > 1 && (
+        <div className="mt-1 flex items-center gap-1">
+          {dependencyChain.map((link, i) => (
+            <div key={link.id} className="flex items-center gap-1">
+              {i > 0 && <span className="text-border text-[8px]">→</span>}
+              <span
+                className={cn(
+                  'flex items-center gap-0.5 text-[10px] leading-tight',
+                  link.isCurrent ? 'font-semibold text-card-task' : link.isComplete ? 'text-success' : 'text-text-tertiary'
+                )}
+              >
+                {link.isComplete ? (
+                  <CheckSquare className="h-2.5 w-2.5" />
+                ) : (
+                  <span className={cn(
+                    'inline-block h-1.5 w-1.5 rounded-full',
+                    link.isCurrent ? 'bg-card-task' : 'bg-text-tertiary/50'
+                  )} />
+                )}
+                {link.typeLabel}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Type-specific content */}
       {card.type === 'TASK' && <TaskCardBadges card={card as TaskCard} />}
       {card.type === 'USER_STORY' && <UserStoryCardBadges card={card as UserStoryCard} />}
@@ -87,7 +120,10 @@ export function CardCompact({ card, onClick, sortable = true }: CardCompactProps
       {card.type === 'UTILITY' && <UtilityCardBadges card={card as UtilityCard} />}
     </div>
   );
-}
+}, (prev, next) => {
+  // Custom comparator: skip onClick (always new closure) and compare card by reference
+  return prev.card === next.card && prev.sortable === next.sortable && prev.dependencyChain === next.dependencyChain;
+});
 
 function TaskCardBadges({ card }: { card: TaskCard }) {
   const checklistTotal = card.checklists?.reduce((sum, cl) => sum + cl.items.length, 0) || 0;

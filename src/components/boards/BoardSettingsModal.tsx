@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Calendar, Link as LinkIcon, Sparkles, Save, AlertTriangle, Archive, Copy, FileText } from 'lucide-react';
+import { useRef } from 'react';
+import { Settings, Calendar, Link as LinkIcon, Sparkles, Save, AlertTriangle, Archive, Copy, FileText, Paintbrush, ImageIcon, X, Ban } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { BoardSettings, ListTemplateType } from '@/types';
+import { BOARD_GRADIENTS } from '@/lib/board-backgrounds';
+import { cn } from '@/lib/utils';
 
 interface BoardSettingsModalProps {
   isOpen: boolean;
@@ -31,6 +34,12 @@ interface BoardSettingsModalProps {
   isTemplate?: boolean;
   settings: BoardSettings;
   onSave: (settings: BoardSettings) => Promise<void>;
+}
+
+interface SlackChannelOption {
+  id: string;
+  name: string;
+  isPrivate: boolean;
 }
 
 export function BoardSettingsModal({
@@ -49,6 +58,29 @@ export function BoardSettingsModal({
   const [isCloning, setIsCloning] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState('');
   const [cloneName, setCloneName] = useState('');
+  const [slackChannels, setSlackChannels] = useState<SlackChannelOption[]>([]);
+  const [isLoadingSlackChannels, setIsLoadingSlackChannels] = useState(false);
+  const [isUploadingBg, setIsUploadingBg] = useState(false);
+  const bgFileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const loadSlackChannels = async () => {
+      setIsLoadingSlackChannels(true);
+      try {
+        const response = await fetch('/api/integrations/slack/channels');
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setSlackChannels(data.data);
+        }
+      } catch {
+        // Slack integration is optional.
+      } finally {
+        setIsLoadingSlackChannels(false);
+      }
+    };
+    void loadSlackChannels();
+  }, [isOpen]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -130,6 +162,29 @@ export function BoardSettingsModal({
     }
   };
 
+  const handleBgImageUpload = async (file: File) => {
+    setIsUploadingBg(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'image');
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const result = await res.json();
+      if (result.success && result.data?.url) {
+        setSettings((prev) => ({
+          ...prev,
+          backgroundType: 'image',
+          backgroundGradient: undefined,
+          backgroundImageUrl: result.data.url,
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to upload background image:', error);
+    } finally {
+      setIsUploadingBg(false);
+    }
+  };
+
   const updateSetting = <K extends keyof BoardSettings>(
     key: K,
     value: BoardSettings[K]
@@ -164,6 +219,106 @@ export function BoardSettingsModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Background Section */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-title font-semibold">
+              <Paintbrush className="h-4 w-4" />
+              Background
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {/* None option */}
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    backgroundType: 'none',
+                    backgroundGradient: undefined,
+                    backgroundImageUrl: undefined,
+                  }))
+                }
+                className={cn(
+                  'h-8 w-12 rounded-md border-2 flex items-center justify-center bg-background',
+                  (!settings.backgroundType || settings.backgroundType === 'none')
+                    ? 'border-text-primary ring-1 ring-text-primary'
+                    : 'border-border hover:border-text-tertiary'
+                )}
+                title="None"
+              >
+                <Ban className="h-3.5 w-3.5 text-text-tertiary" />
+              </button>
+              {/* Gradient swatches */}
+              {Object.entries(BOARD_GRADIENTS).map(([key, { label, css }]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      backgroundType: 'gradient',
+                      backgroundGradient: key,
+                      backgroundImageUrl: undefined,
+                    }))
+                  }
+                  className={cn(
+                    'h-8 w-12 rounded-md border-2',
+                    settings.backgroundType === 'gradient' && settings.backgroundGradient === key
+                      ? 'border-text-primary ring-1 ring-text-primary'
+                      : 'border-border hover:border-text-tertiary'
+                  )}
+                  style={{ background: css }}
+                  title={label}
+                />
+              ))}
+            </div>
+            {/* Custom image */}
+            <div className="flex items-center gap-3">
+              <input
+                ref={bgFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleBgImageUpload(file);
+                  e.target.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => bgFileRef.current?.click()}
+                disabled={isUploadingBg}
+              >
+                <ImageIcon className="h-4 w-4 mr-1" />
+                {isUploadingBg ? 'Uploading...' : 'Custom Image'}
+              </Button>
+              {settings.backgroundType === 'image' && settings.backgroundImageUrl && (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-8 w-12 rounded-md border border-border bg-cover bg-center"
+                    style={{ backgroundImage: `url(${settings.backgroundImageUrl})` }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        backgroundType: 'none',
+                        backgroundImageUrl: undefined,
+                      }))
+                    }
+                    className="text-text-tertiary hover:text-error"
+                    title="Remove background image"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Project Dates Section */}
           <div className="space-y-4">
             <h3 className="flex items-center gap-2 text-title font-semibold">
@@ -322,6 +477,87 @@ export function BoardSettingsModal({
                 checked={settings.llmEnabled || false}
                 onCheckedChange={(checked) => updateSetting('llmEnabled', checked)}
               />
+            </div>
+          </div>
+
+          {/* Slack Integration Section */}
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-title font-semibold">
+              <LinkIcon className="h-4 w-4" />
+              Slack Integration
+            </h3>
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Enable Slack Alerts</div>
+                  <div className="text-caption text-text-tertiary">
+                    Send slow-progress and weekly summary messages to the mapped project channel.
+                  </div>
+                </div>
+                <Switch
+                  checked={settings.slackAlertsEnabled ?? true}
+                  onCheckedChange={(checked) => updateSetting('slackAlertsEnabled', checked)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="slackChannelId">Project Slack Channel</Label>
+                {slackChannels.length > 0 ? (
+                  <div className="space-y-2">
+                    <Select
+                      value={settings.slackChannelId || ''}
+                      onValueChange={(value) => updateSetting('slackChannelId', value || undefined)}
+                    >
+                      <SelectTrigger id="slackChannelId">
+                        <SelectValue placeholder={isLoadingSlackChannels ? 'Loading channels...' : 'Select channel'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {slackChannels.map((channel) => (
+                          <SelectItem key={channel.id} value={channel.id}>
+                            {channel.isPrivate ? '[private] ' : '#'}{channel.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateSetting('slackChannelId', undefined)}
+                    >
+                      Clear channel mapping
+                    </Button>
+                  </div>
+                ) : (
+                  <Input
+                    id="slackChannelId"
+                    placeholder="e.g. C0123456789"
+                    value={settings.slackChannelId || ''}
+                    onChange={(e) => updateSetting('slackChannelId', e.target.value || undefined)}
+                  />
+                )}
+                <p className="text-caption text-text-tertiary">
+                  Channel ID is stored per project. Invite the bot to private channels.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="slackSlowProgressThresholdPct">Slow Progress Threshold (%)</Label>
+                <Input
+                  id="slackSlowProgressThresholdPct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={settings.slackSlowProgressThresholdPct ?? 50}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    updateSetting(
+                      'slackSlowProgressThresholdPct',
+                      Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 50
+                    );
+                  }}
+                />
+              </div>
             </div>
           </div>
 

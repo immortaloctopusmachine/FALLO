@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Building2, Users, User, ChevronRight, Layers } from 'lucide-react';
 import { useOrganizationData } from '@/hooks/api/use-organization';
 import { OrganizationSkeleton } from '@/components/organization/OrganizationSkeleton';
@@ -218,9 +219,11 @@ export function OrganizationPageClient() {
                 >
                   <div className="relative h-9 w-9 rounded-full bg-surface-hover overflow-hidden">
                     {user.image ? (
-                      <img
+                      <Image
                         src={user.image}
                         alt={user.name || user.email}
+                        width={36}
+                        height={36}
                         className="h-full w-full object-cover"
                       />
                     ) : (

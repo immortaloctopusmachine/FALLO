@@ -42,6 +42,8 @@ export async function POST(
       type,
       listId,
       description,
+      color,
+      assigneeIds,
       taskData,
       userStoryData,
       epicData,
@@ -204,6 +206,11 @@ export async function POST(
       orderBy: { position: 'desc' },
     });
 
+    // Build assignee connects if provided
+    const assigneeConnects = Array.isArray(assigneeIds) && assigneeIds.length > 0
+      ? { create: assigneeIds.map((userId: string) => ({ userId })) }
+      : undefined;
+
     const card = await prisma.card.create({
       data: {
         title: title.trim(),
@@ -211,7 +218,9 @@ export async function POST(
         type: cardType,
         position: (lastCard?.position ?? -1) + 1,
         listId: targetListId,
+        color: color || null,
         ...typeData,
+        ...(assigneeConnects ? { assignees: assigneeConnects } : {}),
       },
       include: {
         list: {

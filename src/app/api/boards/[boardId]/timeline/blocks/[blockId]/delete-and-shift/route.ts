@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { moveBlockDates } from '@/lib/date-utils';
+import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
 import {
   requireAuth,
   requireAdmin,
@@ -38,10 +39,14 @@ export async function DELETE(
     // Parse body for options
     let syncToList = true;
     let deleteLinkedList = true;
+    let destinationListId: string | null = null;
+    let deleteCards = false;
     try {
       const body = await request.json();
       syncToList = body.syncToList !== false;
       deleteLinkedList = body.deleteLinkedList !== false;
+      destinationListId = typeof body.destinationListId === 'string' ? body.destinationListId : null;
+      deleteCards = body.deleteCards === true;
     } catch {
       // No body or invalid JSON, use defaults
     }
@@ -70,26 +75,38 @@ export async function DELETE(
 
     // Delete the linked Planning list if requested
     if (deleteLinkedList && linkedListId) {
-      // First, move any cards from this list to the board's first task list (or delete if no suitable list)
-      const taskList = await prisma.list.findFirst({
+      const cardCount = await prisma.card.count({
         where: {
-          boardId,
-          viewType: 'TASKS',
+          listId: linkedListId,
+          archivedAt: null,
         },
-        orderBy: { position: 'asc' },
       });
 
-      if (taskList) {
-        // Move cards to the first task list
-        await prisma.card.updateMany({
-          where: { listId: linkedListId },
-          data: { listId: taskList.id },
-        });
-      } else {
-        // Delete cards if no task list exists (shouldn't happen normally)
-        await prisma.card.deleteMany({
-          where: { listId: linkedListId },
-        });
+      if (cardCount > 0) {
+        if (destinationListId) {
+          const destination = await prisma.list.findFirst({
+            where: {
+              id: destinationListId,
+              boardId,
+              viewType: 'PLANNING',
+            },
+          });
+
+          if (!destination || destination.id === linkedListId) {
+            return ApiErrors.validation('destinationListId must be a different planning list in this project');
+          }
+
+          await prisma.card.updateMany({
+            where: { listId: linkedListId, archivedAt: null },
+            data: { listId: destination.id },
+          });
+        } else if (deleteCards) {
+          await prisma.card.deleteMany({
+            where: { listId: linkedListId, archivedAt: null },
+          });
+        } else {
+          return ApiErrors.validation('Cards exist in this list. Choose a destination list or delete cards before deleting the block.');
+        }
       }
 
       // Now delete the linked list
@@ -126,6 +143,8 @@ export async function DELETE(
 
       await Promise.all(shiftUpdates);
     }
+
+    await renumberTimelineBlockPositions(boardId);
 
     return apiSuccess({
       deletedBlockId: blockId,

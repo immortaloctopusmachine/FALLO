@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BoardViewWrapper } from '@/components/boards/BoardViewWrapper';
 import { BoardSkeleton } from '@/components/boards/BoardSkeleton';
 import { useBoard } from '@/hooks/api/use-boards';
@@ -10,26 +11,17 @@ interface BoardDetailClientProps {
   currentUserId: string;
 }
 
-export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientProps) {
-  const { data: rawData, isLoading } = useBoard(boardId);
-
-  if (isLoading || !rawData) return <BoardSkeleton />;
-
-  // The API returns JSON-serialized Prisma data with computed stats.
-  // Dates are already ISO strings from JSON serialization.
-  // We need to cast it to the Board type that BoardViewWrapper expects.
-  const data = rawData as Record<string, unknown>;
-
+function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; weeklyProgress: WeeklyProgress[] } {
   const board: Board = {
-    id: data.id as string,
-    name: data.name as string,
-    description: data.description as string | null,
-    isTemplate: data.isTemplate as boolean,
-    settings: (data.settings || {}) as Board['settings'],
-    createdAt: data.createdAt as string,
-    updatedAt: data.updatedAt as string,
-    archivedAt: (data.archivedAt as string) || null,
-    members: (data.members as Record<string, unknown>[]).map((m) => ({
+    id: rawData.id as string,
+    name: rawData.name as string,
+    description: rawData.description as string | null,
+    isTemplate: rawData.isTemplate as boolean,
+    settings: (rawData.settings || {}) as Board['settings'],
+    createdAt: rawData.createdAt as string,
+    updatedAt: rawData.updatedAt as string,
+    archivedAt: (rawData.archivedAt as string) || null,
+    members: (rawData.members as Record<string, unknown>[]).map((m) => ({
       id: m.id as string,
       userId: m.userId as string,
       user: {
@@ -42,7 +34,7 @@ export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientP
       permission: m.permission as Board['members'][0]['permission'],
       joinedAt: m.joinedAt as string,
     })),
-    lists: (data.lists as Record<string, unknown>[]).map((list) => ({
+    lists: (rawData.lists as Record<string, unknown>[]).map((list) => ({
       id: list.id as string,
       name: list.name as string,
       position: list.position as number,
@@ -62,8 +54,7 @@ export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientP
     })) as List[],
   };
 
-  // Transform weekly progress
-  const weeklyProgress: WeeklyProgress[] = ((data.weeklyProgress as Record<string, unknown>[]) || []).map((wp) => ({
+  const weeklyProgress: WeeklyProgress[] = ((rawData.weeklyProgress as Record<string, unknown>[]) || []).map((wp) => ({
     id: wp.id as string,
     weekStartDate: wp.weekStartDate as string,
     totalStoryPoints: wp.totalStoryPoints as number,
@@ -72,6 +63,51 @@ export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientP
     tasksTotal: wp.tasksTotal as number,
     createdAt: wp.createdAt as string,
   }));
+
+  return { board, weeklyProgress };
+}
+
+export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientProps) {
+  const { data: rawLightData, isLoading } = useBoard(boardId, 'light');
+  const {
+    data: rawFullData,
+    isFetching: isFetchingFullData,
+    refetch: refetchFullBoard,
+  } = useBoard(boardId, 'full', false);
+
+  const lightData = useMemo(
+    () => (rawLightData ? mapBoardPayload(rawLightData as Record<string, unknown>) : null),
+    [rawLightData]
+  );
+  const fullData = useMemo(
+    () => (rawFullData ? mapBoardPayload(rawFullData as Record<string, unknown>) : null),
+    [rawFullData]
+  );
+
+  const [board, setBoard] = useState<Board | null>(null);
+  const [weeklyProgress, setWeeklyProgress] = useState<WeeklyProgress[]>([]);
+  const [hasFullData, setHasFullData] = useState(false);
+
+  useEffect(() => {
+    if (!lightData) return;
+    setBoard(lightData.board);
+    setWeeklyProgress(lightData.weeklyProgress);
+    setHasFullData(false);
+  }, [lightData]);
+
+  useEffect(() => {
+    if (!fullData) return;
+    setBoard(fullData.board);
+    setWeeklyProgress(fullData.weeklyProgress);
+    setHasFullData(true);
+  }, [fullData]);
+
+  const loadFullData = useCallback(async () => {
+    if (hasFullData || isFetchingFullData) return;
+    await refetchFullBoard();
+  }, [hasFullData, isFetchingFullData, refetchFullBoard]);
+
+  if (isLoading || !board) return <BoardSkeleton />;
 
   // Check if current user is admin
   const currentMember = board.members.find((m) => m.userId === currentUserId);
@@ -83,6 +119,9 @@ export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientP
       currentUserId={currentUserId}
       weeklyProgress={weeklyProgress}
       isAdmin={isAdmin}
+      hasFullData={hasFullData}
+      isLoadingFullData={isFetchingFullData}
+      onLoadFullData={loadFullData}
     />
   );
 }

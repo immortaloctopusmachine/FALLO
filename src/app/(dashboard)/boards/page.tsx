@@ -10,10 +10,12 @@ export default async function BoardsPage() {
   }
 
   const isAdmin = session.user.permission === 'ADMIN' || session.user.permission === 'SUPER_ADMIN';
+  const isSuperAdmin = session.user.permission === 'SUPER_ADMIN';
 
   return (
     <BoardsPageClient
       isAdmin={isAdmin}
+      isSuperAdmin={isSuperAdmin}
       currentUserId={session.user.id}
     />
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { CheckSquare, BookOpen, Layers, FileText, Trash2, X, Paperclip, ChevronUp, ChevronDown, ChevronRight, ListChecks, AlignLeft, AlertTriangle, Zap, FileQuestion, Ban, Eye, Link2, Link, StickyNote, Milestone, Calendar, ExternalLink } from 'lucide-react';
 import {
   Dialog,
@@ -21,8 +22,12 @@ import { ColorPicker } from './ColorPicker';
 import { AttachmentSection } from './AttachmentSection';
 import { ConnectionPicker } from './ConnectionPicker';
 import { TimeLogSection } from './TimeLogSection';
-import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
+import { CreateLinkedTasksModal } from './CreateLinkedTasksModal';
+import { toast } from 'sonner';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api-client';
+import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
 import {
   Select,
   SelectContent,
@@ -38,12 +43,13 @@ interface CardModalProps {
   onClose: () => void;
   onUpdate: (card: Card) => void;
   onDelete: (cardId: string) => void;
-  onRefreshBoard?: () => void;
+  onLinkedCardCreated?: (card: Card) => void;
   onCardClick?: (card: Card) => void;  // Open another card (e.g., a connected task)
   currentUserId?: string;
   isAdmin?: boolean;  // Whether current user is admin (for time log management)
   taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
   planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
+  allCards?: Card[];
 }
 
 const cardTypeConfig = {
@@ -70,7 +76,21 @@ const UTILITY_SUBTYPES: { value: UtilitySubtype; label: string; icon: typeof Lin
   { value: 'BLOCKER', label: 'Blocker', icon: Ban, color: 'text-error bg-error/10 border-error/30' },
 ];
 
-export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, onRefreshBoard, onCardClick, currentUserId, isAdmin = false, taskLists = [], planningLists = [] }: CardModalProps) {
+export function CardModal({
+  card,
+  boardId,
+  isOpen,
+  onClose,
+  onUpdate,
+  onDelete,
+  onLinkedCardCreated,
+  onCardClick,
+  currentUserId,
+  isAdmin = false,
+  taskLists = [],
+  planningLists = [],
+  allCards = [],
+}: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [storyPoints, setStoryPoints] = useState<number | null>(null);
@@ -83,7 +103,6 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [highlightedAttachmentId, setHighlightedAttachmentId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(true);
   const [todoExpanded, setTodoExpanded] = useState(true);
   const [feedbackExpanded, setFeedbackExpanded] = useState(true);
@@ -99,6 +118,8 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const [linkedUserStory, setLinkedUserStory] = useState<UserStoryCard | null>(null);
   const [linkedEpic, setLinkedEpic] = useState<EpicCard | null>(null);
   const [isCreatingLinkedCard, setIsCreatingLinkedCard] = useState(false);
+  const [isCreateLinkedTasksOpen, setIsCreateLinkedTasksOpen] = useState(false);
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
   const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
   const [newLinkedTaskDestination, setNewLinkedTaskDestination] = useState<TaskReleaseMode>('IMMEDIATE');
@@ -175,72 +196,35 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     }
   }, [card]);
 
-  // Fetch linked user story data when linkedUserStoryId changes (for Tasks)
+  // Resolve linked user story/epic data from in-memory board cards
   useEffect(() => {
     if (card?.type === 'TASK' && linkedUserStoryId) {
-      // Fetch the user story to get its epic info
-      fetch(`/api/boards/${boardId}/cards/${linkedUserStoryId}`, { cache: 'no-store' })
-        .then(res => {
-          if (!res.ok) {
-            console.warn(`Failed to fetch user story ${linkedUserStoryId}: ${res.status}`);
-            return null;
-          }
-          return res.json();
-        })
-        .then(data => {
-          if (data?.success) {
-            setLinkedUserStory(data.data);
-            // Auto-inherit the epic from the user story
-            const storyEpicId = data.data.userStoryData?.linkedEpicId;
-            if (storyEpicId) {
-              setLinkedEpicId(storyEpicId);
-              // Fetch epic details
-              fetch(`/api/boards/${boardId}/cards/${storyEpicId}`, { cache: 'no-store' })
-                .then(res => {
-                  if (!res.ok) return null;
-                  return res.json();
-                })
-                .then(epicData => {
-                  if (epicData?.success) {
-                    setLinkedEpic(epicData.data);
-                  }
-                })
-                .catch(console.error);
-            } else {
-              setLinkedEpicId(null);
-              setLinkedEpic(null);
-            }
-          }
-        })
-        .catch(console.error);
+      const story = allCards.find((c) => c.id === linkedUserStoryId && c.type === 'USER_STORY') as UserStoryCard | undefined;
+      setLinkedUserStory(story || null);
+      const storyEpicId = story?.userStoryData?.linkedEpicId ?? null;
+      setLinkedEpicId(storyEpicId);
+      if (storyEpicId) {
+        const epic = allCards.find((c) => c.id === storyEpicId && c.type === 'EPIC') as EpicCard | undefined;
+        setLinkedEpic(epic || null);
+      } else {
+        setLinkedEpic(null);
+      }
     } else if (card?.type === 'TASK' && !linkedUserStoryId) {
       setLinkedUserStory(null);
       setLinkedEpicId(null);
       setLinkedEpic(null);
     }
-  }, [card?.type, linkedUserStoryId, boardId]);
+  }, [allCards, card?.type, linkedUserStoryId]);
 
-  // Fetch linked epic data when linkedEpicId changes (for User Story)
+  // Resolve linked epic for user stories from in-memory board cards
   useEffect(() => {
     if (card?.type === 'USER_STORY' && linkedEpicId) {
-      fetch(`/api/boards/${boardId}/cards/${linkedEpicId}`, { cache: 'no-store' })
-        .then(res => {
-          if (!res.ok) {
-            console.warn(`Failed to fetch epic ${linkedEpicId}: ${res.status}`);
-            return null;
-          }
-          return res.json();
-        })
-        .then(data => {
-          if (data?.success) {
-            setLinkedEpic(data.data);
-          }
-        })
-        .catch(console.error);
+      const epic = allCards.find((c) => c.id === linkedEpicId && c.type === 'EPIC') as EpicCard | undefined;
+      setLinkedEpic(epic || null);
     } else if (card?.type === 'USER_STORY' && !linkedEpicId) {
       setLinkedEpic(null);
     }
-  }, [card?.type, linkedEpicId, boardId]);
+  }, [allCards, card?.type, linkedEpicId]);
 
   // Core save function - used by auto-save
   const performSave = useCallback(async () => {
@@ -300,22 +284,15 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         // Reset status after a short delay
         setTimeout(() => setAutoSaveStatus('idle'), 2000);
 
-        // Refresh board if connections changed (to update connected tasks/stories counts)
-        const connectionChanged =
-          (card.type === 'TASK' && linkedUserStoryId !== ((card as TaskCard).taskData?.linkedUserStoryId ?? null)) ||
-          (card.type === 'USER_STORY' && linkedEpicId !== ((card as UserStoryCard).userStoryData?.linkedEpicId ?? null));
-
-        if (connectionChanged && onRefreshBoard) {
-          onRefreshBoard();
-        }
       } else {
         setAutoSaveStatus('error');
       }
     } catch (error) {
       console.error('Failed to save card:', error);
       setAutoSaveStatus('error');
+      toast.error('Failed to save changes');
     }
-  }, [card, title, description, color, featureImage, featureImagePosition, storyPoints, deadline, linkedUserStoryId, flags, linkedEpicId, utilitySubtype, utilityUrl, utilityContent, utilityDate, boardId, checklists, assignees, onUpdate, onRefreshBoard]);
+  }, [card, title, description, color, featureImage, featureImagePosition, storyPoints, deadline, linkedUserStoryId, flags, linkedEpicId, utilitySubtype, utilityUrl, utilityContent, utilityDate, boardId, checklists, assignees, onUpdate]);
 
   // Auto-save effect - debounced save when fields change
   useEffect(() => {
@@ -358,6 +335,31 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
     setAutoSaveStatus('idle');
   }, [card?.id]);
 
+  // Fetch board members for the linked tasks modal
+  useEffect(() => {
+    if (isCreateLinkedTasksOpen && boardMembers.length === 0) {
+      fetch(`/api/boards/${boardId}/members`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) setBoardMembers(data.data);
+        })
+        .catch(console.error);
+    }
+  }, [isCreateLinkedTasksOpen, boardId, boardMembers.length]);
+
+  // Handle bulk linked tasks creation
+  const handleLinkedTasksCreated = useCallback(
+    (tasks: Card[]) => {
+      // Add created tasks to connected tasks list
+      setConnectedTasks((prev) => [...prev, ...(tasks as TaskCard[])]);
+      // Notify parent about each new card
+      for (const task of tasks) {
+        onLinkedCardCreated?.(task);
+      }
+    },
+    [onLinkedCardCreated]
+  );
+
   if (!card) return null;
 
   const config = cardTypeConfig[card.type];
@@ -366,20 +368,17 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this card?')) return;
 
-    setIsDeleting(true);
+    // Optimistic: remove card and close modal immediately
+    onDelete(card.id);
+    onClose();
+
     try {
-      const response = await fetch(`/api/boards/${boardId}/cards/${card.id}`, {
+      await apiFetch(`/api/boards/${boardId}/cards/${card.id}`, {
         method: 'DELETE',
       });
-
-      if (response.ok) {
-        onDelete(card.id);
-        onClose();
-      }
     } catch (error) {
       console.error('Failed to delete card:', error);
-    } finally {
-      setIsDeleting(false);
+      toast.error('Failed to delete card. Please refresh the page.');
     }
   };
 
@@ -431,12 +430,14 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
 
       const data = await response.json();
       if (data.success) {
+        const createdCard = data.data as Card;
         // Add to connected cards list locally
         if (card.type === 'EPIC') {
-          setConnectedUserStories(prev => [...prev, data.data]);
+          setConnectedUserStories(prev => [...prev, createdCard as UserStoryCard]);
         } else if (card.type === 'USER_STORY') {
-          setConnectedTasks(prev => [...prev, data.data]);
+          setConnectedTasks(prev => [...prev, createdCard as TaskCard]);
         }
+        onLinkedCardCreated?.(createdCard);
 
         // Clear the input and list selection
         setNewLinkedCardTitle('');
@@ -444,10 +445,6 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         setNewLinkedTaskDestination('IMMEDIATE');
         setIsCreatingLinkedCard(false);
 
-        // Refresh board to update all counts
-        if (onRefreshBoard) {
-          onRefreshBoard();
-        }
       }
     } catch (error) {
       console.error('Failed to create linked card:', error);
@@ -476,16 +473,23 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
 
   const currentPlanningList = planningLists.find((list) => list.id === card.listId);
 
+  // Compute dependency chain for TASK cards
+  const dependencyChain: ChainLink[] | null =
+    card?.type === 'TASK' ? buildDependencyChain(card.id, allCards) : null;
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-modal gap-0 overflow-hidden p-0 flex flex-col">
         {/* Feature Image */}
         {featureImage && (
           <div className="relative h-40 w-full overflow-hidden bg-surface-hover group">
-            <img
+            <Image
               src={featureImage}
               alt=""
-              className="h-full w-full object-cover"
+              fill
+              sizes="768px"
+              className="object-cover"
               style={{ objectPosition: `center ${featureImagePosition}%` }}
             />
             {/* Position Controls - visible on hover */}
@@ -567,6 +571,49 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Main Content Area */}
           <div className="flex-1 min-w-0 space-y-4 overflow-y-auto p-6">
+            {/* Dependency Chain (Task cards only) */}
+            {card.type === 'TASK' && dependencyChain && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {dependencyChain.map((link, i) => (
+                  <div key={link.id} className="flex items-center gap-1.5">
+                    {i > 0 && <span className="text-text-tertiary text-tiny">→</span>}
+                    <button
+                      onClick={() => {
+                        if (!link.isCurrent && onCardClick) {
+                          const target = allCards.find((c) => c.id === link.id);
+                          if (target) onCardClick(target);
+                        }
+                      }}
+                      disabled={link.isCurrent}
+                      className={cn(
+                        'flex items-center gap-1 rounded-full px-2 py-0.5 text-tiny font-medium transition-colors',
+                        link.isCurrent
+                          ? 'bg-card-task/15 text-card-task border border-card-task/30'
+                          : link.isComplete
+                            ? 'bg-success/10 text-success hover:bg-success/20 cursor-pointer'
+                            : 'bg-surface-hover text-text-tertiary hover:bg-surface-hover/80 cursor-pointer'
+                      )}
+                    >
+                      {link.isComplete ? (
+                        <CheckSquare className="h-3 w-3" />
+                      ) : (
+                        <span className="h-2 w-2 rounded-full bg-current opacity-50" />
+                      )}
+                      <span>{link.typeLabel}</span>
+                      {link.listName && !link.isCurrent && (
+                        <span className="opacity-60">· {link.listName}</span>
+                      )}
+                      {link.checklistProgress && !link.isCurrent && (
+                        <span className="opacity-60">
+                          ({link.checklistProgress.done}/{link.checklistProgress.total})
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Description */}
             <div className="space-y-2">
               <button
@@ -820,18 +867,29 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                     </div>
                   </div>
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start text-card-task border-card-task/30 hover:bg-card-task/10"
-                    onClick={() => {
-                      setIsCreatingLinkedCard(true);
-                      setNewLinkedTaskDestination('IMMEDIATE');
-                    }}
-                  >
-                    <CheckSquare className="mr-2 h-4 w-4" />
-                    Create Linked Task
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 justify-start text-card-task border-card-task/30 hover:bg-card-task/10"
+                      onClick={() => {
+                        setIsCreatingLinkedCard(true);
+                        setNewLinkedTaskDestination('IMMEDIATE');
+                      }}
+                    >
+                      <CheckSquare className="mr-2 h-4 w-4" />
+                      Create Task
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 justify-start text-card-task border-card-task/30 hover:bg-card-task/10"
+                      onClick={() => setIsCreateLinkedTasksOpen(true)}
+                    >
+                      <Layers className="mr-2 h-4 w-4" />
+                      Create 3 Linked
+                    </Button>
+                  </div>
                 )}
 
                 <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
@@ -883,9 +941,11 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                             {firstAssignee && (
                               <div className="h-5 w-5 rounded-full bg-surface-hover flex items-center justify-center overflow-hidden" title={firstAssignee.user.name || ''}>
                                 {firstAssignee.user.image ? (
-                                  <img
+                                  <Image
                                     src={firstAssignee.user.image}
                                     alt={firstAssignee.user.name || ''}
+                                    width={20}
+                                    height={20}
                                     className="h-full w-full object-cover"
                                   />
                                 ) : (
@@ -1154,6 +1214,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                   currentCardId={card.id}
                   selectedId={linkedUserStoryId}
                   selectedCard={linkedUserStory}
+                  candidateCards={allCards}
                   onChange={setLinkedUserStoryId}
                 />
                 {/* Show inherited Epic info for Tasks */}
@@ -1187,6 +1248,7 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                   currentCardId={card.id}
                   selectedId={linkedEpicId}
                   selectedCard={linkedEpic}
+                  candidateCards={allCards}
                   onChange={setLinkedEpicId}
                 />
               </div>
@@ -1330,10 +1392,9 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
                 size="sm"
                 className="w-full justify-start text-error hover:bg-error/10 hover:text-error"
                 onClick={handleDelete}
-                disabled={isDeleting}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                {isDeleting ? 'Deleting...' : 'Delete card'}
+                Delete card
               </Button>
             </div>
           </div>
@@ -1347,5 +1408,20 @@ export function CardModal({ card, boardId, isOpen, onClose, onUpdate, onDelete, 
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Create Linked Tasks Modal (User Story only) */}
+    {card?.type === 'USER_STORY' && (
+      <CreateLinkedTasksModal
+        isOpen={isCreateLinkedTasksOpen}
+        onClose={() => setIsCreateLinkedTasksOpen(false)}
+        boardId={boardId}
+        userStoryId={card.id}
+        userStoryListId={card.listId}
+        taskLists={taskLists}
+        boardMembers={boardMembers}
+        onTasksCreated={handleLinkedTasksCreated}
+      />
+    )}
+    </>
   );
 }

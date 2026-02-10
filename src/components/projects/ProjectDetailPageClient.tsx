@@ -77,6 +77,13 @@ interface ProjectBoardData {
   }[];
 }
 
+interface CompanyRoleOption {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+}
+
 export function ProjectDetailPageClient({ projectId, currentUserId }: ProjectDetailPageClientProps) {
   const { data: rawBoard, isLoading: boardLoading } = useQuery({
     queryKey: ['boards', projectId, 'project'],
@@ -92,6 +99,11 @@ export function ProjectDetailPageClient({ projectId, currentUserId }: ProjectDet
     queryKey: ['teams'],
     queryFn: () => apiFetch<{ id: string; name: string; color: string }[]>('/api/teams'),
     enabled: isAdmin,
+  });
+
+  const { data: companyRoles } = useQuery({
+    queryKey: ['settings', 'roles'],
+    queryFn: () => apiFetch<CompanyRoleOption[]>('/api/settings/roles'),
   });
 
   if (boardLoading || !rawBoard) return <ProjectDetailSkeleton />;
@@ -114,6 +126,7 @@ export function ProjectDetailPageClient({ projectId, currentUserId }: ProjectDet
         })),
       }}
       teams={teams || []}
+      companyRoles={companyRoles || []}
       isAdmin={isAdmin}
     />
   );

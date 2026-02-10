@@ -1,5 +1,3 @@
-import { unlink } from 'fs/promises';
-import path from 'path';
 import { prisma } from '@/lib/prisma';
 import {
   requireAuth,
@@ -7,6 +5,7 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import { deleteFileByUrl } from '@/lib/storage';
 
 // PATCH /api/boards/[boardId]/cards/[cardId]/attachments/[attachmentId] - Rename attachment
 export async function PATCH(
@@ -78,7 +77,7 @@ export async function DELETE(
     const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
     if (memberResponse) return memberResponse;
 
-    // Get the attachment to find the file path
+    // Get the attachment to find the file URL
     const attachment = await prisma.attachment.findUnique({
       where: { id: attachmentId },
     });
@@ -92,15 +91,11 @@ export async function DELETE(
       where: { id: attachmentId },
     });
 
-    // Try to delete the file (don't fail if file doesn't exist)
-    if (attachment.url.startsWith('/uploads/')) {
-      const filename = attachment.url.replace('/uploads/', '');
-      const filepath = path.join(process.cwd(), 'public', 'uploads', filename);
-      try {
-        await unlink(filepath);
-      } catch {
-        // File might not exist, that's ok
-      }
+    // Delete physical file (best-effort, works for both local and R2)
+    try {
+      await deleteFileByUrl(attachment.url);
+    } catch {
+      // File might not exist or storage unreachable
     }
 
     return apiSuccess(null);

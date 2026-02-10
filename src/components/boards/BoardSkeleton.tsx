@@ -1,6 +1,8 @@
 'use client';
 
 export function BoardSkeleton() {
+  const cardsPerColumn = [2, 3, 4, 3];
+
   return (
     <div className="flex-1 flex flex-col">
       {/* Board header */}
@@ -30,7 +32,7 @@ export function BoardSkeleton() {
             </div>
 
             {/* Card placeholders */}
-            {Array.from({ length: 2 + Math.floor(Math.random() * 3) }).map((_, j) => (
+            {Array.from({ length: cardsPerColumn[i % cardsPerColumn.length] }).map((_, j) => (
               <div
                 key={j}
                 className="rounded-md border border-border bg-background p-3 space-y-2"

@@ -9,19 +9,20 @@ import { useBoards, useArchivedBoards } from '@/hooks/api/use-boards';
 
 interface BoardsPageClientProps {
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
   currentUserId: string;
 }
 
-export function BoardsPageClient({ isAdmin, currentUserId }: BoardsPageClientProps) {
+export function BoardsPageClient({ isAdmin, isSuperAdmin = false, currentUserId }: BoardsPageClientProps) {
   const { data: boards, isLoading } = useBoards();
-  const { data: archivedBoardsRaw } = useArchivedBoards();
+  const { data: archivedBoardsRaw, refetch: refetchArchived } = useArchivedBoards();
 
   if (isLoading) return <BoardsSkeleton />;
 
   const activeBoards = boards || [];
 
   // Helper to check if user is admin for a board
-  const isAdminForBoard = (board: typeof activeBoards[0]) => {
+  const isAdminForBoard = (board: { members: { userId: string; permission: string }[] }) => {
     const membership = board.members.find(m => m.userId === currentUserId);
     return membership?.permission === 'ADMIN' || membership?.permission === 'SUPER_ADMIN';
   };
@@ -37,6 +38,7 @@ export function BoardsPageClient({ isAdmin, currentUserId }: BoardsPageClientPro
     description: board.description,
     listCount: board.lists.length,
     memberCount: board.members.length,
+    members: board.members.map(m => ({ id: m.user.id, name: m.user.name, image: m.user.image })),
     isTemplate: board.isTemplate,
     isAdmin: isAdminForBoard(board),
   }));
@@ -76,8 +78,10 @@ export function BoardsPageClient({ isAdmin, currentUserId }: BoardsPageClientPro
               description={board.description}
               listCount={board.lists.length}
               memberCount={board.members.length}
+              members={board.members.map(m => ({ id: m.user.id, name: m.user.name, image: m.user.image }))}
               isTemplate={board.isTemplate}
               isAdmin={isAdminForBoard(board)}
+              settings={board.settings}
             />
           ))}
         </div>
@@ -103,8 +107,10 @@ export function BoardsPageClient({ isAdmin, currentUserId }: BoardsPageClientPro
                 description={board.description}
                 listCount={board.lists.length}
                 memberCount={board.members.length}
+                members={board.members.map(m => ({ id: m.user.id, name: m.user.name, image: m.user.image }))}
                 isTemplate={board.isTemplate}
                 isAdmin={isAdminForBoard(board)}
+                settings={board.settings}
               />
             ))}
           </div>
@@ -113,7 +119,11 @@ export function BoardsPageClient({ isAdmin, currentUserId }: BoardsPageClientPro
 
       {/* Archived Boards Section */}
       {archivedBoardsData.length > 0 && (
-        <ArchivedBoardsSection boards={archivedBoardsData} />
+        <ArchivedBoardsSection
+          boards={archivedBoardsData}
+          isSuperAdmin={isSuperAdmin}
+          onBoardDeleted={() => refetchArchived()}
+        />
       )}
     </main>
   );

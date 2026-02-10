@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, LayoutGrid, Layers, Zap, FileText } from 'lucide-react';
+import { Plus, LayoutGrid, Layers, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,8 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { BOARD_TEMPLATES } from '@/lib/list-templates';
-import type { BoardTemplateType } from '@/types';
+import type { CoreProjectTemplate } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface ProjectTemplate {
@@ -26,22 +25,32 @@ interface ProjectTemplate {
   listCount: number;
 }
 
-const TEMPLATE_ICONS = {
-  BLANK: LayoutGrid,
-  STANDARD_SLOT: Layers,
-  BRANDED_GAME: Zap,
-} as const;
+async function parseApiResponse(response: Response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as { success?: boolean; data?: { id: string }; error?: { message?: string } };
+  } catch {
+    throw new Error(
+      text.startsWith('<!DOCTYPE')
+        ? 'Server returned HTML instead of JSON. Please refresh and try again.'
+        : 'Invalid server response'
+    );
+  }
+}
 
 export function CreateBoardDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [template, setTemplate] = useState<BoardTemplateType>('BLANK');
+  const [coreTemplates, setCoreTemplates] = useState<CoreProjectTemplate[]>([]);
+  const [selectedCoreTemplateId, setSelectedCoreTemplateId] = useState<string>('');
+  const [useBlankTemplate, setUseBlankTemplate] = useState(false);
   const [selectedProjectTemplate, setSelectedProjectTemplate] = useState<string | null>(null);
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [isLoadingCoreTemplates, setIsLoadingCoreTemplates] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch project templates when dialog opens
@@ -68,14 +77,42 @@ export function CreateBoardDialog() {
     }
   }, [open]);
 
+  // Fetch core templates when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setIsLoadingCoreTemplates(true);
+    fetch('/api/settings/core-project-templates')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.templates) {
+          const templates = data.data.templates as CoreProjectTemplate[];
+          setCoreTemplates(templates);
+          if (!selectedCoreTemplateId && templates.length > 0) {
+            setSelectedCoreTemplateId(templates[0].id);
+            setUseBlankTemplate(false);
+          }
+        }
+      })
+      .catch(console.error)
+      .finally(() => setIsLoadingCoreTemplates(false));
+  }, [open, selectedCoreTemplateId]);
+
   const handleSelectProjectTemplate = (templateId: string) => {
     setSelectedProjectTemplate(templateId);
-    setTemplate('BLANK'); // Clear list template selection
+    setUseBlankTemplate(false);
+    setSelectedCoreTemplateId('');
   };
 
-  const handleSelectListTemplate = (templateId: BoardTemplateType) => {
-    setTemplate(templateId);
-    setSelectedProjectTemplate(null); // Clear project template selection
+  const handleSelectCoreTemplate = (templateId: string) => {
+    setSelectedProjectTemplate(null);
+    setUseBlankTemplate(false);
+    setSelectedCoreTemplateId(templateId);
+  };
+
+  const handleSelectBlankTemplate = () => {
+    setSelectedProjectTemplate(null);
+    setSelectedCoreTemplateId('');
+    setUseBlankTemplate(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,17 +131,22 @@ export function CreateBoardDialog() {
           body: JSON.stringify({ name, asTemplate: false }),
         });
       } else {
-        // Create new board with list template
+        // Create new board with core template (or blank)
         response = await fetch('/api/boards', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description, template }),
+          body: JSON.stringify({
+            name,
+            description,
+            template: useBlankTemplate ? 'BLANK' : undefined,
+            coreTemplateId: !useBlankTemplate ? selectedCoreTemplateId || undefined : undefined,
+          }),
         });
       }
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
-      if (!data.success) {
+      if (!data.success || !data.data?.id) {
         setError(data.error?.message || 'Failed to create board');
         return;
       }
@@ -112,7 +154,8 @@ export function CreateBoardDialog() {
       setOpen(false);
       setName('');
       setDescription('');
-      setTemplate('BLANK');
+      setSelectedCoreTemplateId(coreTemplates[0]?.id || '');
+      setUseBlankTemplate(false);
       setSelectedProjectTemplate(null);
       router.push(`/boards/${data.data.id}`);
       router.refresh();
@@ -210,19 +253,47 @@ export function CreateBoardDialog() {
             </div>
           )}
 
-          {/* List Templates Section */}
+          {/* Core Templates / Blank Section */}
           <div className="space-y-2">
-            <Label>{projectTemplates.length > 0 ? 'Or Start Fresh' : 'Template'}</Label>
+            <Label>{projectTemplates.length > 0 ? 'Or Start Fresh' : 'Core Template'}</Label>
             <div className="grid grid-cols-1 gap-2">
-              {(Object.keys(BOARD_TEMPLATES) as BoardTemplateType[]).map((templateId) => {
-                const templateData = BOARD_TEMPLATES[templateId];
-                const Icon = TEMPLATE_ICONS[templateId];
-                const isSelected = template === templateId && !selectedProjectTemplate;
+              <button
+                type="button"
+                onClick={handleSelectBlankTemplate}
+                disabled={isLoading}
+                className={cn(
+                  'flex items-start gap-3 rounded-lg border-2 p-3 text-left transition-colors',
+                  useBlankTemplate && !selectedProjectTemplate
+                    ? 'border-green-500 bg-green-500/10'
+                    : 'border-border hover:border-border-hover hover:bg-surface-hover'
+                )}
+              >
+                <div className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+                  useBlankTemplate && !selectedProjectTemplate ? 'bg-green-500 text-white' : 'bg-surface-hover text-text-secondary'
+                )}>
+                  <LayoutGrid className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={cn(
+                    'font-medium text-body',
+                    useBlankTemplate && !selectedProjectTemplate ? 'text-green-600' : 'text-text-primary'
+                  )}>
+                    Blank Board
+                  </div>
+                  <div className="text-caption text-text-tertiary line-clamp-1">
+                    Start with no pre-created planning blocks.
+                  </div>
+                </div>
+              </button>
+
+              {coreTemplates.map((templateData) => {
+                const isSelected = selectedCoreTemplateId === templateData.id && !selectedProjectTemplate;
                 return (
                   <button
-                    key={templateId}
+                    key={templateData.id}
                     type="button"
-                    onClick={() => handleSelectListTemplate(templateId)}
+                    onClick={() => handleSelectCoreTemplate(templateData.id)}
                     disabled={isLoading}
                     className={cn(
                       'flex items-start gap-3 rounded-lg border-2 p-3 text-left transition-colors',
@@ -235,7 +306,7 @@ export function CreateBoardDialog() {
                       'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
                       isSelected ? 'bg-green-500 text-white' : 'bg-surface-hover text-text-secondary'
                     )}>
-                      <Icon className="h-4 w-4" />
+                      <Layers className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className={cn(
@@ -245,12 +316,16 @@ export function CreateBoardDialog() {
                         {templateData.name}
                       </div>
                       <div className="text-caption text-text-tertiary line-clamp-1">
-                        {templateData.description}
+                        {templateData.description || `${templateData.blocks.length} blocks, ${templateData.events.length} events`}
                       </div>
                     </div>
                   </button>
                 );
               })}
+
+              {isLoadingCoreTemplates && (
+                <div className="text-caption text-text-tertiary px-1">Loading core templates...</div>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">

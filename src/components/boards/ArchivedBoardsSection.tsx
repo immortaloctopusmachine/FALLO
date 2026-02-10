@@ -10,15 +10,18 @@ interface ArchivedBoard {
   description: string | null;
   listCount: number;
   memberCount: number;
+  members: { id: string; name: string | null; image: string | null }[];
   isTemplate: boolean;
   isAdmin: boolean;
 }
 
 interface ArchivedBoardsSectionProps {
   boards: ArchivedBoard[];
+  isSuperAdmin?: boolean;
+  onBoardDeleted?: () => void;
 }
 
-export function ArchivedBoardsSection({ boards }: ArchivedBoardsSectionProps) {
+export function ArchivedBoardsSection({ boards, isSuperAdmin = false, onBoardDeleted }: ArchivedBoardsSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -52,9 +55,12 @@ export function ArchivedBoardsSection({ boards }: ArchivedBoardsSectionProps) {
                 description={board.description}
                 listCount={board.listCount}
                 memberCount={board.memberCount}
+                members={board.members}
                 isTemplate={board.isTemplate}
                 isAdmin={board.isAdmin}
+                isSuperAdmin={isSuperAdmin}
                 isArchived={true}
+                onDeleted={onBoardDeleted}
               />
             ))}
           </div>

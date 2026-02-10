@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { getMonday } from '@/lib/date-utils';
+import { getMonday, formatLocalDateKey } from '@/lib/date-utils';
 import type { UserWeeklyAvailability, TimelineMember } from '@/types';
 
 interface TimelineUserAvailabilityRowProps {
@@ -31,7 +31,8 @@ export function TimelineUserAvailabilityRow({
   isAdmin = false,
 }: TimelineUserAvailabilityRowProps) {
   // Primary role color for cell backgrounds
-  const primaryRoleColor = member.userCompanyRoles[0]?.companyRole.color || null;
+  const primaryRoleColor =
+    member.timelineProjectRole?.color || member.userCompanyRoles[0]?.companyRole.color || null;
 
   // Calculate weeks to display
   const weeks = useMemo(() => {
@@ -52,7 +53,7 @@ export function TimelineUserAvailabilityRow({
 
     availability.forEach(a => {
       if (a.userId !== member.id) return;
-      const weekKey = getMonday(new Date(a.weekStart)).toISOString().split('T')[0];
+      const weekKey = formatLocalDateKey(getMonday(new Date(a.weekStart)));
       map.set(weekKey, a.dedication);
     });
 
@@ -112,7 +113,7 @@ export function TimelineUserAvailabilityRow({
     >
       {/* Week cells */}
       {weeks.map((weekStart) => {
-        const weekKey = weekStart.toISOString().split('T')[0];
+        const weekKey = formatLocalDateKey(weekStart);
         const dedication = availabilityByWeek.get(weekKey);
         const { left, width } = getWeekPosition(weekStart);
         const hasDedication = dedication !== undefined && dedication > 0;

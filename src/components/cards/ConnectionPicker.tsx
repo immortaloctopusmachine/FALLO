@@ -18,6 +18,7 @@ interface ConnectionPickerProps {
   currentCardId: string;
   selectedId: string | null;
   selectedCard?: UserStoryCard | EpicCard | null;
+  candidateCards?: Card[];
   onChange: (id: string | null) => void;
 }
 
@@ -27,6 +28,7 @@ export function ConnectionPicker({
   currentCardId,
   selectedId,
   selectedCard,
+  candidateCards,
   onChange,
 }: ConnectionPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,6 +41,15 @@ export function ConnectionPicker({
   const colorClass = type === 'USER_STORY' ? 'text-card-story' : 'text-card-epic';
 
   const fetchCards = useCallback(async () => {
+    if (candidateCards) {
+      const filteredCandidates = candidateCards.filter(
+        (card) => card.type === type && card.id !== currentCardId
+      );
+      setCards(filteredCandidates);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await fetch(`/api/boards/${boardId}`);
@@ -55,7 +66,7 @@ export function ConnectionPicker({
     } finally {
       setIsLoading(false);
     }
-  }, [boardId, currentCardId, type]);
+  }, [boardId, candidateCards, currentCardId, type]);
 
   useEffect(() => {
     if (isOpen) {

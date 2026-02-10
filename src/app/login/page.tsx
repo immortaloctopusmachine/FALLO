@@ -16,7 +16,11 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSlackLoading, setIsSlackLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  const authRequireSlack = process.env.NEXT_PUBLIC_AUTH_REQUIRE_SLACK === 'true';
+  const slackAuthEnabled = process.env.NEXT_PUBLIC_SLACK_AUTH_ENABLED === 'true';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,44 +47,74 @@ function LoginForm() {
     }
   };
 
+  const handleSlackSignIn = async () => {
+    setIsSlackLoading(true);
+    setLoginError(null);
+    await signIn('slack', { callbackUrl });
+    setIsSlackLoading(false);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
       {(error || loginError) && (
         <div className="rounded-md bg-error/10 p-3 text-sm text-error">
-          {loginError || 'Authentication failed. Please try again.'}
+          {loginError || 'Authentication failed. Please try again. If using Slack, ask an admin to link your Slack profile first.'}
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          disabled={isLoading}
-        />
-      </div>
+      {slackAuthEnabled && (
+        <Button
+          type="button"
+          className="w-full"
+          onClick={() => void handleSlackSignIn()}
+          disabled={isSlackLoading}
+        >
+          {isSlackLoading ? 'Redirecting to Slack...' : 'Sign in with Slack'}
+        </Button>
+      )}
 
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          disabled={isLoading}
-        />
-      </div>
+      {!authRequireSlack && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {slackAuthEnabled && (
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-caption text-text-tertiary">or</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          )}
 
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? 'Signing in...' : 'Sign in'}
-      </Button>
-    </form>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="********"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Sign in with Email'}
+          </Button>
+        </form>
+      )}
+    </div>
   );
 }
 

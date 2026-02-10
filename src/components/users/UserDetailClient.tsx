@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Mail, Calendar, Users, Layers, Sparkles, Pencil, Shield, Clock } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { TeamCard } from '@/components/organization/TeamCard';
 import { EditUserDialog } from './EditUserDialog';
 import { UserDetailSkeleton } from './UserDetailSkeleton';
@@ -13,11 +17,106 @@ import { formatDisplayDate } from '@/lib/date-utils';
 interface UserDetailClientProps {
   userId: string;
   isSuperAdmin: boolean;
+  canManageSlackLink: boolean;
 }
 
-export function UserDetailClient({ userId, isSuperAdmin }: UserDetailClientProps) {
+interface SlackUserOption {
+  id: string;
+  realName: string;
+  displayName: string;
+  image192: string | null;
+  email: string | null;
+}
+
+export function UserDetailClient({ userId, isSuperAdmin, canManageSlackLink }: UserDetailClientProps) {
   const { data, isLoading } = useUserDetail(userId);
+  const queryClient = useQueryClient();
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [slackUsers, setSlackUsers] = useState<SlackUserOption[]>([]);
+  const [selectedSlackUserId, setSelectedSlackUserId] = useState('');
+  const [slackSearch, setSlackSearch] = useState('');
+  const [isLoadingSlackUsers, setIsLoadingSlackUsers] = useState(false);
+  const [isSavingSlackLink, setIsSavingSlackLink] = useState(false);
+  const [slackError, setSlackError] = useState<string | null>(null);
+  const currentlyLinkedSlackUserId = data?.user.slackUserId || '';
+
+  const loadSlackUsers = useCallback(async () => {
+    if (!canManageSlackLink) return;
+
+    setIsLoadingSlackUsers(true);
+    setSlackError(null);
+    try {
+      const response = await fetch('/api/integrations/slack/users');
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || 'Failed to load Slack users');
+      }
+      if (Array.isArray(result.data)) {
+        setSlackUsers(result.data as SlackUserOption[]);
+      } else {
+        setSlackUsers([]);
+      }
+    } catch (error) {
+      setSlackError(error instanceof Error ? error.message : 'Failed to load Slack users');
+      setSlackUsers([]);
+    } finally {
+      setIsLoadingSlackUsers(false);
+    }
+  }, [canManageSlackLink]);
+
+  useEffect(() => {
+    setSelectedSlackUserId(currentlyLinkedSlackUserId);
+  }, [currentlyLinkedSlackUserId]);
+
+  useEffect(() => {
+    void loadSlackUsers();
+  }, [loadSlackUsers]);
+
+  const filteredSlackUsers = useMemo(() => {
+    const query = slackSearch.trim().toLowerCase();
+    if (!query) return slackUsers;
+    return slackUsers.filter((slackUser) => {
+      const fields = [
+        slackUser.displayName,
+        slackUser.realName,
+        slackUser.email || '',
+      ].map((value) => value.toLowerCase());
+      return fields.some((field) => field.includes(query));
+    });
+  }, [slackSearch, slackUsers]);
+
+  const hasSlackSelectionChanges = selectedSlackUserId !== currentlyLinkedSlackUserId;
+
+  const selectedSlackUser =
+    slackUsers.find((slackUser) => slackUser.id === selectedSlackUserId) || null;
+
+  const handleSaveSlackLink = async () => {
+    if (!data) return;
+    if (!hasSlackSelectionChanges) return;
+
+    setIsSavingSlackLink(true);
+    setSlackError(null);
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slackUserId: selectedSlackUserId || null,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || 'Failed to update Slack profile link');
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['users', userId, 'detail'] });
+    } catch (error) {
+      setSlackError(error instanceof Error ? error.message : 'Failed to update Slack profile link');
+    } finally {
+      setIsSavingSlackLink(false);
+    }
+  };
 
   if (isLoading || !data) return <UserDetailSkeleton />;
 
@@ -64,9 +163,11 @@ export function UserDetailClient({ userId, isSuperAdmin }: UserDetailClientProps
           <div className="flex items-start gap-4">
             <div className="relative h-20 w-20 rounded-full bg-surface-hover overflow-hidden">
               {user.image ? (
-                <img
+                <Image
                   src={user.image}
                   alt={user.name || user.email}
+                  width={80}
+                  height={80}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -137,6 +238,83 @@ export function UserDetailClient({ userId, isSuperAdmin }: UserDetailClientProps
         <div className="grid gap-8 lg:grid-cols-3">
           {/* Roles & Skills Section */}
           <div className="lg:col-span-1">
+            {canManageSlackLink && (
+              <div className="mb-6 rounded-lg border border-border bg-surface p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-title font-medium text-text-secondary">
+                    Slack Profile Link
+                  </h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadSlackUsers()}
+                    disabled={isLoadingSlackUsers}
+                  >
+                    {isLoadingSlackUsers ? 'Refreshing...' : 'Refresh'}
+                  </Button>
+                </div>
+
+                <p className="text-caption text-text-tertiary">
+                  Admin-only. Linking sets this user&apos;s avatar from Slack.
+                </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slack-user-search">Search Slack users</Label>
+                  <Input
+                    id="slack-user-search"
+                    placeholder="Name or email..."
+                    value={slackSearch}
+                    onChange={(e) => setSlackSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slack-user-select">Slack profile</Label>
+                  <select
+                    id="slack-user-select"
+                    value={selectedSlackUserId}
+                    onChange={(e) => setSelectedSlackUserId(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    disabled={isLoadingSlackUsers}
+                  >
+                    <option value="">Unlinked</option>
+                    {filteredSlackUsers.map((slackUser) => {
+                      const label = slackUser.displayName || slackUser.realName || slackUser.id;
+                      const emailPart = slackUser.email ? ` (${slackUser.email})` : '';
+                      return (
+                        <option key={slackUser.id} value={slackUser.id}>
+                          {label}
+                          {emailPart}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <p className="text-caption text-text-tertiary">
+                    Showing {filteredSlackUsers.length} of {slackUsers.length} users.
+                  </p>
+                </div>
+
+                {selectedSlackUser ? (
+                  <div className="text-caption text-text-secondary">
+                    Selected: {selectedSlackUser.displayName || selectedSlackUser.realName || selectedSlackUser.id}
+                  </div>
+                ) : null}
+
+                {slackError ? (
+                  <div className="text-caption text-error">{slackError}</div>
+                ) : null}
+
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveSlackLink()}
+                  disabled={!hasSlackSelectionChanges || isSavingSlackLink}
+                >
+                  {isSavingSlackLink ? 'Saving...' : 'Save Slack Link'}
+                </Button>
+              </div>
+            )}
+
             {/* Company Roles */}
             {(user.userCompanyRoles || []).length > 0 && (
               <div className="mb-6">

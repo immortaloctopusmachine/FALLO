@@ -1,8 +1,63 @@
 import { prisma } from '@/lib/prisma';
 import { BOARD_TEMPLATES, calculateListDates } from '@/lib/list-templates';
+import { addBusinessDays, snapToMonday } from '@/lib/date-utils';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
+import { getPhaseFromBlockType } from '@/lib/constants';
 import type { BoardTemplateType, ListViewType, ListPhase, BoardSettings } from '@/types';
+
+const CORE_TEMPLATE_TASK_LISTS = BOARD_TEMPLATES.STANDARD_SLOT.taskLists;
+
+async function findBlockTypeForList(list: {
+  name: string;
+  phase: string | null;
+  color: string | null;
+}) {
+  const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
+  const listNameLower = list.name.toLowerCase();
+
+  let blockType = null;
+
+  if (searchTerms) {
+    for (const term of searchTerms) {
+      blockType = await prisma.blockType.findFirst({
+        where: { name: { contains: term, mode: 'insensitive' } },
+      });
+      if (blockType) break;
+    }
+  }
+
+  if (!blockType) {
+    const nameParts = listNameLower.split(/[\s\/\-]+/);
+    for (const part of nameParts) {
+      if (part.length > 2) {
+        blockType = await prisma.blockType.findFirst({
+          where: { name: { contains: part, mode: 'insensitive' } },
+        });
+        if (blockType) break;
+      }
+    }
+  }
+
+  if (!blockType) {
+    blockType = await prisma.blockType.findFirst({
+      where: { isDefault: true },
+    });
+  }
+
+  if (!blockType) {
+    blockType = await prisma.blockType.create({
+      data: {
+        name: list.name,
+        color: list.color || '#6B7280',
+        isDefault: false,
+        position: 0,
+      },
+    });
+  }
+
+  return blockType;
+}
 
 // GET /api/boards - Get all boards for current user
 // Query params:
@@ -138,40 +193,92 @@ export async function POST(request: Request) {
     if (response) return response;
 
     const body = await request.json();
-    const { name, description, template = 'BLANK', teamId, startDate, memberIds } = body;
+    const {
+      name,
+      description,
+      template = 'BLANK',
+      coreTemplateId,
+      teamId,
+      startDate,
+      memberIds,
+    } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return ApiErrors.validation('Board name is required');
     }
 
-    // Get template configuration
     const templateType = template as BoardTemplateType;
     const templateConfig = BOARD_TEMPLATES[templateType] || BOARD_TEMPLATES.BLANK;
 
-    // Calculate list dates if startDate is provided
-    let listDates: { listName: string; startDate: Date; endDate: Date; durationDays?: number }[] = [];
-    if (startDate && templateType !== 'BLANK') {
-      listDates = calculateListDates(templateConfig, new Date(startDate));
+    const coreTemplate = coreTemplateId
+      ? await prisma.coreProjectTemplate.findFirst({
+          where: {
+            id: coreTemplateId as string,
+            archivedAt: null,
+          },
+          include: {
+            blocks: {
+              include: { blockType: true },
+              orderBy: { position: 'asc' },
+            },
+            events: {
+              include: { eventType: true },
+              orderBy: { position: 'asc' },
+            },
+          },
+        })
+      : null;
+
+    if (coreTemplateId && !coreTemplate) {
+      return ApiErrors.validation('Invalid core template');
     }
 
-    // Build list creation data from template
-    const listsToCreate = [
-      ...templateConfig.taskLists.map((list) => ({
-        name: list.name,
-        position: list.position,
-        viewType: list.viewType as ListViewType,
-        phase: list.phase as ListPhase | undefined,
-        color: list.color,
-        durationWeeks: list.durationWeeks,
-      })),
-      ...templateConfig.planningLists.map((list, idx) => {
-        // Find matching date entry if dates were calculated
-        const dateEntry = listDates.find((d) =>
-          d.listName.toLowerCase() === list.name.toLowerCase()
-        );
-        return {
+    // Build planning sequence either from dynamic core template or legacy hardcoded template.
+    const planningRows: {
+      name: string;
+      viewType: ListViewType;
+      phase?: ListPhase | null;
+      color?: string | null;
+      durationWeeks?: number | null;
+      durationDays?: number | null;
+      startDate?: Date | null;
+      endDate?: Date | null;
+    }[] = [];
+
+    if (coreTemplate) {
+      const counters = new Map<string, number>();
+      const hasDates = Boolean(startDate);
+      let cursor = hasDates ? snapToMonday(new Date(startDate as string)) : null;
+
+      for (const blockRow of coreTemplate.blocks) {
+        const next = (counters.get(blockRow.blockTypeId) ?? 0) + 1;
+        counters.set(blockRow.blockTypeId, next);
+
+        const phase = getPhaseFromBlockType(blockRow.blockType.name);
+        const blockStart = cursor ? new Date(cursor) : null;
+        const blockEnd = cursor ? addBusinessDays(blockStart!, 4) : null;
+
+        planningRows.push({
+          name: `${blockRow.blockType.name} ${next}`,
+          viewType: 'PLANNING',
+          phase,
+          color: blockRow.blockType.color,
+          durationWeeks: 0,
+          durationDays: 5,
+          startDate: blockStart,
+          endDate: blockEnd,
+        });
+
+        if (cursor) {
+          cursor = addBusinessDays(blockEnd!, 1);
+        }
+      }
+    } else if (startDate && templateType !== 'BLANK') {
+      const listDates = calculateListDates(templateConfig, new Date(startDate));
+      for (const list of templateConfig.planningLists) {
+        const dateEntry = listDates.find((d) => d.listName.toLowerCase() === list.name.toLowerCase());
+        planningRows.push({
           name: list.name,
-          position: templateConfig.taskLists.length + idx,
           viewType: list.viewType as ListViewType,
           phase: list.phase as ListPhase | undefined,
           color: list.color,
@@ -179,15 +286,54 @@ export async function POST(request: Request) {
           durationDays: dateEntry?.durationDays,
           startDate: dateEntry?.startDate,
           endDate: dateEntry?.endDate,
+        });
+      }
+    } else {
+      for (const list of templateConfig.planningLists) {
+        planningRows.push({
+          name: list.name,
+          viewType: list.viewType as ListViewType,
+          phase: list.phase as ListPhase | undefined,
+          color: list.color,
+          durationWeeks: list.durationWeeks,
+        });
+      }
+    }
+
+    const taskRows = coreTemplate ? CORE_TEMPLATE_TASK_LISTS : templateConfig.taskLists;
+
+    const listsToCreate = [
+      ...taskRows.map((list) => ({
+        name: list.name,
+        position: list.position,
+        viewType: list.viewType as ListViewType,
+        phase: list.phase as ListPhase | undefined,
+        color: list.color,
+        durationWeeks: list.durationWeeks,
+      })),
+      ...planningRows.map((list, idx) => {
+        return {
+          name: list.name,
+          position: taskRows.length + idx,
+          viewType: list.viewType as ListViewType,
+          phase: list.phase as ListPhase | undefined,
+          color: list.color,
+          durationWeeks: list.durationWeeks,
+          durationDays: list.durationDays ?? undefined,
+          startDate: list.startDate ?? undefined,
+          endDate: list.endDate ?? undefined,
         };
       }),
     ];
 
     // Store which template was used in settings (for non-BLANK templates)
     // Using Partial<BoardSettings> to allow incremental building, cast for Prisma JSON field
-    const settings: Partial<BoardSettings> = templateType !== 'BLANK'
-      ? { listTemplate: templateType as BoardSettings['listTemplate'] }
-      : {};
+    const settings: Partial<BoardSettings> = {};
+    if (coreTemplate) {
+      settings.coreProjectTemplateId = coreTemplate.id;
+    } else if (templateType !== 'BLANK') {
+      settings.listTemplate = templateType as BoardSettings['listTemplate'];
+    }
 
     // Store project start date in settings
     if (startDate) {
@@ -257,7 +403,7 @@ export async function POST(request: Request) {
     });
 
     // If start date is provided and we have planning lists with dates, create timeline blocks
-    if (startDate && templateType !== 'BLANK') {
+    if (startDate && (coreTemplate || templateType !== 'BLANK')) {
       const planningLists = await prisma.list.findMany({
         where: {
           boardId: board.id,
@@ -269,54 +415,13 @@ export async function POST(request: Request) {
       });
 
       // Create timeline blocks for each planning list
-      let blockPosition = 0;
-      for (const list of planningLists) {
-        // Find matching block type using centralized phase search terms
-        const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
-        const listNameLower = list.name.toLowerCase();
-
-        let blockType = null;
-
-        // First try by phase
-        if (searchTerms) {
-          for (const term of searchTerms) {
-            blockType = await prisma.blockType.findFirst({
-              where: { name: { contains: term, mode: 'insensitive' } },
-            });
-            if (blockType) break;
-          }
-        }
-
-        // Try by list name
-        if (!blockType) {
-          const nameParts = listNameLower.split(/[\s\/\-]+/);
-          for (const part of nameParts) {
-            if (part.length > 2) {
-              blockType = await prisma.blockType.findFirst({
-                where: { name: { contains: part, mode: 'insensitive' } },
-              });
-              if (blockType) break;
-            }
-          }
-        }
-
-        // Use default or create new
-        if (!blockType) {
-          blockType = await prisma.blockType.findFirst({
-            where: { isDefault: true },
-          });
-        }
-
-        if (!blockType) {
-          blockType = await prisma.blockType.create({
-            data: {
-              name: list.name,
-              color: list.color || '#6B7280',
-              isDefault: false,
-              position: 0,
-            },
-          });
-        }
+      for (let i = 0; i < planningLists.length; i++) {
+        const list = planningLists[i];
+        const explicitBlockTypeId = coreTemplate?.blocks[i]?.blockTypeId;
+        const blockType = explicitBlockTypeId
+          ? await prisma.blockType.findUnique({ where: { id: explicitBlockTypeId } }) ??
+            await findBlockTypeForList(list)
+          : await findBlockTypeForList(list);
 
         // Create timeline block
         await prisma.timelineBlock.create({
@@ -326,9 +431,33 @@ export async function POST(request: Request) {
             listId: list.id,
             startDate: list.startDate!,
             endDate: list.endDate!,
-            position: blockPosition++,
+            position: i + 1,
           },
         });
+      }
+
+      if (coreTemplate && coreTemplate.events.length > 0) {
+        const firstDate = snapToMonday(new Date(startDate as string));
+        const useLegacyIndexOffset = coreTemplate.events.every((event) => (event as { unitOffset?: number }).unitOffset === 0);
+        for (let i = 0; i < coreTemplate.events.length; i++) {
+          const templateEvent = coreTemplate.events[i];
+          const explicitUnitOffset = Math.max(
+            0,
+            Math.floor((templateEvent as { unitOffset?: number }).unitOffset ?? 0)
+          );
+          const unitOffset = useLegacyIndexOffset ? i * 5 : explicitUnitOffset;
+          const eventDate = addBusinessDays(firstDate, unitOffset);
+
+          await prisma.timelineEvent.create({
+            data: {
+              boardId: board.id,
+              eventTypeId: templateEvent.eventTypeId,
+              title: templateEvent.title?.trim() || templateEvent.eventType.name,
+              startDate: eventDate,
+              endDate: eventDate,
+            },
+          });
+        }
       }
 
       // Update board settings with lastDayAnimationTweaks

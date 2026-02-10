@@ -45,7 +45,7 @@ export function TimelineProjectRow({
   onAddEvent,
   selectedBlockId,
   selectedEventId,
-  totalColumns,
+  totalColumns: _totalColumns,
   minWidth,
   isAdmin = false,
 }: TimelineProjectRowProps) {

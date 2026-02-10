@@ -1,6 +1,8 @@
 'use client';
 
 export function TimelineSkeleton() {
+  const blockWidths = [180, 240, 200, 260];
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header bar */}
@@ -42,7 +44,7 @@ export function TimelineSkeleton() {
             <div key={i} className="flex gap-1 items-center">
               <div
                 className="h-10 animate-pulse rounded bg-surface-hover"
-                style={{ width: `${120 + Math.random() * 200}px` }}
+                style={{ width: `${blockWidths[i % blockWidths.length]}px` }}
               />
             </div>
           ))}

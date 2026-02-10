@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import type { BoardSettings } from '@/types';
 
 // Matches the shape returned by GET /api/boards
 interface BoardListItem {
@@ -7,6 +8,7 @@ interface BoardListItem {
   name: string;
   description: string | null;
   isTemplate: boolean;
+  settings: BoardSettings;
   members: {
     id: string;
     userId: string;
@@ -30,6 +32,7 @@ interface ArchivedBoardItem {
   name: string;
   description: string | null;
   isTemplate: boolean;
+  settings: BoardSettings;
   members: {
     id: string;
     userId: string;
@@ -47,6 +50,8 @@ interface ArchivedBoardItem {
   }[];
 }
 
+type BoardScope = 'light' | 'full';
+
 export function useBoards() {
   return useQuery({
     queryKey: ['boards'],
@@ -62,10 +67,14 @@ export function useArchivedBoards() {
 }
 
 // The board detail response includes enhanced lists with computed card stats
-export function useBoard(boardId: string) {
+export function useBoard(boardId: string, scope: BoardScope = 'light', enabled = true) {
   return useQuery({
-    queryKey: ['boards', boardId],
-    queryFn: () => apiFetch<Record<string, unknown>>(`/api/boards/${boardId}`),
-    enabled: !!boardId,
+    queryKey: ['boards', boardId, scope],
+    queryFn: () => apiFetch<Record<string, unknown>>(`/api/boards/${boardId}?scope=${scope}`),
+    enabled: !!boardId && enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 }

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getSlackUserProfile, isSlackConfigured } from '@/lib/slack';
 import {
   requireAuth,
   apiSuccess,
@@ -26,6 +27,9 @@ export async function GET(
         name: true,
         email: true,
         image: true,
+        slackUserId: true,
+        slackDisplayName: true,
+        slackAvatarUrl: true,
         permission: true,
         createdAt: true,
         teamMembers: {
@@ -161,7 +165,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, image, permission, teamIds, skillIds, companyRoleIds } = body;
+    const { name, image, permission, teamIds, skillIds, companyRoleIds, slackUserId } = body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -187,6 +191,39 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name?.trim() || null;
     if (image !== undefined) updateData.image = image || null;
+    if (slackUserId !== undefined && !isAdmin) {
+      return ApiErrors.forbidden('Admin access required to manage Slack profile links');
+    }
+
+    if (slackUserId !== undefined && isAdmin) {
+      if (slackUserId === null || slackUserId === '') {
+        updateData.slackUserId = null;
+        updateData.slackDisplayName = null;
+        updateData.slackAvatarUrl = null;
+      } else if (typeof slackUserId === 'string') {
+        if (!isSlackConfigured()) {
+          return ApiErrors.validation('Slack integration is not configured');
+        }
+        const slackUser = await getSlackUserProfile(slackUserId.trim());
+        if (!slackUser) {
+          return ApiErrors.validation('Selected Slack user was not found');
+        }
+        const existingSlackLink = await prisma.user.findFirst({
+          where: {
+            slackUserId: slackUser.id,
+            id: { not: userId },
+          },
+          select: { id: true },
+        });
+        if (existingSlackLink) {
+          return ApiErrors.conflict('Slack user is already linked to another app user');
+        }
+        updateData.slackUserId = slackUser.id;
+        updateData.slackDisplayName = slackUser.displayName || slackUser.realName || null;
+        updateData.slackAvatarUrl = slackUser.image192;
+        updateData.image = slackUser.image192 || null;
+      }
+    }
     // Only Super Admins can change permissions
     if (permission !== undefined && isSuperAdmin) updateData.permission = permission;
 
@@ -262,6 +299,9 @@ export async function PATCH(
         name: true,
         email: true,
         image: true,
+        slackUserId: true,
+        slackDisplayName: true,
+        slackAvatarUrl: true,
         permission: true,
         teamMembers: {
           include: {

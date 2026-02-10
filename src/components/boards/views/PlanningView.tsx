@@ -18,7 +18,8 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { useBoardMutations } from '@/hooks/api/use-board-mutations';
 import {
   Plus,
   ChevronDown,
@@ -60,7 +61,6 @@ interface PlanningViewProps {
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
   isAdmin?: boolean;
-  onBoardUpdate?: (board: Board) => void;
 }
 
 // Epic health status
@@ -81,29 +81,17 @@ export function PlanningView({
   currentUserId,
   weeklyProgress = [],
   isAdmin: _isAdmin = false,
-  onBoardUpdate,
 }: PlanningViewProps) {
-  const router = useRouter();
   const [localBoard, setLocalBoard] = useState(initialBoard);
+  const mutations = useBoardMutations(initialBoard.id);
+  const boardSnapshotRef = useRef<Board | null>(null);
 
   // Sync with parent's board state when initialBoard changes
   useEffect(() => {
     setLocalBoard(initialBoard);
   }, [initialBoard]);
 
-  // Notify parent when localBoard changes (excluding initial sync)
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    if (onBoardUpdate) {
-      onBoardUpdate(localBoard);
-    }
-  }, [localBoard, onBoardUpdate]);
-
-  // Wrapper to update local state (parent is notified via useEffect)
+  // Wrapper to update local state
   const setBoard = useCallback((updater: Board | ((prev: Board) => Board)) => {
     setLocalBoard((prev) => {
       const newBoard = typeof updater === 'function' ? updater(prev) : updater;
@@ -164,6 +152,8 @@ export function PlanningView({
   const taskLists = useMemo(() => {
     return board.lists.filter(list => list.viewType === 'TASKS' || !list.viewType);
   }, [board.lists]);
+
+  const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
 
   // Get the "Done" list from Tasks view to calculate completed points
   const doneListId = useMemo(() => {
@@ -316,6 +306,7 @@ export function PlanningView({
     const activeData = active.data.current;
 
     if (activeData?.type === 'card') {
+      boardSnapshotRef.current = board; // snapshot for rollback
       setActiveCard(activeData.card);
       setActiveCardListId(activeData.card.listId);
     }
@@ -398,6 +389,8 @@ export function PlanningView({
     }
 
     const destinationListId = currentList.id;
+    let didMove = sourceListId !== destinationListId;
+    let newPosition = currentList.cards.findIndex((c) => c.id === activeCard.id);
 
     if (over && active.id !== over.id) {
       const overData = over.data.current;
@@ -407,6 +400,8 @@ export function PlanningView({
         const newIndex = currentList.cards.findIndex((c) => c.id === over.id);
 
         if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          didMove = true;
+          newPosition = newIndex;
           setBoard((prev) => ({
             ...prev,
             lists: prev.lists.map((l) => {
@@ -423,25 +418,29 @@ export function PlanningView({
       }
     }
 
-    const finalList = board.lists.find((l) => l.id === destinationListId);
-    const newPosition = finalList?.cards.findIndex((c) => c.id === activeCard.id) ?? 0;
+    if (!didMove || newPosition < 0) {
+      boardSnapshotRef.current = null;
+      setActiveCard(null);
+      setActiveCardListId(null);
+      return;
+    }
 
     try {
-      await fetch(`/api/boards/${board.id}/cards/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cardId: activeCard.id,
-          sourceListId,
-          destinationListId,
-          newPosition,
-        }),
+      await mutations.reorderCard({
+        cardId: activeCard.id,
+        sourceListId,
+        destinationListId,
+        newPosition,
       });
     } catch (error) {
       console.error('Failed to reorder card:', error);
-      router.refresh();
+      if (boardSnapshotRef.current) {
+        setBoard(boardSnapshotRef.current);
+      }
+      toast.error('Failed to move card');
     }
 
+    boardSnapshotRef.current = null;
     setActiveCard(null);
     setActiveCardListId(null);
   };
@@ -575,32 +574,55 @@ export function PlanningView({
 
   const handleAddUserStory = useCallback(async (listId: string, title: string, _type?: CardType) => {
     // In Planning view, we always create USER_STORY cards regardless of what's passed
-    try {
-      const response = await fetch(`/api/boards/${board.id}/cards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, type: 'USER_STORY', listId }),
-      });
+    const tempId = crypto.randomUUID();
+    const tempCard: UserStoryCard = {
+      id: tempId,
+      type: 'USER_STORY',
+      title,
+      description: null,
+      position: 999,
+      color: null,
+      featureImage: null,
+      featureImagePosition: 50,
+      listId,
+      parentId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      archivedAt: null,
+      userStoryData: { flags: [], linkedEpicId: null },
+    };
 
-      const data = await response.json();
-      if (data.success) {
-        setBoard((prev) => ({
-          ...prev,
-          lists: prev.lists.map((list) => {
-            if (list.id === listId) {
-              return {
-                ...list,
-                cards: [...list.cards, data.data],
-              };
-            }
-            return list;
-          }),
-        }));
-      }
+    // Optimistic: show card immediately
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) =>
+        list.id === listId ? { ...list, cards: [...list.cards, tempCard] } : list
+      ),
+    }));
+
+    try {
+      const realCard = await mutations.createCard({ title, type: 'USER_STORY', listId });
+      // Replace temp with real server data
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) => ({
+          ...list,
+          cards: list.cards.map((c) => (c.id === tempId ? realCard : c)),
+        })),
+      }));
     } catch (error) {
       console.error('Failed to add card:', error);
+      // Remove temp card
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) => ({
+          ...list,
+          cards: list.cards.filter((c) => c.id !== tempId),
+        })),
+      }));
+      toast.error('Failed to create user story');
     }
-  }, [board.id, setBoard]);
+  }, [setBoard, mutations]);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -627,20 +649,20 @@ export function PlanningView({
     }));
   }, [setBoard]);
 
-  const handleRefreshBoard = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/boards/${board.id}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setBoard(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to refresh board:', error);
-    }
-  }, [board.id, setBoard]);
+  const handleLinkedCardCreated = useCallback((newCard: Card) => {
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) => {
+        if (list.id !== newCard.listId) return list;
+        if (list.cards.some((card) => card.id === newCard.id)) return list;
+        return { ...list, cards: [...list.cards, newCard] };
+      }),
+    }));
+  }, [setBoard]);
+
+  const handleRefreshBoard = useCallback(() => {
+    mutations.invalidateBoard();
+  }, [mutations]);
 
   const handleReleaseStagedTask = useCallback(async (task: TaskCard) => {
     const releaseTargetListId =
@@ -755,14 +777,15 @@ export function PlanningView({
       const data = await response.json();
       if (data.success && data.data.created > 0) {
         // Refresh the board to get updated timeline block info
-        router.refresh();
+        mutations.invalidateBoard();
       }
     } catch (error) {
       console.error('Failed to sync timeline:', error);
+      toast.error('Failed to sync timeline');
     } finally {
       setIsSyncingTimeline(false);
     }
-  }, [board.id, router]);
+  }, [board.id, mutations]);
 
   // Check if any planning lists are missing timeline blocks
   const hasUnsyncedLists = useMemo(() => {
@@ -1083,7 +1106,7 @@ export function PlanningView({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex gap-4 overflow-x-auto p-4">
+            <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
               {planningListSections.map((list) => renderPlanningListColumn(list))}
             </div>
           )}
@@ -1169,7 +1192,7 @@ export function PlanningView({
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex-1 flex gap-4 overflow-x-auto p-4">
+            <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
               {planningListSections.map((list) => (
                 <SortableContext
                   key={list.id}
@@ -1200,11 +1223,12 @@ export function PlanningView({
         onClose={() => setSelectedCard(null)}
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
-        onRefreshBoard={handleRefreshBoard}
+        onLinkedCardCreated={handleLinkedCardCreated}
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
         taskLists={taskLists}
         planningLists={planningLists}
+        allCards={allCards}
       />
     </div>
   );

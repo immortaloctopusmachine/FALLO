@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Users, Layers, Plus, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateUserDialog } from './CreateUserDialog';
@@ -110,9 +111,11 @@ export function UsersPageClient({ isSuperAdmin }: UsersPageClientProps) {
                   <Link href={`/users/${user.id}`} className="flex items-center gap-3">
                     <div className="relative h-9 w-9 rounded-full bg-surface-hover overflow-hidden">
                       {user.image ? (
-                        <img
+                        <Image
                           src={user.image}
                           alt={user.name || user.email}
+                          width={36}
+                          height={36}
                           className="h-full w-full object-cover"
                         />
                       ) : (

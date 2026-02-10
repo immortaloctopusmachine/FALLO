@@ -18,17 +18,21 @@ export async function GET(
     if (authResponse) return authResponse;
 
     const { boardId } = await params;
+    const { searchParams } = new URL(request.url);
+    const scope = searchParams.get('scope') === 'light' ? 'light' : 'full';
+    const isLightScope = scope === 'light';
 
-    // Lazy fallback: process due staged tasks whenever board data is fetched.
-    // This keeps releases flowing even if cron is delayed or unavailable.
-    try {
-      await processDueStagedTasks({ boardId });
-    } catch (releaseError) {
-      console.error('Lazy staged-task release failed:', releaseError);
+    if (scope === 'full') {
+      // Lazy fallback: process due staged tasks whenever full board data is fetched.
+      // This keeps releases flowing even if cron is delayed or unavailable.
+      try {
+        await processDueStagedTasks({ boardId });
+      } catch (releaseError) {
+        console.error('Lazy staged-task release failed:', releaseError);
+      }
     }
 
-    const [board, weeklyProgress] = await Promise.all([
-      prisma.board.findFirst({
+    const board = await prisma.board.findFirst({
       where: {
         id: boardId,
         members: {
@@ -77,9 +81,27 @@ export async function GET(
                   },
                 },
                 checklists: {
-                  include: {
-                    items: true,
-                  },
+                  ...(isLightScope
+                    ? {
+                        select: {
+                          id: true,
+                          name: true,
+                          type: true,
+                          position: true,
+                          createdAt: true,
+                          items: {
+                            select: {
+                              id: true,
+                              isComplete: true,
+                            },
+                          },
+                        },
+                      }
+                    : {
+                        include: {
+                          items: true,
+                        },
+                      }),
                 },
               },
             },
@@ -98,22 +120,44 @@ export async function GET(
           },
         },
       }
-      }),
-      prisma.weeklyProgress.findMany({
-        where: { boardId },
-        orderBy: { weekStartDate: 'asc' },
-      }),
-    ]);
+    });
 
     if (!board) {
       return ApiErrors.notFound('Board');
     }
 
+    const listsWithTimeline = board.lists.map((list) => ({
+      ...list,
+      timelineBlockId: list.timelineBlock?.id || null,
+      timelineBlock: list.timelineBlock
+        ? {
+            id: list.timelineBlock.id,
+            blockType: list.timelineBlock.blockType,
+          }
+        : null,
+    }));
+
+    if (scope === 'light') {
+      return NextResponse.json(
+        { success: true, data: { ...board, lists: listsWithTimeline, weeklyProgress: [] } },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      );
+    }
+
+    const weeklyProgress = await prisma.weeklyProgress.findMany({
+      where: { boardId },
+      orderBy: { weekStartDate: 'asc' },
+    });
+
     // Collect all cards across all lists, attaching list info to each card
-    type CardWithList = typeof board.lists[0]['cards'][0] & {
+    type CardWithList = typeof listsWithTimeline[0]['cards'][0] & {
       list: { id: string; name: string; phase: string | null };
     };
-    const allCards: CardWithList[] = board.lists.flatMap(list =>
+    const allCards: CardWithList[] = listsWithTimeline.flatMap(list =>
       list.cards.map(card => ({
         ...card,
         list: { id: list.id, name: list.name, phase: list.phase },
@@ -150,14 +194,8 @@ export async function GET(
     };
 
     // Enhance cards with computed stats and include timeline block info
-    const enhancedLists = board.lists.map(list => ({
+    const enhancedLists = listsWithTimeline.map(list => ({
       ...list,
-      // Add timeline block info for sync indicator
-      timelineBlockId: list.timelineBlock?.id || null,
-      timelineBlock: list.timelineBlock ? {
-        id: list.timelineBlock.id,
-        blockType: list.timelineBlock.blockType,
-      } : null,
       cards: list.cards.map(card => {
         if (card.type === 'USER_STORY') {
           const connectedTasks = tasksByUserStory.get(card.id) || [];
@@ -256,7 +294,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/boards/[boardId] - Archive board
+// DELETE /api/boards/[boardId] - Archive board (or permanently delete with ?permanent=true)
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ boardId: string }> }
@@ -266,7 +304,44 @@ export async function DELETE(
     if (authResponse) return authResponse;
 
     const { boardId } = await params;
+    const { searchParams } = new URL(request.url);
+    const permanent = searchParams.get('permanent') === 'true';
 
+    if (permanent) {
+      // Permanent delete: board admin or super admin required, board must be archived
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { permission: true },
+      });
+      const isSuperAdmin = user?.permission === 'SUPER_ADMIN';
+
+      if (!isSuperAdmin) {
+        // Not super admin — check board-level admin
+        const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+        if (adminResponse) return adminResponse;
+      }
+
+      const board = await prisma.board.findUnique({
+        where: { id: boardId },
+        select: { archivedAt: true },
+      });
+
+      if (!board) {
+        return ApiErrors.notFound('Board');
+      }
+
+      if (!board.archivedAt) {
+        return ApiErrors.validation('Only archived boards can be permanently deleted');
+      }
+
+      await prisma.board.delete({
+        where: { id: boardId },
+      });
+
+      return apiSuccess(null);
+    }
+
+    // Soft delete (archive)
     const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
     if (adminResponse) return adminResponse;
 

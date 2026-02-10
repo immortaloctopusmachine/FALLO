@@ -35,6 +35,8 @@ export interface TaskCardData {
   deadline: string | null;
   linkedUserStoryId: string | null;
   linkedEpicId: string | null;
+  // Task dependency chain
+  dependsOnTaskId?: string | null;
   // Task release staging metadata
   releaseMode?: TaskReleaseMode;
   stagedFromPlanningListId?: string | null;
@@ -131,6 +133,9 @@ export interface User {
   email: string;
   name: string | null;
   image: string | null;
+  slackUserId?: string | null;
+  slackDisplayName?: string | null;
+  slackAvatarUrl?: string | null;
   permission: UserPermission;
   deletedAt?: string | null;
   userCompanyRoles?: UserCompanyRole[];
@@ -236,6 +241,7 @@ export interface BoardSettings {
   lastDayAnimationTweaks?: string;     // ISO date string
   releaseDate?: string;                // ISO date string
   listTemplate?: ListTemplateType;     // Which list template is used
+  coreProjectTemplateId?: string;      // Dynamic core template used to create planning blocks/events
 
   // Project links
   projectLinks?: {
@@ -245,6 +251,51 @@ export interface BoardSettings {
     gameSheetInfo?: string;
     gameNameBrainstorming?: string;
   };
+
+  // Slack integration
+  slackChannelId?: string;
+  slackAlertsEnabled?: boolean;
+  slackSlowProgressThresholdPct?: number;
+
+  // Project-specific role rows (separate from company roles on user profiles)
+  projectRoleAssignments?: {
+    id: string;
+    roleId: string;
+    roleName: string;
+    roleColor?: string | null;
+    userId: string;
+  }[];
+
+  // Board background
+  backgroundType?: 'none' | 'gradient' | 'image';
+  backgroundGradient?: string;
+  backgroundImageUrl?: string;
+}
+
+export interface CoreProjectTemplateBlockItem {
+  id: string;
+  position: number;
+  blockTypeId: string;
+  blockType: BlockType;
+}
+
+export interface CoreProjectTemplateEventItem {
+  id: string;
+  position: number;
+  unitOffset: number;
+  title: string | null;
+  eventTypeId: string;
+  eventType: EventType;
+}
+
+export interface CoreProjectTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  position: number;
+  blocks: CoreProjectTemplateBlockItem[];
+  events: CoreProjectTemplateEventItem[];
 }
 
 // Weekly progress for burn-up charts
@@ -325,6 +376,13 @@ export interface TimelineBlock {
     name: string;
     phase: string | null;
   } | null;
+  metrics?: {
+    userStoryCount: number;
+    totalStoryPoints: number;
+    completedStoryPoints: number;
+    completedTaskCount: number;
+    taskCount: number;
+  };
 }
 
 // User weekly availability per board (project)
@@ -376,6 +434,11 @@ export interface TimelineMember {
   name: string | null;
   email: string;
   image: string | null;
+  timelineProjectRole?: {
+    id: string;
+    name: string;
+    color: string | null;
+  } | null;
   userCompanyRoles: {
     companyRole: {
       id: string;
@@ -394,6 +457,13 @@ export interface TimelineData {
     teamId: string | null;
     team: Team | null;
     members: TimelineMember[];
+    projectRoleAssignments?: {
+      id: string;
+      roleId: string;
+      roleName: string;
+      roleColor: string | null;
+      userId: string;
+    }[];
   };
   blocks: TimelineBlock[];
   events: TimelineEvent[];

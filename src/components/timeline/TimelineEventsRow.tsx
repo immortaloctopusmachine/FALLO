@@ -31,7 +31,7 @@ export function TimelineEventsRow({
   onAddEvent,
   onEventMove,
   selectedEventId,
-  totalColumns,
+  totalColumns: _totalColumns,
   isAdmin = false,
 }: TimelineEventsRowProps) {
   // Drag state for events

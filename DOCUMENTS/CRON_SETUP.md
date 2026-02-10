@@ -82,3 +82,11 @@ Expected:
 
 - Endpoint rejects requests without valid secret.
 - Lazy fallback also runs on board fetch (`GET /api/boards/[boardId]`) if cron is delayed.
+
+## Security Follow-up
+
+- If a Vercel deployment-protection bypass token was shared in chat, rotate it immediately after testing.
+- In Vercel: `Project Settings -> Deployment Protection -> Protection Bypass for Automation`
+  - Revoke old token
+  - Create new token
+  - Update any automation using that token

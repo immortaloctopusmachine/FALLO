@@ -44,6 +44,9 @@ interface UserDetailData {
   name: string | null;
   email: string;
   image: string | null;
+  slackUserId?: string | null;
+  slackDisplayName?: string | null;
+  slackAvatarUrl?: string | null;
   permission: string;
   createdAt: string;
   teamMembers: {

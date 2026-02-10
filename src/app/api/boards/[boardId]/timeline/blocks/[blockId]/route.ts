@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getMonday, getFriday } from '@/lib/date-utils';
+import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
 import {
   requireAuth,
   requireAdmin,
@@ -167,7 +168,27 @@ export async function PATCH(
       });
     }
 
-    return apiSuccess(block);
+    await renumberTimelineBlockPositions(boardId);
+
+    const renumberedBlock = await prisma.timelineBlock.findUnique({
+      where: { id: block.id },
+      include: {
+        blockType: true,
+        list: {
+          select: {
+            id: true,
+            name: true,
+            phase: true,
+          },
+        },
+      },
+    });
+
+    if (!renumberedBlock) {
+      return ApiErrors.notFound('Block');
+    }
+
+    return apiSuccess(renumberedBlock);
   } catch (error) {
     console.error('Failed to update timeline block:', error);
     return ApiErrors.internal('Failed to update timeline block');
@@ -203,9 +224,13 @@ export async function DELETE(
 
     // Parse body for options
     let deleteLinkedList = true;
+    let destinationListId: string | null = null;
+    let deleteCards = false;
     try {
       const body = await request.json();
       deleteLinkedList = body.deleteLinkedList !== false;
+      destinationListId = typeof body.destinationListId === 'string' ? body.destinationListId : null;
+      deleteCards = body.deleteCards === true;
     } catch {
       // No body or invalid JSON, use defaults
     }
@@ -218,28 +243,42 @@ export async function DELETE(
       where: { id: blockId },
     });
 
+    await renumberTimelineBlockPositions(boardId);
+
     // Delete the linked Planning list if requested
     if (deleteLinkedList && linkedListId) {
-      // First, move any cards from this list to the board's first task list
-      const taskList = await prisma.list.findFirst({
+      const cardCount = await prisma.card.count({
         where: {
-          boardId,
-          viewType: 'TASKS',
+          listId: linkedListId,
+          archivedAt: null,
         },
-        orderBy: { position: 'asc' },
       });
 
-      if (taskList) {
-        // Move cards to the first task list
-        await prisma.card.updateMany({
-          where: { listId: linkedListId },
-          data: { listId: taskList.id },
-        });
-      } else {
-        // Delete cards if no task list exists
-        await prisma.card.deleteMany({
-          where: { listId: linkedListId },
-        });
+      if (cardCount > 0) {
+        if (destinationListId) {
+          const destination = await prisma.list.findFirst({
+            where: {
+              id: destinationListId,
+              boardId,
+              viewType: 'PLANNING',
+            },
+          });
+
+          if (!destination || destination.id === linkedListId) {
+            return ApiErrors.validation('destinationListId must be a different planning list in this project');
+          }
+
+          await prisma.card.updateMany({
+            where: { listId: linkedListId, archivedAt: null },
+            data: { listId: destination.id },
+          });
+        } else if (deleteCards) {
+          await prisma.card.deleteMany({
+            where: { listId: linkedListId, archivedAt: null },
+          });
+        } else {
+          return ApiErrors.validation('Cards exist in this list. Choose a destination list or delete cards before deleting the block.');
+        }
       }
 
       // Now delete the linked list

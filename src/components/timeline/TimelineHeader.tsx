@@ -9,8 +9,9 @@ interface TimelineHeaderProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   onTodayClick: () => void;
-  onFilterToggle: () => void;
-  showFilters: boolean;
+  onFilterToggle?: () => void;
+  showFilters?: boolean;
+  showFilterButton?: boolean;
   onCreateProject?: () => void;
   isAdmin: boolean;
 }
@@ -20,7 +21,8 @@ export function TimelineHeader({
   onDateChange,
   onTodayClick,
   onFilterToggle,
-  showFilters,
+  showFilters = false,
+  showFilterButton = true,
   onCreateProject,
   isAdmin,
 }: TimelineHeaderProps) {
@@ -70,15 +72,17 @@ export function TimelineHeader({
         )}
 
         {/* Filter Toggle */}
-        <Button
-          variant={showFilters ? 'secondary' : 'outline'}
-          size="sm"
-          onClick={onFilterToggle}
-          className={cn(showFilters && 'bg-primary/10 text-primary')}
-        >
-          <Filter className="mr-1.5 h-4 w-4" />
-          Filters
-        </Button>
+        {showFilterButton && onFilterToggle && (
+          <Button
+            variant={showFilters ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onFilterToggle}
+            className={cn(showFilters && 'bg-primary/10 text-primary')}
+          >
+            <Filter className="mr-1.5 h-4 w-4" />
+            Filters
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Users, Layers, Trash2 } from 'lucide-react';
 import {
@@ -14,8 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils';
-
 interface TeamMember {
   user: {
     id: string;
@@ -138,9 +137,11 @@ export function TeamCard({
                   title={user.name || user.email}
                 >
                   {user.image ? (
-                    <img
+                    <Image
                       src={user.image}
                       alt={user.name || user.email}
+                      width={28}
+                      height={28}
                       className="h-full w-full object-cover"
                     />
                   ) : (

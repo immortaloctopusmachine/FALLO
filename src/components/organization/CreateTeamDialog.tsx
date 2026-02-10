@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Plus, X, Check, ChevronsUpDown, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -329,7 +330,7 @@ export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialog
                   >
                     <div className="h-5 w-5 rounded-full bg-surface overflow-hidden">
                       {user.image ? (
-                        <img src={user.image} alt="" className="h-full w-full object-cover" />
+                        <Image src={user.image} alt="" width={20} height={20} className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-tiny font-medium text-text-secondary">
                           {(user.name || user.email).charAt(0).toUpperCase()}
@@ -383,7 +384,7 @@ export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialog
                           />
                           <div className="h-6 w-6 rounded-full bg-surface-hover overflow-hidden mr-2">
                             {user.image ? (
-                              <img src={user.image} alt="" className="h-full w-full object-cover" />
+                              <Image src={user.image} alt="" width={24} height={24} className="h-full w-full object-cover" />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-tiny font-medium text-text-secondary">
                                 {(user.name || user.email).charAt(0).toUpperCase()}

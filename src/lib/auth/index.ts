@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import Credentials from 'next-auth/providers/credentials';
+import Slack from 'next-auth/providers/slack';
 import { prisma } from '@/lib/prisma';
 import { comparePassword } from './password';
 import type { UserPermission } from '@/types';
@@ -40,7 +41,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   trustHost: true,
   providers: [
-    Credentials({
+    ...(process.env.SLACK_CLIENT_ID && process.env.SLACK_CLIENT_SECRET
+      ? [
+          Slack({
+            clientId: process.env.SLACK_CLIENT_ID,
+            clientSecret: process.env.SLACK_CLIENT_SECRET,
+            authorization: {
+              params: {
+                scope: 'openid profile email',
+              },
+            },
+          }),
+        ]
+      : []),
+    ...(
+      process.env.AUTH_REQUIRE_SLACK === 'true' &&
+      process.env.SLACK_CLIENT_ID &&
+      process.env.SLACK_CLIENT_SECRET
+        ? []
+        : [Credentials({
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -76,9 +95,85 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           permission: user.permission as UserPermission,
         };
       },
-    }),
+    })]
+    ),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider !== 'slack') {
+        return true;
+      }
+
+      const profileRecord = (profile || {}) as Record<string, unknown>;
+      const slackUserIdCandidate =
+        account.providerAccountId ||
+        (typeof profileRecord.sub === 'string' ? profileRecord.sub : null) ||
+        (typeof profileRecord.user_id === 'string' ? profileRecord.user_id : null) ||
+        (typeof profileRecord['https://slack.com/user_id'] === 'string'
+          ? profileRecord['https://slack.com/user_id']
+          : null);
+
+      if (!slackUserIdCandidate) {
+        return false;
+      }
+
+      const linkedUser = await prisma.user.findFirst({
+        where: {
+          slackUserId: slackUserIdCandidate,
+          deletedAt: null,
+        },
+      });
+
+      // Only allow Slack sign-in for users explicitly linked by admins.
+      if (!linkedUser) {
+        return false;
+      }
+
+      if (account.providerAccountId) {
+        await prisma.account.upsert({
+          where: {
+            provider_providerAccountId: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
+          },
+          update: {
+            userId: linkedUser.id,
+            access_token: account.access_token ?? null,
+            refresh_token: account.refresh_token ?? null,
+            expires_at: account.expires_at ?? null,
+            token_type: account.token_type ?? null,
+            scope: account.scope ?? null,
+            id_token: account.id_token ?? null,
+            session_state: account.session_state
+              ? String(account.session_state)
+              : null,
+          },
+          create: {
+            userId: linkedUser.id,
+            type: account.type,
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            access_token: account.access_token ?? null,
+            refresh_token: account.refresh_token ?? null,
+            expires_at: account.expires_at ?? null,
+            token_type: account.token_type ?? null,
+            scope: account.scope ?? null,
+            id_token: account.id_token ?? null,
+            session_state: account.session_state
+              ? String(account.session_state)
+              : null,
+          },
+        });
+      }
+
+      user.id = linkedUser.id;
+      user.email = linkedUser.email;
+      user.name = linkedUser.name;
+      user.image = linkedUser.image;
+      user.permission = linkedUser.permission as UserPermission;
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;

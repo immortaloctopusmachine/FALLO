@@ -1,10 +1,8 @@
 import { NextRequest } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
 import path from 'path';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
+import { getStorage } from '@/lib/storage';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const ALLOWED_FILE_TYPES = [
@@ -57,22 +55,13 @@ export async function POST(request: NextRequest) {
       return ApiErrors.validation('File type not allowed');
     }
 
-    // Ensure upload directory exists
-    if (!existsSync(UPLOAD_DIR)) {
-      await mkdir(UPLOAD_DIR, { recursive: true });
-    }
-
-    // Generate unique filename
+    // Generate unique filename and upload
     const filename = generateUniqueFilename(file.name);
-    const filepath = path.join(UPLOAD_DIR, filename);
-
-    // Write file
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filepath, buffer);
 
-    // Return the public URL
-    const url = `/uploads/${filename}`;
+    const storage = getStorage();
+    const { url } = await storage.upload(buffer, filename, file.type);
 
     return apiSuccess({
       url,

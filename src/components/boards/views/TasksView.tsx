@@ -18,8 +18,9 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { useRouter } from 'next/navigation';
 import { Plus, ChevronRight, ChevronLeft, ExternalLink, Calendar, Link as LinkIcon, BarChart3, Filter, User } from 'lucide-react';
+import { toast } from 'sonner';
+import { useBoardMutations } from '@/hooks/api/use-board-mutations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { List } from '../List';
@@ -30,40 +31,29 @@ import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } f
 import { cn } from '@/lib/utils';
 import { DEFAULT_PROJECT_LINKS } from '@/lib/list-templates';
 import { formatDisplayDate } from '@/lib/date-utils';
+import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
 
 interface TasksViewProps {
   board: Board;
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
-  onBoardUpdate?: (board: Board) => void;
 }
 
 interface QuickFilter {
   type: 'all' | 'mine' | 'unassigned';
 }
 
-export function TasksView({ board: initialBoard, currentUserId, weeklyProgress = [], onBoardUpdate }: TasksViewProps) {
-  const router = useRouter();
+export function TasksView({ board: initialBoard, currentUserId, weeklyProgress = [] }: TasksViewProps) {
   const [localBoard, setLocalBoard] = useState(initialBoard);
+  const mutations = useBoardMutations(initialBoard.id);
+  const boardSnapshotRef = useRef<Board | null>(null);
 
   // Sync with parent's board state when initialBoard changes
   useEffect(() => {
     setLocalBoard(initialBoard);
   }, [initialBoard]);
 
-  // Notify parent when localBoard changes (excluding initial sync)
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    if (onBoardUpdate) {
-      onBoardUpdate(localBoard);
-    }
-  }, [localBoard, onBoardUpdate]);
-
-  // Wrapper to update local state (parent is notified via useEffect)
+  // Wrapper to update local state
   const setBoard = useCallback((updater: Board | ((prev: Board) => Board)) => {
     setLocalBoard((prev) => {
       const newBoard = typeof updater === 'function' ? updater(prev) : updater;
@@ -77,12 +67,17 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   const [activeCardListId, setActiveCardListId] = useState<string | null>(null);
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListName, setNewListName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [chartExpanded, setChartExpanded] = useState(false);
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>({ type: 'all' });
+  // Default to "My Tasks" for non-admin members
+  const defaultFilterType = useMemo(() => {
+    const member = initialBoard.members?.find(m => m.userId === currentUserId);
+    const isBoardAdmin = member?.permission === 'ADMIN' || member?.permission === 'SUPER_ADMIN';
+    return isBoardAdmin ? 'all' : 'mine';
+  }, [initialBoard.members, currentUserId]);
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>({ type: defaultFilterType as QuickFilter['type'] });
 
   // Filter to only show TASKS view lists and Task cards
   const taskLists = useMemo(() => {
@@ -98,6 +93,24 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   const planningLists = useMemo(() => {
     return board.lists.filter(list => list.viewType === 'PLANNING');
   }, [board.lists]);
+
+  const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
+
+  // Compute dependency chain map for all task cards
+  const chainMap = useMemo(() => {
+    const map = new Map<string, ChainLink[]>();
+    for (const card of allCards) {
+      if (card.type !== 'TASK') continue;
+      if (map.has(card.id)) continue; // Already part of a computed chain
+      const chain = buildDependencyChain(card.id, allCards);
+      if (chain) {
+        for (const link of chain) {
+          map.set(link.id, chain);
+        }
+      }
+    }
+    return map;
+  }, [allCards]);
 
   // Apply quick filters
   const filteredLists = useMemo(() => {
@@ -195,6 +208,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     const activeData = active.data.current;
 
     if (activeData?.type === 'card') {
+      boardSnapshotRef.current = board; // snapshot for rollback
       setActiveCard(activeData.card);
       setActiveCardListId(activeData.card.listId);
     }
@@ -277,6 +291,8 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     }
 
     const destinationListId = currentList.id;
+    let didMove = sourceListId !== destinationListId;
+    let newPosition = currentList.cards.findIndex((c) => c.id === activeCard.id);
 
     if (over && active.id !== over.id) {
       const overData = over.data.current;
@@ -286,6 +302,8 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         const newIndex = currentList.cards.findIndex((c) => c.id === over.id);
 
         if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          didMove = true;
+          newPosition = newIndex;
           setBoard((prev) => ({
             ...prev,
             lists: prev.lists.map((l) => {
@@ -302,25 +320,29 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       }
     }
 
-    const finalList = board.lists.find((l) => l.id === destinationListId);
-    const newPosition = finalList?.cards.findIndex((c) => c.id === activeCard.id) ?? 0;
+    if (!didMove || newPosition < 0) {
+      boardSnapshotRef.current = null;
+      setActiveCard(null);
+      setActiveCardListId(null);
+      return;
+    }
 
     try {
-      await fetch(`/api/boards/${board.id}/cards/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cardId: activeCard.id,
-          sourceListId,
-          destinationListId,
-          newPosition,
-        }),
+      await mutations.reorderCard({
+        cardId: activeCard.id,
+        sourceListId,
+        destinationListId,
+        newPosition,
       });
     } catch (error) {
       console.error('Failed to reorder card:', error);
-      router.refresh();
+      if (boardSnapshotRef.current) {
+        setBoard(boardSnapshotRef.current);
+      }
+      toast.error('Failed to move card');
     }
 
+    boardSnapshotRef.current = null;
     setActiveCard(null);
     setActiveCardListId(null);
   };
@@ -357,32 +379,58 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
 
   const handleAddCard = useCallback(async (listId: string, title: string, _type?: CardType) => {
     // In Tasks view, we always create TASK cards regardless of what's passed
-    try {
-      const response = await fetch(`/api/boards/${board.id}/cards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, type: 'TASK', listId }),
-      });
+    const tempId = crypto.randomUUID();
+    const tempCard: TaskCard = {
+      id: tempId,
+      type: 'TASK',
+      title,
+      description: null,
+      position: 999,
+      color: null,
+      featureImage: null,
+      featureImagePosition: 50,
+      listId,
+      parentId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      archivedAt: null,
+      taskData: { storyPoints: null, deadline: null, linkedUserStoryId: null, linkedEpicId: null },
+      assignees: [],
+      checklists: [],
+      _count: { attachments: 0, comments: 0 },
+    };
 
-      const data = await response.json();
-      if (data.success) {
-        setBoard((prev) => ({
-          ...prev,
-          lists: prev.lists.map((list) => {
-            if (list.id === listId) {
-              return {
-                ...list,
-                cards: [...list.cards, data.data],
-              };
-            }
-            return list;
-          }),
-        }));
-      }
+    // Optimistic: show card immediately
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) =>
+        list.id === listId ? { ...list, cards: [...list.cards, tempCard] } : list
+      ),
+    }));
+
+    try {
+      const realCard = await mutations.createCard({ title, type: 'TASK', listId });
+      // Replace temp with real server data
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) => ({
+          ...list,
+          cards: list.cards.map((c) => (c.id === tempId ? realCard : c)),
+        })),
+      }));
     } catch (error) {
       console.error('Failed to add card:', error);
+      // Remove temp card
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) => ({
+          ...list,
+          cards: list.cards.filter((c) => c.id !== tempId),
+        })),
+      }));
+      toast.error('Failed to create card');
     }
-  }, [board.id, setBoard]);
+  }, [setBoard, mutations]);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -409,20 +457,16 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     }));
   }, [setBoard]);
 
-  const handleRefreshBoard = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/boards/${board.id}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setBoard(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to refresh board:', error);
-    }
-  }, [board.id, setBoard]);
+  const handleLinkedCardCreated = useCallback((newCard: Card) => {
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) => {
+        if (list.id !== newCard.listId) return list;
+        if (list.cards.some((card) => card.id === newCard.id)) return list;
+        return { ...list, cards: [...list.cards, newCard] };
+      }),
+    }));
+  }, [setBoard]);
 
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
@@ -448,27 +492,39 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   const handleAddList = async () => {
     if (!newListName.trim()) return;
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/boards/${board.id}/lists`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newListName.trim(), viewType: 'TASKS' }),
-      });
+    const name = newListName.trim();
+    const tempId = crypto.randomUUID();
+    const tempList: import('@/types').List = {
+      id: tempId,
+      name,
+      position: board.lists.length,
+      boardId: board.id,
+      cards: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      viewType: 'TASKS',
+    };
 
-      const data = await response.json();
-      if (data.success) {
-        setBoard((prev) => ({
-          ...prev,
-          lists: [...prev.lists, { ...data.data, cards: [] }],
-        }));
-        setNewListName('');
-        setIsAddingList(false);
-      }
+    // Optimistic: show list immediately, reset input
+    setBoard((prev) => ({ ...prev, lists: [...prev.lists, tempList] }));
+    setNewListName('');
+    setIsAddingList(false);
+
+    try {
+      const realList = await mutations.createList({ name, viewType: 'TASKS' });
+      // Replace temp with real server data
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((l) => (l.id === tempId ? { ...realList, cards: [] } : l)),
+      }));
     } catch (error) {
       console.error('Failed to add list:', error);
-    } finally {
-      setIsLoading(false);
+      // Remove temp list
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.filter((l) => l.id !== tempId),
+      }));
+      toast.error('Failed to create list');
     }
   };
 
@@ -579,7 +635,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     return (
       <div className="flex flex-col h-full">
         {/* Sub-header placeholder */}
-        <div className="shrink-0 border-b border-border bg-surface-hover/50 px-4 py-2">
+        <div className="shrink-0 border-b border-border bg-surface-hover px-4 py-2">
           <div className="flex items-center gap-4">
             <span className="text-caption text-text-tertiary">Filters:</span>
             <div className="flex gap-2">
@@ -591,7 +647,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           </div>
         </div>
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 flex gap-4 overflow-x-auto p-4">
+          <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
             {filteredLists.map((list) => (
               <List
                 key={list.id}
@@ -603,6 +659,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onCardClick={handleCardClick}
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
+                chainMap={chainMap}
               />
             ))}
           </div>
@@ -615,7 +672,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   return (
     <div className="flex flex-col h-full">
       {/* Sub-header with filters */}
-      <div className="shrink-0 border-b border-border bg-surface-hover/50 px-4 py-2">
+      <div className="shrink-0 border-b border-border bg-surface-hover px-4 py-2">
         <div className="flex items-center gap-4">
           <span className="text-caption text-text-tertiary">Filters:</span>
           <div className="flex gap-2">
@@ -655,7 +712,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex-1 flex gap-4 overflow-x-auto p-4">
+          <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
           {filteredLists.map((list) => (
             <SortableContext
               key={list.id}
@@ -672,6 +729,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
                 listColor={list.color}
+                chainMap={chainMap}
               />
             </SortableContext>
           ))}
@@ -685,7 +743,6 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                   onChange={(e) => setNewListName(e.target.value)}
                   placeholder="Enter list name..."
                   autoFocus
-                  disabled={isLoading}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAddList();
                     if (e.key === 'Escape') {
@@ -698,9 +755,9 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                   <Button
                     size="sm"
                     onClick={handleAddList}
-                    disabled={isLoading || !newListName.trim()}
+                    disabled={!newListName.trim()}
                   >
-                    {isLoading ? 'Adding...' : 'Add List'}
+                    Add List
                   </Button>
                   <Button
                     size="sm"
@@ -709,7 +766,6 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                       setIsAddingList(false);
                       setNewListName('');
                     }}
-                    disabled={isLoading}
                   >
                     Cancel
                   </Button>
@@ -718,7 +774,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
             ) : (
               <Button
                 variant="ghost"
-                className="w-full justify-start bg-surface/50 hover:bg-surface"
+                className="w-full justify-start bg-surface hover:bg-surface"
                 onClick={() => setIsAddingList(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -749,11 +805,12 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         onClose={() => setSelectedCard(null)}
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
-        onRefreshBoard={handleRefreshBoard}
+        onLinkedCardCreated={handleLinkedCardCreated}
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
         taskLists={taskLists}
         planningLists={planningLists}
+        allCards={allCards}
       />
     </div>
   );

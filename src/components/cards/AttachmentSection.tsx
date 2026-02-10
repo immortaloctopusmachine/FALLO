@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Paperclip,
@@ -322,9 +323,11 @@ export function AttachmentSection({
                       rel="noopener noreferrer"
                       className="block"
                     >
-                      <img
+                      <Image
                         src={attachment.url}
                         alt={attachment.name}
+                        width={640}
+                        height={256}
                         className="w-full max-h-40 object-cover hover:opacity-90 transition-opacity"
                       />
                     </a>

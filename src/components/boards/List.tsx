@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { MoreHorizontal, Plus, CheckSquare, BookOpen, Layers, FileText, CalendarRange, Unlink, ChevronLeft } from 'lucide-react';
 import {
@@ -26,6 +26,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { CardCompact } from '@/components/cards/CardCompact';
 import type { Card, CardType } from '@/types';
+import type { ChainLink } from '@/lib/task-presets';
 import { cn } from '@/lib/utils';
 import { formatDateRange } from '@/lib/date-utils';
 
@@ -67,34 +68,35 @@ interface ListProps {
   secondarySectionTitle?: string;
   secondaryEmptyText?: string;
   renderSecondaryCardActions?: (card: Card) => ReactNode;
+  chainMap?: Map<string, ChainLink[]>; // Dependency chain data for cards
 }
 
-// Get subtle background color based on list name
-function getListColor(listName: string): string {
+// Get subtle tint style based on list name — uses backgroundImage so it layers on top of bg-surface
+function getListTintStyle(listName: string): React.CSSProperties | undefined {
   const name = listName.toLowerCase();
 
   // Done/Complete - subtle green
   if (name.includes('done') || name.includes('complete') || name.includes('finished')) {
-    return 'bg-green-500/5';
+    return { backgroundImage: 'linear-gradient(rgba(34,197,94,0.05), rgba(34,197,94,0.03))' };
   }
 
   // Review/QA - subtle purple
   if (name.includes('review') || name.includes('qa') || name.includes('testing')) {
-    return 'bg-purple-500/5';
+    return { backgroundImage: 'linear-gradient(rgba(168,85,247,0.05), rgba(168,85,247,0.03))' };
   }
 
   // In Progress/Doing - subtle orange
   if (name.includes('progress') || name.includes('doing') || name.includes('working')) {
-    return 'bg-orange-500/5';
+    return { backgroundImage: 'linear-gradient(rgba(249,115,22,0.05), rgba(249,115,22,0.03))' };
   }
 
   // To Do/Backlog - subtle teal
   if (name.includes('to do') || name.includes('todo') || name.includes('backlog') || name.includes('planned')) {
-    return 'bg-teal-500/5';
+    return { backgroundImage: 'linear-gradient(rgba(20,184,166,0.05), rgba(20,184,166,0.03))' };
   }
 
-  // Default - no extra color
-  return '';
+  // Default - no tint
+  return undefined;
 }
 
 export function List({
@@ -119,29 +121,26 @@ export function List({
   secondarySectionTitle,
   secondaryEmptyText = 'No cards in this section.',
   renderSecondaryCardActions,
+  chainMap,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [newCardType, setNewCardType] = useState<CardType>(cardTypeFilter || 'TASK');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Use custom color or derive from name
-  const listColor = customListColor ? '' : getListColor(name);
+  // Derive tint style from name when no custom color is set
+  const listTintStyle = useMemo(() => customListColor ? undefined : getListTintStyle(name), [customListColor, name]);
 
   // Format date range
-  const getFormattedDateRange = () => {
+  const dateRange = useMemo(() => {
     if (!showDateRange || !startDate || !endDate) return null;
     return formatDateRange(startDate, endDate);
-  };
+  }, [showDateRange, startDate, endDate]);
 
-  const dateRange = getFormattedDateRange();
-
-  // Custom header style with full background color (subtle) when customListColor is provided
-  const customColorStyle = customListColor
-    ? {
-        backgroundColor: `${customListColor}08`, // Very subtle background (8% opacity)
-      }
-    : undefined;
+  // Custom header style — tint uses backgroundImage so it layers on top of the solid bg-surface
+  const customColorStyle = useMemo(() => customListColor
+    ? { backgroundImage: `linear-gradient(${customListColor}0a, ${customListColor}06)` }
+    : undefined, [customListColor]);
 
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -177,7 +176,7 @@ export function List({
   };
 
   // Calculate total story points for the list
-  const totalStoryPoints = cards.reduce((sum, card) => {
+  const totalStoryPoints = useMemo(() => cards.reduce((sum, card) => {
     if (card.type === 'TASK') {
       const taskData = card.taskData as { storyPoints?: number | null } | null;
       if (taskData?.storyPoints) {
@@ -185,7 +184,7 @@ export function List({
       }
     }
     return sum;
-  }, 0);
+  }, 0), [cards]);
 
   // Handle collapse toggle
   const handleCollapseToggle = () => {
@@ -198,11 +197,8 @@ export function List({
   if (isCollapsible && isCollapsed) {
     return (
       <div
-        className={cn(
-          'flex h-full w-10 shrink-0 flex-col rounded-lg bg-surface cursor-pointer hover:bg-surface-hover transition-colors',
-          listColor
-        )}
-        style={customColorStyle}
+        className="flex w-10 shrink-0 flex-col rounded-lg bg-surface cursor-pointer hover:bg-surface-hover transition-colors"
+        style={{ ...listTintStyle, ...customColorStyle }}
         onClick={handleCollapseToggle}
       >
         {/* Color indicator bar for custom colored lists */}
@@ -249,11 +245,10 @@ export function List({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex h-full w-[280px] shrink-0 flex-col rounded-lg bg-surface transition-colors',
-        listColor,
+        'flex w-[280px] shrink-0 flex-col rounded-lg bg-surface transition-colors',
         isOver && 'ring-2 ring-card-task ring-opacity-50'
       )}
-      style={customColorStyle}
+      style={{ ...listTintStyle, ...customColorStyle }}
     >
       {/* Color indicator bar for custom colored lists */}
       {customListColor && (
@@ -412,12 +407,13 @@ export function List({
       )}
 
       {/* Cards Container */}
-      <div className="flex-1 space-y-2 overflow-y-auto p-2">
+      <div className="space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]">
         {cards.map((card) => (
           <CardCompact
             key={card.id}
             card={card}
             onClick={() => onCardClick(card)}
+            dependencyChain={chainMap?.get(card.id)}
           />
         ))}
 
@@ -463,7 +459,7 @@ export function List({
                 ))}
 
                 {secondaryCards.length === 0 && (
-                  <div className="rounded-md border border-dashed border-border-subtle bg-background/40 px-2 py-3 text-caption text-text-tertiary">
+                  <div className="rounded-md border border-dashed border-border-subtle bg-background px-2 py-3 text-caption text-text-tertiary">
                     {secondaryEmptyText}
                   </div>
                 )}

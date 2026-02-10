@@ -7,26 +7,42 @@ interface TimelineDateHeaderProps {
   startDate: Date;
   endDate: Date;
   columnWidth: number;
+  sticky?: boolean;
 }
 
 interface DateColumn {
   date: Date;
   label: string;
   isToday: boolean;
+  isPast: boolean;
+  isCurrentWorkWeek: boolean;
   isMonthStart: boolean;
   isWeekStart: boolean;
+  monthKey: string;
+  monthIndex: number;
 }
 
 export function TimelineDateHeader({
   startDate,
   endDate,
   columnWidth,
+  sticky = true,
 }: TimelineDateHeaderProps) {
   const columns = useMemo(() => {
     const cols: DateColumn[] = [];
     const current = new Date(startDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    const todayDay = weekStart.getDay();
+    const mondayDiff = weekStart.getDate() - todayDay + (todayDay === 0 ? -6 : 1);
+    weekStart.setDate(mondayDiff);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 4);
+
+    const monthOrder = new Map<string, number>();
+    let monthCounter = 0;
 
     while (current <= endDate) {
       const dayOfWeek = current.getDay();
@@ -35,15 +51,26 @@ export function TimelineDateHeader({
       // Skip weekends
       if (!isWeekend) {
         const isToday = current.toDateString() === today.toDateString();
+        const isPast = current < today;
+        const isCurrentWorkWeek = current >= weekStart && current <= weekEnd;
         const isMonthStart = current.getDate() === 1;
         const isWeekStart = dayOfWeek === 1; // Monday
+        const monthKey = `${current.getFullYear()}-${current.getMonth()}`;
+        if (!monthOrder.has(monthKey)) {
+          monthOrder.set(monthKey, monthCounter++);
+        }
+        const monthIndex = monthOrder.get(monthKey) || 0;
 
         cols.push({
           date: new Date(current),
           label: current.getDate().toString(),
           isToday,
+          isPast,
+          isCurrentWorkWeek,
           isMonthStart,
           isWeekStart,
+          monthKey,
+          monthIndex,
         });
       }
 
@@ -104,13 +131,16 @@ export function TimelineDateHeader({
   }, [columns]);
 
   return (
-    <div className="sticky top-0 z-20 bg-surface border-b border-border w-full">
+    <div className={cn(sticky ? 'sticky top-0 z-20' : '', 'bg-surface border-b border-border')}>
       {/* Month Row */}
       <div className="flex border-b border-border-subtle">
-        {monthGroups.map((group) => (
+        {monthGroups.map((group, groupIndex) => (
           <div
             key={`${group.month}-${group.startIndex}`}
-            className="flex-shrink-0 px-2 py-1 text-caption font-medium text-text-secondary border-r border-border-subtle"
+            className={cn(
+              'flex-shrink-0 px-2 py-1 text-caption font-medium text-text-secondary border-r border-border-subtle',
+              groupIndex % 2 === 0 ? 'bg-surface' : 'bg-surface-subtle/40'
+            )}
             style={{ width: group.count * columnWidth }}
           >
             {group.month}
@@ -122,10 +152,13 @@ export function TimelineDateHeader({
 
       {/* Week Row */}
       <div className="flex border-b border-border-subtle">
-        {weekGroups.map((group) => (
+        {weekGroups.map((group, groupIndex) => (
           <div
             key={`${group.week}-${group.startIndex}`}
-            className="flex-shrink-0 px-2 py-0.5 text-tiny text-text-tertiary border-r border-border-subtle"
+            className={cn(
+              'flex-shrink-0 px-2 py-0.5 text-tiny text-text-tertiary border-r border-border-subtle',
+              groupIndex % 2 === 0 ? 'bg-surface/60' : 'bg-surface-subtle/50'
+            )}
             style={{ width: group.count * columnWidth }}
           >
             {group.week}
@@ -142,7 +175,10 @@ export function TimelineDateHeader({
             key={index}
             className={cn(
               'flex-shrink-0 px-1 py-1 text-center text-tiny border-r border-border-subtle',
-              col.isToday && 'bg-primary/10 text-primary font-medium',
+              col.monthIndex % 2 === 0 ? 'bg-surface' : 'bg-surface-subtle/30',
+              col.isPast && 'text-text-tertiary line-through',
+              col.isToday && 'bg-amber-200/50 text-amber-900 font-semibold no-underline',
+              col.isCurrentWorkWeek && !col.isToday && !col.isPast && 'bg-emerald-200/35 text-emerald-900',
               col.isWeekStart && !col.isMonthStart && 'border-l-2 border-l-border',
               col.isMonthStart && 'border-l-4 border-l-card-epic/50'
             )}

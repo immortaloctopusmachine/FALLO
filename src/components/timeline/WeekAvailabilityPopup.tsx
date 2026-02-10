@@ -12,7 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { TimelineMember, UserWeeklyAvailability } from '@/types';
-import { getFriday, formatDisplayDate } from '@/lib/date-utils';
+import { getFriday, formatDisplayDate, formatLocalDateKey } from '@/lib/date-utils';
 
 interface WeekAvailabilityPopupProps {
   isOpen: boolean;
@@ -61,7 +61,7 @@ export function WeekAvailabilityPopup({
     try {
       await onSave(boardId, [{
         userId: member.id,
-        weekStart: weekStart.toISOString().split('T')[0],
+        weekStart: formatLocalDateKey(weekStart),
         dedication,
       }]);
       onClose();

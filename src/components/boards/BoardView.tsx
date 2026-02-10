@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -19,8 +19,9 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { useBoardMutations } from '@/hooks/api/use-board-mutations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { List } from './List';
@@ -34,13 +35,13 @@ interface BoardViewProps {
 }
 
 export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps) {
-  const router = useRouter();
   const [board, setBoard] = useState(initialBoard);
+  const mutations = useBoardMutations(initialBoard.id);
+  const boardSnapshotRef = useRef<Board | null>(null);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeCardListId, setActiveCardListId] = useState<string | null>(null);
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListName, setNewListName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -68,11 +69,14 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
     return map;
   }, [board.lists]);
 
+  const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const activeData = active.data.current;
 
     if (activeData?.type === 'card') {
+      boardSnapshotRef.current = board; // snapshot for rollback
       setActiveCard(activeData.card);
       setActiveCardListId(activeData.card.listId);
     }
@@ -161,6 +165,8 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
     }
 
     const destinationListId = currentList.id;
+    let didMove = sourceListId !== destinationListId;
+    let newPosition = currentList.cards.findIndex((c) => c.id === activeCard.id);
 
     // Handle reordering within the same list
     if (over && active.id !== over.id) {
@@ -171,6 +177,8 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
         const newIndex = currentList.cards.findIndex((c) => c.id === over.id);
 
         if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          didMove = true;
+          newPosition = newIndex;
           setBoard((prev) => ({
             ...prev,
             lists: prev.lists.map((l) => {
@@ -187,27 +195,30 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
       }
     }
 
-    // Get the final position
-    const finalList = board.lists.find((l) => l.id === destinationListId);
-    const newPosition = finalList?.cards.findIndex((c) => c.id === activeCard.id) ?? 0;
+    if (!didMove || newPosition < 0) {
+      boardSnapshotRef.current = null;
+      setActiveCard(null);
+      setActiveCardListId(null);
+      return;
+    }
 
     // Persist to server
     try {
-      await fetch(`/api/boards/${board.id}/cards/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cardId: activeCard.id,
-          sourceListId,
-          destinationListId,
-          newPosition,
-        }),
+      await mutations.reorderCard({
+        cardId: activeCard.id,
+        sourceListId,
+        destinationListId,
+        newPosition,
       });
     } catch (error) {
       console.error('Failed to reorder card:', error);
-      router.refresh();
+      if (boardSnapshotRef.current) {
+        setBoard(boardSnapshotRef.current);
+      }
+      toast.error('Failed to move card');
     }
 
+    boardSnapshotRef.current = null;
     setActiveCard(null);
     setActiveCardListId(null);
   };
@@ -250,32 +261,61 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
   }, []);
 
   const handleAddCard = useCallback(async (listId: string, title: string, type: CardType) => {
-    try {
-      const response = await fetch(`/api/boards/${board.id}/cards`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, type, listId }),
-      });
+    const tempId = crypto.randomUUID();
+    const tempCard = {
+      id: tempId,
+      type,
+      title,
+      description: null,
+      position: 999,
+      color: null,
+      featureImage: null,
+      featureImagePosition: 50,
+      listId,
+      parentId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      archivedAt: null,
+      taskData: { storyPoints: null, deadline: null, linkedUserStoryId: null, linkedEpicId: null },
+      userStoryData: { flags: [], acceptanceCriteria: null },
+      epicData: {},
+      utilityData: { subtype: 'NOTE' as const },
+      assignees: [],
+      checklists: [],
+      _count: { attachments: 0, comments: 0 },
+    } as Card;
 
-      const data = await response.json();
-      if (data.success) {
-        setBoard((prev) => ({
-          ...prev,
-          lists: prev.lists.map((list) => {
-            if (list.id === listId) {
-              return {
-                ...list,
-                cards: [...list.cards, data.data],
-              };
-            }
-            return list;
-          }),
-        }));
-      }
+    // Optimistic: show card immediately
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) =>
+        list.id === listId ? { ...list, cards: [...list.cards, tempCard] } : list
+      ),
+    }));
+
+    try {
+      const realCard = await mutations.createCard({ title, type, listId });
+      // Replace temp with real server data
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) => ({
+          ...list,
+          cards: list.cards.map((c) => (c.id === tempId ? realCard : c)),
+        })),
+      }));
     } catch (error) {
       console.error('Failed to add card:', error);
+      // Remove temp card
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) => ({
+          ...list,
+          cards: list.cards.filter((c) => c.id !== tempId),
+        })),
+      }));
+      toast.error('Failed to create card');
     }
-  }, [board.id]);
+  }, [mutations]);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -302,22 +342,16 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
     }));
   }, []);
 
-  const handleRefreshBoard = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/boards/${board.id}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setBoard(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to refresh board:', error);
-    }
-  }, [board.id]);
+  const handleLinkedCardCreated = useCallback((newCard: Card) => {
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) => {
+        if (list.id !== newCard.listId) return list;
+        if (list.cards.some((card) => card.id === newCard.id)) return list;
+        return { ...list, cards: [...list.cards, newCard] };
+      }),
+    }));
+  }, []);
 
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
@@ -343,27 +377,39 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
   const handleAddList = async () => {
     if (!newListName.trim()) return;
 
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/boards/${board.id}/lists`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newListName.trim() }),
-      });
+    const name = newListName.trim();
+    const tempId = crypto.randomUUID();
+    const tempList: import('@/types').List = {
+      id: tempId,
+      name,
+      position: board.lists.length,
+      boardId: board.id,
+      cards: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      viewType: 'TASKS',
+    };
 
-      const data = await response.json();
-      if (data.success) {
-        setBoard((prev) => ({
-          ...prev,
-          lists: [...prev.lists, { ...data.data, cards: [] }],
-        }));
-        setNewListName('');
-        setIsAddingList(false);
-      }
+    // Optimistic: show list immediately, reset input
+    setBoard((prev) => ({ ...prev, lists: [...prev.lists, tempList] }));
+    setNewListName('');
+    setIsAddingList(false);
+
+    try {
+      const realList = await mutations.createList({ name, viewType: 'TASKS' });
+      // Replace temp with real server data
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.map((l) => (l.id === tempId ? { ...realList, cards: [] } : l)),
+      }));
     } catch (error) {
       console.error('Failed to add list:', error);
-    } finally {
-      setIsLoading(false);
+      // Remove temp list
+      setBoard((prev) => ({
+        ...prev,
+        lists: prev.lists.filter((l) => l.id !== tempId),
+      }));
+      toast.error('Failed to create list');
     }
   };
 
@@ -386,7 +432,7 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
         <div className="w-[280px] shrink-0">
           <Button
             variant="ghost"
-            className="w-full justify-start bg-surface/50 hover:bg-surface"
+            className="w-full justify-start bg-surface hover:bg-surface"
             onClick={() => setIsAddingList(true)}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -433,7 +479,6 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
                 onChange={(e) => setNewListName(e.target.value)}
                 placeholder="Enter list name..."
                 autoFocus
-                disabled={isLoading}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddList();
                   if (e.key === 'Escape') {
@@ -446,9 +491,9 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
                 <Button
                   size="sm"
                   onClick={handleAddList}
-                  disabled={isLoading || !newListName.trim()}
+                  disabled={!newListName.trim()}
                 >
-                  {isLoading ? 'Adding...' : 'Add List'}
+                  Add List
                 </Button>
                 <Button
                   size="sm"
@@ -457,7 +502,6 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
                     setIsAddingList(false);
                     setNewListName('');
                   }}
-                  disabled={isLoading}
                 >
                   Cancel
                 </Button>
@@ -466,7 +510,7 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
           ) : (
             <Button
               variant="ghost"
-              className="w-full justify-start bg-surface/50 hover:bg-surface"
+              className="w-full justify-start bg-surface hover:bg-surface"
               onClick={() => setIsAddingList(true)}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -491,9 +535,10 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
         onClose={() => setSelectedCard(null)}
         onUpdate={handleCardUpdate}
         onDelete={handleCardDelete}
-        onRefreshBoard={handleRefreshBoard}
+        onLinkedCardCreated={handleLinkedCardCreated}
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
+        allCards={allCards}
       />
     </DndContext>
   );

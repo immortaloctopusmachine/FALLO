@@ -28,6 +28,13 @@ interface CompanyRole {
   color: string | null;
 }
 
+interface SlackUserOption {
+  id: string;
+  realName: string;
+  displayName: string;
+  image192: string | null;
+}
+
 interface CreateUserDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,6 +76,9 @@ export function CreateUserDialog({
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [selectedCompanyRoleIds, setSelectedCompanyRoleIds] = useState<string[]>([]);
+  const [slackUsers, setSlackUsers] = useState<SlackUserOption[]>([]);
+  const [slackUserId, setSlackUserId] = useState<string>('');
+  const [isSlackLoading, setIsSlackLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedPassword, setCopiedPassword] = useState(false);
@@ -84,9 +94,30 @@ export function CreateUserDialog({
       setSelectedTeamIds([]);
       setSelectedSkillIds([]);
       setSelectedCompanyRoleIds([]);
+      setSlackUsers([]);
+      setSlackUserId('');
       setError(null);
       setCopiedPassword(false);
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchSlackUsers = async () => {
+      setIsSlackLoading(true);
+      try {
+        const response = await fetch('/api/integrations/slack/users');
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setSlackUsers(data.data);
+        }
+      } catch {
+        // Slack integration is optional; fail silently.
+      } finally {
+        setIsSlackLoading(false);
+      }
+    };
+    void fetchSlackUsers();
   }, [isOpen]);
 
   const handleGeneratePassword = () => {
@@ -156,6 +187,7 @@ export function CreateUserDialog({
           teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
           skillIds: selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
           companyRoleIds: selectedCompanyRoleIds.length > 0 ? selectedCompanyRoleIds : undefined,
+          slackUserId: slackUserId || undefined,
         }),
       });
 
@@ -210,6 +242,37 @@ export function CreateUserDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder="Full name"
             />
+          </div>
+
+          {/* Slack user link */}
+          <div className="space-y-2">
+            <Label htmlFor="slackUserId">
+              Slack Profile (optional)
+            </Label>
+            <select
+              id="slackUserId"
+              value={slackUserId}
+              onChange={(e) => setSlackUserId(e.target.value)}
+              disabled={isSlackLoading || isLoading}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-body text-text-primary disabled:opacity-50"
+            >
+              <option value="">
+                {isSlackLoading ? 'Loading Slack users...' : 'Auto-match by name (recommended)'}
+              </option>
+              {slackUsers.map((user) => {
+                const label = user.displayName
+                  ? `${user.realName} (${user.displayName})`
+                  : user.realName;
+                return (
+                  <option key={user.id} value={user.id}>
+                    {label}
+                  </option>
+                );
+              })}
+            </select>
+            <p className="text-caption text-text-tertiary">
+              If left empty, the server will try to match by name when possible.
+            </p>
           </div>
 
           {/* Password */}

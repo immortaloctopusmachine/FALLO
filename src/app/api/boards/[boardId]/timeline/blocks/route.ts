@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getMonday, getFriday } from '@/lib/date-utils';
 import { getPhaseFromBlockType } from '@/lib/constants';
+import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
 import {
   requireAuth,
   requireAdmin,
@@ -154,13 +155,33 @@ export async function POST(
       },
     });
 
+    await renumberTimelineBlockPositions(boardId);
+
+    const renumberedBlock = await prisma.timelineBlock.findUnique({
+      where: { id: block.id },
+      include: {
+        blockType: true,
+        list: {
+          select: {
+            id: true,
+            name: true,
+            phase: true,
+          },
+        },
+      },
+    });
+
+    if (!renumberedBlock) {
+      return ApiErrors.notFound('Block');
+    }
+
     return apiSuccess({
-      id: block.id,
-      startDate: block.startDate.toISOString(),
-      endDate: block.endDate.toISOString(),
-      position: block.position,
-      blockType: block.blockType,
-      list: block.list,
+      id: renumberedBlock.id,
+      startDate: renumberedBlock.startDate.toISOString(),
+      endDate: renumberedBlock.endDate.toISOString(),
+      position: renumberedBlock.position,
+      blockType: renumberedBlock.blockType,
+      list: renumberedBlock.list,
     }, 201);
   } catch (error) {
     console.error('Failed to create timeline block:', error);

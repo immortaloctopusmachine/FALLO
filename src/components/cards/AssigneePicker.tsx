@@ -9,6 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api-client';
 import type { CardAssignee, BoardMember } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +29,6 @@ export function AssigneePicker({
 }: AssigneePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchBoardMembers = async () => {
@@ -48,40 +49,57 @@ export function AssigneePicker({
   }, [isOpen, boardId]);
 
   const handleAssign = async (userId: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/assignees`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
+    const member = boardMembers.find((m) => m.userId === userId);
+    if (!member) return;
 
-      const data = await response.json();
-      if (data.success) {
-        onUpdate([...assignees, data.data]);
-      }
+    // Optimistic: add assignee immediately
+    const previousAssignees = assignees;
+    const tempAssignee: CardAssignee = {
+      id: `temp-${userId}`,
+      userId,
+      user: {
+        id: member.user.id,
+        name: member.user.name,
+        email: member.user.email,
+        image: member.user.image,
+        permission: member.user.permission,
+      },
+      assignedAt: new Date().toISOString(),
+    };
+    onUpdate([...assignees, tempAssignee]);
+
+    try {
+      const realAssignee = await apiFetch<CardAssignee>(
+        `/api/boards/${boardId}/cards/${cardId}/assignees`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        }
+      );
+      // Replace temp with real server data
+      onUpdate(previousAssignees.filter((a) => a.userId !== userId).concat(realAssignee));
     } catch (error) {
       console.error('Failed to assign user:', error);
-    } finally {
-      setIsLoading(false);
+      onUpdate(previousAssignees); // Rollback
+      toast.error('Failed to assign user');
     }
   };
 
   const handleUnassign = async (userId: string) => {
-    setIsLoading(true);
+    // Optimistic: remove immediately
+    const previousAssignees = assignees;
+    onUpdate(assignees.filter((a) => a.userId !== userId));
+
     try {
-      const response = await fetch(
+      await apiFetch(
         `/api/boards/${boardId}/cards/${cardId}/assignees?userId=${userId}`,
         { method: 'DELETE' }
       );
-
-      if (response.ok) {
-        onUpdate(assignees.filter((a) => a.userId !== userId));
-      }
     } catch (error) {
       console.error('Failed to unassign user:', error);
-    } finally {
-      setIsLoading(false);
+      onUpdate(previousAssignees); // Rollback
+      toast.error('Failed to unassign user');
     }
   };
 
@@ -109,7 +127,6 @@ export function AssigneePicker({
               <button
                 onClick={() => handleUnassign(assignee.userId)}
                 className="ml-0.5 rounded-full p-0.5 hover:bg-surface"
-                disabled={isLoading}
               >
                 <X className="h-3 w-3 text-text-tertiary" />
               </button>
@@ -146,7 +163,6 @@ export function AssigneePicker({
                         ? handleUnassign(member.userId)
                         : handleAssign(member.userId)
                     }
-                    disabled={isLoading}
                     className={cn(
                       'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
                       'hover:bg-surface-hover',

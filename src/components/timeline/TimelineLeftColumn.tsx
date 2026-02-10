@@ -1,6 +1,6 @@
 'use client';
 
-import { Folder, Users, Plus, Flag } from 'lucide-react';
+import { Folder, Users, Flag } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { TimelineMember } from '@/types';
@@ -12,34 +12,41 @@ interface ProjectRowData {
   teamName?: string;
   isExpanded: boolean;
   hasEvents?: boolean;
-  members: TimelineMember[];
+  rows: {
+    id: string;
+    userId: string;
+    member: TimelineMember;
+    roles: {
+      id: string;
+      name: string;
+      color: string | null;
+    }[];
+  }[];
 }
 
 interface TimelineLeftColumnProps {
   projects: ProjectRowData[];
   onToggleProject: (projectId: string) => void;
-  onAddBlock?: (projectId: string) => void;
-  onAddEvent?: (projectId: string) => void;
   rowHeight: number;
   eventRowHeight?: number;
   userRowHeight?: number;
   headerHeight: number;
   isAdmin?: boolean;
+  scrollTop?: number;
 }
 
 export function TimelineLeftColumn({
   projects,
   onToggleProject: _onToggleProject,
-  onAddBlock,
-  onAddEvent,
   rowHeight,
   eventRowHeight = 28,
   userRowHeight = 28,
   headerHeight,
-  isAdmin = false,
+  isAdmin: _isAdmin = false,
+  scrollTop = 0,
 }: TimelineLeftColumnProps) {
   return (
-    <div className="flex-shrink-0 w-64 border-r border-border bg-surface">
+    <div className="flex-shrink-0 w-64 border-r border-border bg-surface overflow-hidden">
       {/* Header placeholder to align with date header */}
       <div
         className="sticky top-0 z-30 bg-surface border-b border-border flex items-end px-3 pb-2"
@@ -49,9 +56,9 @@ export function TimelineLeftColumn({
       </div>
 
       {/* Project rows */}
-      <div>
+      <div style={{ transform: `translateY(-${scrollTop}px)` }}>
         {projects.map((project) => (
-          <div key={project.id}>
+          <div key={project.id} className="mb-2">
             {/* Events row label */}
             <div
               className="flex items-center gap-2 px-3 pl-4 border-b border-border-subtle bg-surface-subtle/30"
@@ -59,15 +66,6 @@ export function TimelineLeftColumn({
             >
               <Flag className="h-3 w-3 text-text-tertiary" />
               <span className="text-tiny text-text-tertiary">Events</span>
-              {isAdmin && onAddEvent && (
-                <button
-                  className="ml-auto p-0.5 rounded hover:bg-surface-active text-text-tertiary hover:text-text-primary"
-                  onClick={() => onAddEvent(project.id)}
-                  title="Add event"
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              )}
             </div>
 
             {/* Project header row (blocks row) */}
@@ -76,7 +74,11 @@ export function TimelineLeftColumn({
                 'flex items-center gap-2 px-3 border-b border-border-subtle',
                 'hover:bg-surface-hover transition-colors'
               )}
-              style={{ height: rowHeight }}
+              style={{
+                height: rowHeight,
+                borderLeftWidth: project.teamColor ? 4 : 0,
+                borderLeftColor: project.teamColor || undefined,
+              }}
             >
               {project.teamColor && (
                 <div
@@ -98,52 +100,55 @@ export function TimelineLeftColumn({
 
               <div className="flex items-center gap-1 text-text-tertiary">
                 <Users className="h-3.5 w-3.5" />
-                <span className="text-tiny">{project.members.length}</span>
+                <span className="text-tiny">{project.rows.length}</span>
               </div>
-
-              {isAdmin && onAddBlock && (
-                <button
-                  className="p-1 rounded hover:bg-surface-active text-text-tertiary hover:text-text-primary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddBlock(project.id);
-                  }}
-                  title="Add timeline block"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              )}
             </div>
 
             {/* Individual user rows */}
-            {project.members.map((member) => {
-              const primaryRole = member.userCompanyRoles[0]?.companyRole;
+            {project.rows.map((row) => {
+              const roles = row.roles || [];
 
               return (
                 <div
-                  key={member.id}
+                  key={row.userId}
                   className="flex items-center gap-1.5 px-3 pl-5 border-b border-border-subtle bg-surface-subtle/50"
                   style={{ height: userRowHeight }}
                 >
                   <Avatar className="h-5 w-5 flex-shrink-0">
-                    <AvatarImage src={member.image || undefined} />
+                    <AvatarImage src={row.member.image || undefined} />
                     <AvatarFallback className="text-[9px]">
-                      {(member.name || member.email)[0].toUpperCase()}
+                      {(row.member.name || row.member.email)[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-caption truncate flex-1 text-text-secondary">
-                    {member.name || member.email}
+                    {row.member.name || row.member.email}
                   </span>
-                  {primaryRole && (
-                    <div
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: primaryRole.color || 'var(--text-tertiary)' }}
-                      title={primaryRole.name}
-                    />
-                  )}
+                  <div className="flex items-center gap-1 max-w-[132px] overflow-hidden">
+                    {roles.length === 0 ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-text-tertiary bg-surface-hover">
+                        No role
+                      </span>
+                    ) : (
+                      roles.map((role) => (
+                        <span
+                          key={role.id}
+                          className="text-[10px] px-1.5 py-0.5 rounded font-medium truncate"
+                          style={{
+                            backgroundColor: `${role.color || 'var(--text-tertiary)'}22`,
+                            color: role.color || 'var(--text-tertiary)',
+                          }}
+                          title={role.name}
+                        >
+                          {role.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
               );
             })}
+
+            <div className="h-2 border-b border-border bg-background/70" />
           </div>
         ))}
 

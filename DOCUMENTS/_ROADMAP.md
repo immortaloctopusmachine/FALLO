@@ -278,14 +278,25 @@
 | Activity log | 🔴 | - | |
 | Notifications | 🔴 | - | |
 
-### 6.2 Performance 🟡
+### 6.2 Performance 🟢
 | Task | Status | Owner | Notes |
 |------|--------|-------|-------|
 | Client-side data fetching (Option C) | 🟢 | Claude | All 12 dashboard pages use TanStack Query with skeleton loading |
 | Caching strategy | 🟢 | Claude | TanStack Query with 1min staleTime, instant revisit |
-| List virtualization | 🔴 | - | |
-| Optimistic updates | 🔴 | - | |
-| Image optimization | 🔴 | - | |
+| **Phase 1: Optimistic mutations** | 🟢 | Claude | Board detail page — instant UI for all user interactions |
+| ├ Card drag-drop reorder | 🟢 | Claude | Rollback via board snapshot, TQ cache sync on success |
+| ├ Card create (optimistic) | 🟢 | Claude | Temp UUID, replace with real on API response, rollback on error |
+| ├ Card edit (auto-save) | 🟢 | Claude | 1.5s debounce auto-save (already existed), added error toast |
+| ├ Card delete (optimistic) | 🟢 | Claude | Instant close + background API, toast on error |
+| ├ Checklist toggle (optimistic) | 🟢 | Claude | Instant toggle/delete, rollback on error |
+| ├ Assignee add/remove (optimistic) | 🟢 | Claude | Instant update, no loading spinner, rollback on error |
+| ├ List create (optimistic) | 🟢 | Claude | Temp UUID list, replace with real on API response, rollback on error |
+| ├ Toast error notifications | 🟢 | Claude | sonner library, `<Toaster />` in layout |
+| └ Board mutations hook | 🟢 | Claude | `useBoardMutations()` — centralized API wrappers + TQ cache sync |
+| **Phase 2: TQ cache auto-sync** | 🟢 | Claude | useEffect syncs localBoard→TQ cache on every state change; API responses already slim |
+| **Phase 3: Render optimization** | 🟢 | Claude | React.memo on CardCompact (custom comparator), useMemo for totalStoryPoints/listColor/dateRange in List |
+| List virtualization | 🔴 | - | TanStack Virtual for long lists |
+| Image optimization | 🔴 | - | Next.js Image component |
 
 ### 6.3 Deployment 🔴
 | Task | Status | Owner | Notes |
@@ -301,6 +312,7 @@
 
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
+| 2026-02-08 | 6.2 | Optimistic mutations Phase 1: card reorder (rollback + TQ sync), card create (temp UUID), card delete (instant close), checklist toggle/delete, assignee add/remove — all with rollback on error + toast notifications. New: `useBoardMutations()` hook, sonner toaster. Modified: TasksView, PlanningView, BoardView, CardModal, SimpleChecklist, AssigneePicker. | Claude |
 | 2026-02-07 | 3.1 | Staged task release system complete: planning staged lane + manual release UI, automatic release engine (`task-release`), lazy fallback on board fetch, secured cron endpoint (`/api/cron/release-staged-tasks`), and release-processor test coverage. | Codex |
 | 2026-02-07 | 6.2 | Client-side caching (Option C) for all 12 dashboard pages: Timeline, Boards, Board detail, Projects, Project detail, Organization, Studios, Studio detail, Teams, Team detail, Users, User detail. TanStack Query hooks, skeleton loading states, thin server auth shells. New /api/organization endpoint, enhanced /api/users and /api/teams endpoints. | Claude |
 | 2026-02-07 | 6.2 | Tech debt cleanup: API helper migration (requireAuth, apiSuccess, ApiErrors), duplicate type removal, date formatting consolidation, hook dependency fixes, input validation improvements. | Claude |
@@ -355,3 +367,16 @@
 ---
 
 *Update this document when starting/completing tasks. Commit with message: `docs(roadmap): update [phase] status`*
+
+## Slack Integration Addendum (2026-02-09)
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Workspace-level Slack bot integration | Complete | Codex | Single backend connection (no per-user OAuth) |
+| Slack user discovery API | Complete | Codex | `GET /api/integrations/slack/users` |
+| Slack channel discovery API | Complete | Codex | `GET /api/integrations/slack/channels` |
+| User-to-Slack linking at user creation | Complete | Codex | Optional explicit select + auto-match by name |
+| Persist Slack user metadata on User model | Complete | Codex | `slackUserId`, `slackDisplayName`, `slackAvatarUrl` |
+| Project Slack channel mapping in app | Complete | Codex | Board settings: channel, alerts toggle, threshold |
+| Cron summary/alert posting to project channels | Complete | Codex | `POST /api/cron/slack-project-summaries` |
+| Slack integration health checks in settings | Complete | Codex | `GET /api/integrations/slack/status`, `POST /api/integrations/slack/test-message`, `/settings/integrations` UI |
+| 2026-02-09 | 5.3 | Slack integration complete: workspace bot APIs for users/channels, user creation Slack linking (manual + auto-match by name), board-level Slack channel mapping settings, and cron-based project summary/slow-progress posting. | Codex |
