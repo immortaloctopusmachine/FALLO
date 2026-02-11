@@ -90,6 +90,7 @@ export function BoardViewWrapper({
         onViewModeChange={handleViewModeChange}
         onSettingsClick={() => setSettingsOpen(true)}
         onMembersClick={() => setMembersOpen(true)}
+        showSettings={isAdmin}
       />
       <div className="flex-1 overflow-hidden">
         {viewMode === 'tasks' ? (

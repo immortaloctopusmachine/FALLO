@@ -18,6 +18,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
     <BoardDetailClient
       boardId={boardId}
       currentUserId={session.user.id}
+      userPermission={session.user.permission}
     />
   );
 }

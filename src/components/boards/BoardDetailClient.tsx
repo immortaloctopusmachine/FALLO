@@ -9,6 +9,7 @@ import type { Board, Card, List, WeeklyProgress } from '@/types';
 interface BoardDetailClientProps {
   boardId: string;
   currentUserId: string;
+  userPermission?: string;
 }
 
 function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; weeklyProgress: WeeklyProgress[] } {
@@ -67,7 +68,7 @@ function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; week
   return { board, weeklyProgress };
 }
 
-export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientProps) {
+export function BoardDetailClient({ boardId, currentUserId, userPermission }: BoardDetailClientProps) {
   const { data: rawLightData, isLoading } = useBoard(boardId, 'light');
   const {
     data: rawFullData,
@@ -109,16 +110,20 @@ export function BoardDetailClient({ boardId, currentUserId }: BoardDetailClientP
 
   if (isLoading || !board) return <BoardSkeleton />;
 
-  // Check if current user is admin
+  // Check if current user can edit this board:
+  // - SUPER_ADMIN can edit any board
+  // - Board ADMIN members can edit their boards
+  const isSuperAdmin = userPermission === 'SUPER_ADMIN';
   const currentMember = board.members.find((m) => m.userId === currentUserId);
-  const isAdmin = currentMember?.permission === 'ADMIN' || currentMember?.permission === 'SUPER_ADMIN';
+  const isBoardAdmin = currentMember?.permission === 'ADMIN' || currentMember?.permission === 'SUPER_ADMIN';
+  const canEdit = isSuperAdmin || isBoardAdmin;
 
   return (
     <BoardViewWrapper
       board={board}
       currentUserId={currentUserId}
       weeklyProgress={weeklyProgress}
-      isAdmin={isAdmin}
+      isAdmin={canEdit}
       hasFullData={hasFullData}
       isLoadingFullData={isFetchingFullData}
       onLoadFullData={loadFullData}
