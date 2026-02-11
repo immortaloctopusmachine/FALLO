@@ -45,14 +45,12 @@
       "Bash(del /f \"C:\\\\project-planner\\\\project-planner\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node\")",
       "Bash(npx ts-node:*)",
       "Bash(git status:*)",
-      "Bash(npm test:*)",
-      "Bash(set:*)",
-      "Bash(dir:*)",
-      "Bash(xcopy:*)",
-      "Bash(robocopy:*)",
-      "Bash(powershell -Command \"Copy-Item -Path ''skills\\\\code-checker'' -Destination ''.claude\\\\skills\\\\code-checker'' -Recurse -Force\")",
-      "Bash(powershell:*)",
-      "Bash(grep:*)"
+      "Bash(npx dotenv:*)",
+      "Bash($env:DATABASE_URL=\"postgresql://postgres.ulehnbejxlgwsjidvlye:fy8K%2A%21RbSa8KgqF4Ea%2A%25B%24EEY0stm%2AWG1%40tN3zGt@aws-1-eu-west-1.pooler.supabase.com:5432/postgres\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres.ulehnbejxlgwsjidvlye:fy8K%2A%21RbSa8KgqF4Ea%2A%25B%24EEY0stm%2AWG1%40tN3zGt@aws-1-eu-west-1.pooler.supabase.com:5432/postgres\" npx prisma db push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git stash pop:*)"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",
@@ -67,8 +65,7 @@
       "c:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
       "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]",
       "C:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
-      "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\timeline\\blocks\\[blockId]",
-      "c:\\project-planner\\project-planner\\src\\app\\(dashboard)\\projects"
+      "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\timeline\\blocks\\[blockId]"
     ]
   }
 }

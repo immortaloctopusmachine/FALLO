@@ -32,14 +32,10 @@ export async function GET(
       }
     }
 
+    // All authenticated users can view any board
     const board = await prisma.board.findFirst({
       where: {
         id: boardId,
-        members: {
-          some: {
-            userId: session.user.id,
-          },
-        },
       },
       include: {
         members: {

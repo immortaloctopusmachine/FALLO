@@ -92,6 +92,8 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
   const [members, setMembers] = useState<TeamMember[]>(team.members);
   const [studioOpen, setStudioOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  const [addingMemberId, setAddingMemberId] = useState<string | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   // Fetch studios and users when modal opens
   useEffect(() => {
@@ -170,6 +172,9 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
   };
 
   const handleAddMember = async (userId: string) => {
+    setAddingMemberId(userId);
+    setMemberError(null);
+
     try {
       const response = await fetch(`/api/teams/${team.id}/members`, {
         method: 'POST',
@@ -182,9 +187,14 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
       if (data.success) {
         setMembers((prev) => [...prev, data.data]);
         router.refresh();
+      } else {
+        setMemberError(data.error?.message || 'Failed to add member');
       }
     } catch (err) {
       console.error('Failed to add member:', err);
+      setMemberError('Failed to add member. Please try again.');
+    } finally {
+      setAddingMemberId(null);
     }
   };
 
@@ -446,6 +456,13 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
             </TabsContent>
 
             <TabsContent value="members" className="mt-4">
+              {/* Error message */}
+              {memberError && (
+                <div className="mb-4 rounded-md bg-red-500/10 p-3 text-sm text-red-500">
+                  {memberError}
+                </div>
+              )}
+
               {/* Add member dropdown */}
               <div className="mb-4">
                 <Popover open={usersOpen} onOpenChange={setUsersOpen}>
@@ -465,6 +482,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
                             <CommandItem
                               key={user.id}
                               value={user.name || user.email}
+                              disabled={addingMemberId === user.id}
                               onSelect={() => {
                                 handleAddMember(user.id);
                                 setUsersOpen(false);
@@ -479,10 +497,13 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
                                   </div>
                                 )}
                               </div>
-                              <div className="flex flex-col">
+                              <div className="flex flex-col flex-1">
                                 <span>{user.name || 'Unnamed'}</span>
                                 <span className="text-tiny text-text-tertiary">{user.email}</span>
                               </div>
+                              {addingMemberId === user.id && (
+                                <span className="text-tiny text-text-tertiary">Adding...</span>
+                              )}
                             </CommandItem>
                           ))}
                         </CommandGroup>

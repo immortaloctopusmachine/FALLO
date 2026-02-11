@@ -73,13 +73,9 @@ export async function GET(request: Request) {
     const projects = searchParams.get('projects') === 'true';
 
     if (projects) {
+      // All authenticated users can see all non-archived, non-template boards
       const boards = await prisma.board.findMany({
         where: {
-          members: {
-            some: {
-              userId: session.user.id,
-            },
-          },
           archivedAt: null,
           isTemplate: false,
         },
@@ -107,13 +103,9 @@ export async function GET(request: Request) {
     }
 
     if (archived) {
+      // All authenticated users can see all archived boards
       const boards = await prisma.board.findMany({
         where: {
-          members: {
-            some: {
-              userId: session.user.id,
-            },
-          },
           archivedAt: { not: null },
         },
         include: {
@@ -144,14 +136,9 @@ export async function GET(request: Request) {
       return apiSuccess(boards);
     }
 
-    // Default: active boards with members + lists
+    // Default: all active boards for any authenticated user
     const boards = await prisma.board.findMany({
       where: {
-        members: {
-          some: {
-            userId: session.user.id,
-          },
-        },
         archivedAt: null,
       },
       include: {
