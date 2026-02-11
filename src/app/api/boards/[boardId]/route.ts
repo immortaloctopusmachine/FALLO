@@ -267,8 +267,18 @@ export async function PATCH(
 
     const { boardId } = await params;
 
-    const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
-    if (adminResponse) return adminResponse;
+    // Check if user is SUPER_ADMIN (can edit any board) or board ADMIN
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { permission: true },
+    });
+    const isSuperAdmin = user?.permission === 'SUPER_ADMIN';
+
+    if (!isSuperAdmin) {
+      // Not super admin - must be board admin
+      const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
+      if (adminResponse) return adminResponse;
+    }
 
     const body = await request.json();
     const { name, description, settings, teamId } = body;
