@@ -9,13 +9,9 @@ export async function GET() {
     if (response) return response;
 
     const [boards, blockTypes, eventTypes, teams, users] = await Promise.all([
+      // All authenticated users can see all non-archived boards in timeline
       prisma.board.findMany({
         where: {
-          members: {
-            some: {
-              userId: session.user.id,
-            },
-          },
           archivedAt: null,
         },
         include: {
