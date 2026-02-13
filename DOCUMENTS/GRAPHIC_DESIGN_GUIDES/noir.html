@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design System — Noir Editorial</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* ─── CORE PALETTE ─── */
+  --bg-black:        #0a0a0f;
+  --bg-surface:      #12121a;
+  --bg-surface-hover:#1a1a26;
+  --bg-elevated:     #22222e;
+
+  /* ─── PRIMARY ACCENTS ─── */
+  --red:             #ff3366;
+  --red-light:       #ff6699;
+  --red-dark:        #cc1a4a;
+  --red-glow:        rgba(255, 51, 102, 0.15);
+  --red-subtle:      rgba(255, 51, 102, 0.06);
+
+  --teal:            #00d4aa;
+  --teal-light:      #66eecc;
+  --teal-dark:       #00a882;
+  --teal-glow:       rgba(0, 212, 170, 0.15);
+  --teal-subtle:     rgba(0, 212, 170, 0.06);
+
+  --amber:           #ffaa00;
+  --amber-light:     #ffcc55;
+  --amber-dark:      #cc8800;
+  --amber-glow:      rgba(255, 170, 0, 0.15);
+  --amber-subtle:    rgba(255, 170, 0, 0.06);
+
+  /* ─── EXTENDED ACCENTS ─── */
+  --blue:            #4488ff;
+  --blue-light:      #77aaff;
+  --blue-dark:       #2266dd;
+  --blue-glow:       rgba(68, 136, 255, 0.15);
+  --blue-subtle:     rgba(68, 136, 255, 0.06);
+
+  --violet:          #9966ff;
+  --violet-light:    #bb99ff;
+  --violet-dark:     #7744dd;
+  --violet-glow:     rgba(153, 102, 255, 0.15);
+  --violet-subtle:   rgba(153, 102, 255, 0.06);
+
+  --rose:            #ff6b9d;
+  --rose-light:      #ff99bb;
+  --rose-dark:       #dd4477;
+  --rose-glow:       rgba(255, 107, 157, 0.15);
+  --rose-subtle:     rgba(255, 107, 157, 0.06);
+
+  --lime:            #88dd44;
+  --lime-light:      #aaee77;
+  --lime-dark:       #66bb22;
+  --lime-glow:       rgba(136, 221, 68, 0.15);
+  --lime-subtle:     rgba(136, 221, 68, 0.06);
+
+  --cyan:            #22ddee;
+  --cyan-light:      #66eeff;
+  --cyan-dark:       #00bbcc;
+  --cyan-glow:       rgba(34, 221, 238, 0.15);
+  --cyan-subtle:     rgba(34, 221, 238, 0.06);
+
+  /* ─── NEUTRALS ─── */
+  --text-primary:    #f0ece4;
+  --text-secondary:  #8a8694;
+  --text-dim:        #5a5666;
+  --text-ghost:      #3a3646;
+  --border:          rgba(255, 255, 255, 0.06);
+  --border-medium:   rgba(255, 255, 255, 0.10);
+  --border-strong:   rgba(255, 255, 255, 0.16);
+
+  /* ─── GRADIENTS ─── */
+  --grad-red:        linear-gradient(135deg, #ff3366, #ff6699);
+  --grad-teal:       linear-gradient(135deg, #00b899, #00d4aa);
+  --grad-amber:      linear-gradient(135deg, #cc8800, #ffaa00);
+  --grad-blue:       linear-gradient(135deg, #2266dd, #4488ff);
+  --grad-violet:     linear-gradient(135deg, #7744dd, #9966ff);
+  --grad-rose:       linear-gradient(135deg, #dd4477, #ff6b9d);
+  --grad-lime:       linear-gradient(135deg, #66bb22, #88dd44);
+  --grad-cyan:       linear-gradient(135deg, #00bbcc, #22ddee);
+  --grad-sunset:     linear-gradient(135deg, #ff3366, #ffaa00);
+  --grad-ocean:      linear-gradient(135deg, #4488ff, #00d4aa);
+  --grad-aurora:     linear-gradient(135deg, #9966ff, #22ddee);
+  --grad-fire:       linear-gradient(135deg, #cc1a4a, #ffcc55);
+  --grad-neon:       linear-gradient(135deg, #ff3366, #9966ff, #4488ff);
+
+  /* ─── TYPOGRAPHY ─── */
+  --font-display:    'Playfair Display', Georgia, serif;
+  --font-body:       'DM Sans', -apple-system, sans-serif;
+  --font-mono:       'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ─── SPACING ─── */
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  /* ─── RADII ─── */
+  --radius-sm:  6px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  20px;
+  --radius-pill: 9999px;
+
+  /* ─── TEXTURE ─── */
+  --grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-black);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--grain);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ─── LAYOUT ─── */
+.page { max-width: 1080px; margin: 0 auto; padding: 0 2rem; }
+
+.header {
+  padding: 5rem 0 4rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4rem;
+}
+
+.header-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 1.5rem;
+}
+
+.header-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+
+.header-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  font-weight: 300;
+  max-width: 600px;
+}
+
+/* ─── SECTIONS ─── */
+.ds-section {
+  padding: 3.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ds-section:last-child { border-bottom: none; }
+
+.ds-section-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.ds-section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.8rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.75rem;
+}
+
+.ds-section-desc {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 2.5rem;
+  max-width: 700px;
+  line-height: 1.7;
+}
+
+/* ─── COLOR SWATCHES ─── */
+.color-group { margin-bottom: 2.5rem; }
+
+.color-group-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+
+.swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.swatch {
+  width: 110px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  transition: transform 0.2s ease;
+}
+
+.swatch:hover { transform: translateY(-2px); }
+
+.swatch-color {
+  height: 68px;
+  position: relative;
+}
+
+.swatch-info {
+  padding: 0.6rem 0.65rem;
+}
+
+.swatch-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  color: var(--text-primary);
+}
+
+.swatch-hex {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+}
+
+/* Wide swatch for gradients */
+.swatch.wide { width: 180px; }
+.swatch.wide .swatch-color { height: 52px; }
+
+/* ─── GLOW DEMO ─── */
+.glow-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.glow-demo {
+  width: 140px;
+  height: 100px;
+  border-radius: var(--radius-lg);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+}
+
+/* ─── TYPOGRAPHY SHOWCASE ─── */
+.type-specimen { margin-bottom: 2.5rem; }
+
+.type-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.type-label code {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-ghost);
+  background: var(--bg-surface);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.type-sample-display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.type-sample-body {
+  font-family: var(--font-body);
+  color: var(--text-secondary);
+}
+
+.type-sample-mono {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+/* ─── SIZE SCALE ─── */
+.size-scale { display: flex; flex-direction: column; gap: 1rem; }
+
+.size-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+}
+
+.size-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  min-width: 120px;
+  text-align: right;
+}
+
+/* ─── TEXTURE DEMO ─── */
+.texture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.texture-card {
+  height: 180px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.texture-card-name {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+.texture-card-css {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  position: relative;
+  z-index: 1;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* ─── COMPONENT EXAMPLES ─── */
+.component-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.example-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  transition: all 0.3s ease;
+}
+
+.example-card:hover {
+  background: var(--bg-surface-hover);
+  transform: translateY(-2px);
+}
+
+.example-card .card-tag {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.example-card .card-value {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.example-card .card-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ─── SPACING DEMO ─── */
+.spacing-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.spacing-bar {
+  height: 24px;
+  border-radius: 4px;
+  background: var(--grad-ocean);
+  opacity: 0.5;
+}
+
+.spacing-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  min-width: 110px;
+}
+
+.spacing-val {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-ghost);
+}
+
+/* ─── RULES LIST ─── */
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rule {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.rule-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.rule-content { flex: 1; }
+
+.rule-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.rule-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ─── CODE BLOCK ─── */
+.code-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  margin-top: 1rem;
+  white-space: pre;
+}
+
+.code-block .comment { color: var(--text-ghost); }
+.code-block .prop { color: var(--blue-light); }
+.code-block .val { color: var(--teal); }
+.code-block .str { color: var(--amber); }
+
+/* ─── CALLOUT ─── */
+.callout {
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  margin-top: 1.5rem;
+}
+
+.callout.do {
+  background: var(--teal-subtle);
+  border: 1px solid rgba(0, 212, 170, 0.15);
+}
+
+.callout.dont {
+  background: var(--red-subtle);
+  border: 1px solid rgba(255, 51, 102, 0.15);
+}
+
+.callout-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.callout.do .callout-label { color: var(--teal); }
+.callout.dont .callout-label { color: var(--red); }
+
+.callout-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ─── BORDER EXAMPLES ─── */
+.border-demos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.border-demo {
+  width: 160px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: var(--bg-surface);
+}
+
+.border-demo span {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 600px) {
+  .swatch { width: calc(50% - 0.375rem); }
+  .swatch.wide { width: calc(50% - 0.375rem); }
+  .size-row { flex-direction: column; gap: 0.25rem; }
+  .size-label { text-align: left; min-width: 0; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ═══════════════════════════════════════════ HEADER ═══════ -->
+<header class="header">
+  <div class="header-label">Design System v1.0 — February 2026</div>
+  <h1 class="header-title">Noir Editorial</h1>
+  <p class="header-subtitle">A dark-mode design language built for data-rich editorial dashboards. Film grain texture, sharp typography, and vivid accent colors on deep black surfaces.</p>
+</header>
+
+<!-- ═══════════════════════════════════════════ PRINCIPLES ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">00 — Principles</div>
+  <h2 class="ds-section-title">Design Rules</h2>
+  <div class="ds-section-desc">The non-negotiable rules that keep everything feeling cohesive. Break one and you break the system.</div>
+
+  <div class="rules-list">
+    <div class="rule">
+      <div class="rule-icon">🌑</div>
+      <div class="rule-content">
+        <div class="rule-title">Dark First, Always</div>
+        <div class="rule-desc">The background is near-black (#0a0a0f), not grey, not navy. Surfaces layer upward in brightness: black → surface → elevated. Never use pure white backgrounds.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">✦</div>
+      <div class="rule-content">
+        <div class="rule-title">Grain is Mandatory</div>
+        <div class="rule-desc">The SVG noise texture is applied as a fixed overlay at 4% opacity on the entire page (via body::before, pointer-events: none, z-index: 1000). This adds warmth and texture to every screen. Never remove it.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">🔤</div>
+      <div class="rule-content">
+        <div class="rule-title">Three Fonts, Strict Roles</div>
+        <div class="rule-desc">Playfair Display for headlines and big numbers only. DM Sans for all body copy, UI labels, and buttons. JetBrains Mono for data, metadata, tags, and code. Never swap roles.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">🎯</div>
+      <div class="rule-content">
+        <div class="rule-title">One Dominant Accent Per Context</div>
+        <div class="rule-desc">Each section, card, or data category gets one accent color. Use its full range (dark → base → light → glow → subtle). Don't mix multiple bright accents in the same component.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">📏</div>
+      <div class="rule-content">
+        <div class="rule-title">Minimum Readable Size: 0.85rem / 13.6px</div>
+        <div class="rule-desc">Body text must never go below 0.85rem. Metadata labels (mono font) may go as low as 0.7rem but only for non-essential supplementary info. Big numbers and headlines should be generous — clamp() for responsiveness.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">💫</div>
+      <div class="rule-content">
+        <div class="rule-title">Subtle Motion, Not Spectacle</div>
+        <div class="rule-desc">Use scroll-triggered fade-ups (0.8s cubic-bezier(0.16, 1, 0.3, 1)) and hover lifts (translateY(-2px)). Ambient glow pulses for atmosphere. Never bounce, never shake, never autoplay carousels.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">◻️</div>
+      <div class="rule-content">
+        <div class="rule-title">Borders Are Whispers</div>
+        <div class="rule-desc">Borders use rgba white at 6–16% opacity. Never use solid grey or colored borders on containers. Colored top-borders (2px) are used only to tag category on cards.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ COLORS ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">01 — Color</div>
+  <h2 class="ds-section-title">Palette</h2>
+  <div class="ds-section-desc">Eight accent families, each with a full range from dark to glow. Pick one dominant accent per section and use the others as supporting or categorical differentiators.</div>
+
+  <!-- Backgrounds -->
+  <div class="color-group">
+    <div class="color-group-title">Backgrounds & Surfaces</div>
+    <div class="swatch-row">
+      <div class="swatch"><div class="swatch-color" style="background:#0a0a0f"></div><div class="swatch-info"><div class="swatch-name">Black</div><div class="swatch-hex">#0a0a0f</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#12121a"></div><div class="swatch-info"><div class="swatch-name">Surface</div><div class="swatch-hex">#12121a</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#1a1a26"></div><div class="swatch-info"><div class="swatch-name">Surface Hover</div><div class="swatch-hex">#1a1a26</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#22222e"></div><div class="swatch-info"><div class="swatch-name">Elevated</div><div class="swatch-hex">#22222e</div></div></div>
+    </div>
+  </div>
+
+  <!-- Neutrals -->
+  <div class="color-group">
+    <div class="color-group-title">Text & Neutrals</div>
+    <div class="swatch-row">
+      <div class="swatch"><div class="swatch-color" style="background:#f0ece4"></div><div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-hex">#f0ece4</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#8a8694"></div><div class="swatch-info"><div class="swatch-name">Secondary</div><div class="swatch-hex">#8a8694</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#5a5666"></div><div class="swatch-info"><div class="swatch-name">Dim</div><div class="swatch-hex">#5a5666</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#3a3646"></div><div class="swatch-info"><div class="swatch-name">Ghost</div><div class="swatch-hex">#3a3646</div></div></div>
+    </div>
+  </div>
+
+  <!-- Primary Accents -->
+  <div class="color-group">
+    <div class="color-group-title">Primary Accents</div>
+    <div class="swatch-row">
+      <div class="swatch"><div class="swatch-color" style="background:#cc1a4a"></div><div class="swatch-info"><div class="swatch-name">Red Dark</div><div class="swatch-hex">#cc1a4a</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ff3366"></div><div class="swatch-info"><div class="swatch-name">Red</div><div class="swatch-hex">#ff3366</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ff6699"></div><div class="swatch-info"><div class="swatch-name">Red Light</div><div class="swatch-hex">#ff6699</div></div></div>
+
+      <div class="swatch"><div class="swatch-color" style="background:#00a882"></div><div class="swatch-info"><div class="swatch-name">Teal Dark</div><div class="swatch-hex">#00a882</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#00d4aa"></div><div class="swatch-info"><div class="swatch-name">Teal</div><div class="swatch-hex">#00d4aa</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#66eecc"></div><div class="swatch-info"><div class="swatch-name">Teal Light</div><div class="swatch-hex">#66eecc</div></div></div>
+
+      <div class="swatch"><div class="swatch-color" style="background:#cc8800"></div><div class="swatch-info"><div class="swatch-name">Amber Dark</div><div class="swatch-hex">#cc8800</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ffaa00"></div><div class="swatch-info"><div class="swatch-name">Amber</div><div class="swatch-hex">#ffaa00</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ffcc55"></div><div class="swatch-info"><div class="swatch-name">Amber Light</div><div class="swatch-hex">#ffcc55</div></div></div>
+    </div>
+  </div>
+
+  <!-- Extended Accents -->
+  <div class="color-group">
+    <div class="color-group-title">Extended Accents</div>
+    <div class="swatch-row">
+      <div class="swatch"><div class="swatch-color" style="background:#2266dd"></div><div class="swatch-info"><div class="swatch-name">Blue Dark</div><div class="swatch-hex">#2266dd</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#4488ff"></div><div class="swatch-info"><div class="swatch-name">Blue</div><div class="swatch-hex">#4488ff</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#77aaff"></div><div class="swatch-info"><div class="swatch-name">Blue Light</div><div class="swatch-hex">#77aaff</div></div></div>
+
+      <div class="swatch"><div class="swatch-color" style="background:#7744dd"></div><div class="swatch-info"><div class="swatch-name">Violet Dark</div><div class="swatch-hex">#7744dd</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#9966ff"></div><div class="swatch-info"><div class="swatch-name">Violet</div><div class="swatch-hex">#9966ff</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#bb99ff"></div><div class="swatch-info"><div class="swatch-name">Violet Light</div><div class="swatch-hex">#bb99ff</div></div></div>
+
+      <div class="swatch"><div class="swatch-color" style="background:#dd4477"></div><div class="swatch-info"><div class="swatch-name">Rose Dark</div><div class="swatch-hex">#dd4477</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ff6b9d"></div><div class="swatch-info"><div class="swatch-name">Rose</div><div class="swatch-hex">#ff6b9d</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ff99bb"></div><div class="swatch-info"><div class="swatch-name">Rose Light</div><div class="swatch-hex">#ff99bb</div></div></div>
+
+      <div class="swatch"><div class="swatch-color" style="background:#66bb22"></div><div class="swatch-info"><div class="swatch-name">Lime Dark</div><div class="swatch-hex">#66bb22</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#88dd44"></div><div class="swatch-info"><div class="swatch-name">Lime</div><div class="swatch-hex">#88dd44</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#aaee77"></div><div class="swatch-info"><div class="swatch-name">Lime Light</div><div class="swatch-hex">#aaee77</div></div></div>
+
+      <div class="swatch"><div class="swatch-color" style="background:#00bbcc"></div><div class="swatch-info"><div class="swatch-name">Cyan Dark</div><div class="swatch-hex">#00bbcc</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#22ddee"></div><div class="swatch-info"><div class="swatch-name">Cyan</div><div class="swatch-hex">#22ddee</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#66eeff"></div><div class="swatch-info"><div class="swatch-name">Cyan Light</div><div class="swatch-hex">#66eeff</div></div></div>
+    </div>
+  </div>
+
+  <!-- Gradients -->
+  <div class="color-group">
+    <div class="color-group-title">Gradients — Single Accent</div>
+    <div class="swatch-row">
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#ff3366,#ff6699)"></div><div class="swatch-info"><div class="swatch-name">Red</div><div class="swatch-hex">135deg → #ff3366 → #ff6699</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#00b899,#00d4aa)"></div><div class="swatch-info"><div class="swatch-name">Teal</div><div class="swatch-hex">135deg → #00b899 → #00d4aa</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#cc8800,#ffaa00)"></div><div class="swatch-info"><div class="swatch-name">Amber</div><div class="swatch-hex">135deg → #cc8800 → #ffaa00</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#2266dd,#4488ff)"></div><div class="swatch-info"><div class="swatch-name">Blue</div><div class="swatch-hex">135deg → #2266dd → #4488ff</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#7744dd,#9966ff)"></div><div class="swatch-info"><div class="swatch-name">Violet</div><div class="swatch-hex">135deg → #7744dd → #9966ff</div></div></div>
+    </div>
+  </div>
+
+  <div class="color-group">
+    <div class="color-group-title">Gradients — Cross-Accent (for emphasis & features)</div>
+    <div class="swatch-row">
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#ff3366,#ffaa00)"></div><div class="swatch-info"><div class="swatch-name">Sunset</div><div class="swatch-hex">Red → Amber</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#4488ff,#00d4aa)"></div><div class="swatch-info"><div class="swatch-name">Ocean</div><div class="swatch-hex">Blue → Teal</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#9966ff,#22ddee)"></div><div class="swatch-info"><div class="swatch-name">Aurora</div><div class="swatch-hex">Violet → Cyan</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#cc1a4a,#ffcc55)"></div><div class="swatch-info"><div class="swatch-name">Fire</div><div class="swatch-hex">Red Dark → Amber Light</div></div></div>
+      <div class="swatch wide"><div class="swatch-color" style="background:linear-gradient(135deg,#ff3366,#9966ff,#4488ff)"></div><div class="swatch-info"><div class="swatch-name">Neon</div><div class="swatch-hex">Red → Violet → Blue</div></div></div>
+    </div>
+  </div>
+
+  <!-- Glow demo -->
+  <div class="color-group">
+    <div class="color-group-title">Ambient Glow (radial-gradient + blur, for backgrounds)</div>
+    <div class="glow-row">
+      <div class="glow-demo" style="background:radial-gradient(ellipse, rgba(255,51,102,0.15) 0%, transparent 70%); border:1px solid var(--border); border-radius:var(--radius-lg);">--red-glow</div>
+      <div class="glow-demo" style="background:radial-gradient(ellipse, rgba(0,212,170,0.15) 0%, transparent 70%); border:1px solid var(--border); border-radius:var(--radius-lg);">--teal-glow</div>
+      <div class="glow-demo" style="background:radial-gradient(ellipse, rgba(68,136,255,0.15) 0%, transparent 70%); border:1px solid var(--border); border-radius:var(--radius-lg);">--blue-glow</div>
+      <div class="glow-demo" style="background:radial-gradient(ellipse, rgba(153,102,255,0.15) 0%, transparent 70%); border:1px solid var(--border); border-radius:var(--radius-lg);">--violet-glow</div>
+      <div class="glow-demo" style="background:radial-gradient(ellipse, rgba(255,170,0,0.15) 0%, transparent 70%); border:1px solid var(--border); border-radius:var(--radius-lg);">--amber-glow</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ TYPOGRAPHY ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">02 — Typography</div>
+  <h2 class="ds-section-title">Three Voices</h2>
+  <div class="ds-section-desc">A serif display face for editorial authority, a geometric sans for clean readability, and a monospace for data precision. Each has a strict role — never interchange them.</div>
+
+  <!-- Display -->
+  <div class="type-specimen">
+    <div class="type-label">Display — Headlines & Big Numbers <code>font-family: var(--font-display)</code></div>
+    <div class="type-sample-display" style="font-size:3.5rem; line-height:1.1;">Playfair Display</div>
+    <div class="type-sample-display" style="font-size:1.8rem; line-height:1.2; margin-top:0.5rem; color:var(--text-secondary);">Bold serif with high-contrast strokes and elegant ball terminals. Use at 900 weight for headlines. 700 for subheads. 400 italic for pull-quotes.</div>
+    <div style="margin-top:1rem; display:flex; gap:2rem; flex-wrap:wrap;">
+      <div>
+        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.25rem;">HERO / clamp(3rem, 8vw, 7rem)</div>
+        <div class="type-sample-display" style="font-size:4rem; font-weight:900; color:var(--red);">$7.2B</div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.25rem;">SECTION / clamp(2rem, 4vw, 3.5rem)</div>
+        <div class="type-sample-display" style="font-size:2.5rem; font-weight:900;">The Money</div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.25rem;">CARD HEADER / 1.4rem</div>
+        <div class="type-sample-display" style="font-size:1.4rem; font-weight:700;">Age Distribution</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="type-specimen">
+    <div class="type-label">Body — UI & Running Text <code>font-family: var(--font-body)</code></div>
+    <div class="type-sample-body" style="font-size:1.5rem; font-weight:300;">DM Sans — Light 300</div>
+    <div class="type-sample-body" style="font-size:1.5rem; font-weight:400;">DM Sans — Regular 400</div>
+    <div class="type-sample-body" style="font-size:1.5rem; font-weight:600;">DM Sans — Semi Bold 600</div>
+    <div class="type-sample-body" style="font-size:1.5rem; font-weight:700;">DM Sans — Bold 700</div>
+    <div style="margin-top:1rem;">
+      <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.5rem;">BODY COPY / 0.95rem / line-height: 1.7</div>
+      <div class="type-sample-body" style="font-size:0.95rem; line-height:1.7; max-width:560px;">
+        North America holds approximately 60% of the global sports trading card market. The surge in interest spans all age groups, with 45% of collectors aged between 18 and 34. Collectors report purchasing cards for both nostalgia and investment.
+      </div>
+    </div>
+  </div>
+
+  <!-- Mono -->
+  <div class="type-specimen">
+    <div class="type-label">Data — Labels, Tags, Code <code>font-family: var(--font-mono)</code></div>
+    <div class="type-sample-mono" style="font-size:1.5rem; font-weight:400;">JetBrains Mono — Regular 400</div>
+    <div class="type-sample-mono" style="font-size:1.5rem; font-weight:700;">JetBrains Mono — Bold 700</div>
+    <div style="margin-top:1rem; display:flex; gap:2rem; flex-wrap:wrap;">
+      <div>
+        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.25rem;">SECTION LABEL / 0.7rem / 0.3em spacing</div>
+        <div class="type-sample-mono" style="font-size:0.7rem; letter-spacing:0.3em; text-transform:uppercase; color:var(--text-dim);">01 — Market Size</div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.25rem;">TAG / 0.65rem / 0.2em spacing</div>
+        <div class="type-sample-mono" style="font-size:0.65rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--amber);">● SHARED</div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-ghost); margin-bottom:0.25rem;">VALUE PAIR / 0.75rem</div>
+        <div class="type-sample-mono" style="font-size:0.75rem;"><span style="color:var(--red)">● Slots 11.9%</span> &nbsp;&nbsp; <span style="color:var(--teal)">● Cards 7.8%</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ TEXTURE ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">03 — Texture & Atmosphere</div>
+  <h2 class="ds-section-title">Surface Treatments</h2>
+  <div class="ds-section-desc">The grain overlay is the signature. Combine it with ambient color glows, subtle borders, and layered transparencies to create depth without heavy shadows.</div>
+
+  <div class="texture-grid">
+    <div class="texture-card" style="background: var(--bg-black);">
+      <div style="position:absolute;inset:0;background:var(--grain);opacity:0.7;"></div>
+      <div class="texture-card-name">Film Grain Overlay</div>
+      <div class="texture-card-css">body::before { background: var(--grain); position: fixed; z-index: 1000; pointer-events: none; }</div>
+    </div>
+
+    <div class="texture-card" style="background: var(--bg-black); overflow:hidden;">
+      <div style="position:absolute;top:-30%;left:-20%;width:80%;height:80%;background:radial-gradient(ellipse,rgba(255,51,102,0.2) 0%,transparent 70%);filter:blur(60px);animation:pulse 6s ease-in-out infinite;"></div>
+      <div class="texture-card-name">Ambient Glow</div>
+      <div class="texture-card-css">radial-gradient(ellipse, color-glow 0%, transparent 70%) + filter: blur(60-80px) + pulse animation</div>
+    </div>
+
+    <div class="texture-card" style="background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-black) 100%);">
+      <div class="texture-card-name">Surface Fade</div>
+      <div class="texture-card-css">linear-gradient(180deg, --bg-surface 0%, --bg-black 100%) for section transitions</div>
+    </div>
+
+    <div class="texture-card" style="background: var(--bg-surface); border-top: 2px solid var(--blue);">
+      <div style="position:absolute;top:0;right:0;width:100px;height:100px;border-radius:0 0 0 100%;background:var(--blue);opacity:0.05;"></div>
+      <div class="texture-card-name">Category Card</div>
+      <div class="texture-card-css">border-top: 2px solid accent; Corner wash at 5% opacity for subtle color reinforcement</div>
+    </div>
+  </div>
+
+  <div class="callout do" style="margin-top:2rem;">
+    <div class="callout-label">✓ Do</div>
+    <div class="callout-text">Layer grain over glows. Use glow blobs positioned off-screen (-10% to -20%) for atmospheric bleed. Animate glow opacity between 0.6–1.0 on a slow 6s ease-in-out cycle. Use rgba borders (never solid colors) for container edges.</div>
+  </div>
+
+  <div class="callout dont">
+    <div class="callout-label">✗ Don't</div>
+    <div class="callout-text">Use box-shadow for depth (it looks artificial on dark backgrounds). Use gradient backgrounds on cards (keep cards solid surface colors). Use more than two ambient glows per viewport. Use grain opacity above 5% — it becomes distracting.</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ SPACING ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">04 — Spacing & Layout</div>
+  <h2 class="ds-section-title">Spatial Scale</h2>
+  <div class="ds-section-desc">Generous whitespace is essential. Sections breathe with 6rem padding. Cards get 2rem internal padding. Never crowd elements — when in doubt, add space.</div>
+
+  <div style="margin-bottom:2.5rem;">
+    <div class="spacing-row"><div class="spacing-label">--space-xs</div><div class="spacing-bar" style="width:4px;"></div><div class="spacing-val">0.25rem / 4px</div></div>
+    <div class="spacing-row"><div class="spacing-label">--space-sm</div><div class="spacing-bar" style="width:8px;"></div><div class="spacing-val">0.5rem / 8px</div></div>
+    <div class="spacing-row"><div class="spacing-label">--space-md</div><div class="spacing-bar" style="width:16px;"></div><div class="spacing-val">1rem / 16px</div></div>
+    <div class="spacing-row"><div class="spacing-label">--space-lg</div><div class="spacing-bar" style="width:24px;"></div><div class="spacing-val">1.5rem / 24px</div></div>
+    <div class="spacing-row"><div class="spacing-label">--space-xl</div><div class="spacing-bar" style="width:40px;"></div><div class="spacing-val">2.5rem / 40px</div></div>
+    <div class="spacing-row"><div class="spacing-label">--space-2xl</div><div class="spacing-bar" style="width:64px;"></div><div class="spacing-val">4rem / 64px</div></div>
+    <div class="spacing-row"><div class="spacing-label">--space-3xl</div><div class="spacing-bar" style="width:96px;"></div><div class="spacing-val">6rem / 96px</div></div>
+  </div>
+
+  <div class="color-group-title">Border Radii</div>
+  <div class="border-demos">
+    <div class="border-demo" style="border:1px solid var(--border-medium); border-radius:6px;"><span>--radius-sm</span><span>6px</span></div>
+    <div class="border-demo" style="border:1px solid var(--border-medium); border-radius:12px;"><span>--radius-md</span><span>12px</span></div>
+    <div class="border-demo" style="border:1px solid var(--border-medium); border-radius:16px;"><span>--radius-lg</span><span>16px</span></div>
+    <div class="border-demo" style="border:1px solid var(--border-medium); border-radius:20px;"><span>--radius-xl</span><span>20px</span></div>
+    <div class="border-demo" style="border:1px solid var(--border-medium); border-radius:9999px; width:100px; height:50px;"><span>pill</span></div>
+  </div>
+
+  <div class="callout do" style="margin-top:2rem;">
+    <div class="callout-label">Layout Rules</div>
+    <div class="callout-text">
+      Max content width: 1080–1200px. Page padding: 2rem. Section padding: 6rem vertical. Card gaps: 1.5rem. Use CSS grid with auto-fit and minmax(280px, 1fr) for responsive card grids. Use clamp() for all headline font-sizes. Never use fixed breakpoint font sizes.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ MOTION ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">05 — Motion</div>
+  <h2 class="ds-section-title">Animation Patterns</h2>
+  <div class="ds-section-desc">Restrained, purposeful motion. Everything fades up on scroll. Cards lift on hover. Ambient elements pulse slowly. That's it — nothing else needed.</div>
+
+  <div class="rules-list">
+    <div class="rule">
+      <div class="rule-icon">↑</div>
+      <div class="rule-content">
+        <div class="rule-title">Scroll Reveal</div>
+        <div class="rule-desc">opacity: 0 → 1, translateY(30px → 0). Duration: 0.8s. Easing: cubic-bezier(0.16, 1, 0.3, 1). Trigger: IntersectionObserver at threshold 0.1. Use staggered delays (0.1s increments) for grouped elements.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">🖱</div>
+      <div class="rule-content">
+        <div class="rule-title">Hover Lift</div>
+        <div class="rule-desc">Cards: translateY(-2px) + background shift to surface-hover. Duration: 0.3s ease. Subtle — don't overdo scale or shadow. No hover effects on mobile (use @media hover:hover).</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">💫</div>
+      <div class="rule-content">
+        <div class="rule-title">Ambient Pulse</div>
+        <div class="rule-desc">Glow blobs: opacity 0.6 → 1.0, scale 1 → 1.1. Duration: 6s ease-in-out infinite. Stagger second blob with a 3s delay. Only use in hero sections or major feature areas.</div>
+      </div>
+    </div>
+    <div class="rule">
+      <div class="rule-icon">📊</div>
+      <div class="rule-content">
+        <div class="rule-title">Data Bars</div>
+        <div class="rule-desc">Width transition: 1.5s cubic-bezier(0.16, 1, 0.3, 1). Triggered when bar enters viewport. Start from width: 0, animate to final percentage. Creates satisfying "fill" effect.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-block"><span class="comment">/* Core easing curve — use everywhere */</span>
+<span class="prop">--ease-out-expo</span>: <span class="val">cubic-bezier(0.16, 1, 0.3, 1)</span>;
+
+<span class="comment">/* Scroll reveal class */</span>
+<span class="prop">.reveal</span> {
+  <span class="prop">opacity</span>: <span class="val">0</span>;
+  <span class="prop">transform</span>: <span class="val">translateY(30px)</span>;
+  <span class="prop">transition</span>: <span class="val">all 0.8s var(--ease-out-expo)</span>;
+}
+<span class="prop">.reveal.visible</span> {
+  <span class="prop">opacity</span>: <span class="val">1</span>;
+  <span class="prop">transform</span>: <span class="val">translateY(0)</span>;
+}
+
+<span class="comment">/* Stagger children */</span>
+<span class="prop">.stagger-1</span> { <span class="prop">transition-delay</span>: <span class="val">0.1s</span>; }
+<span class="prop">.stagger-2</span> { <span class="prop">transition-delay</span>: <span class="val">0.2s</span>; }
+<span class="prop">.stagger-3</span> { <span class="prop">transition-delay</span>: <span class="val">0.3s</span>; }
+
+<span class="comment">/* Ambient glow */</span>
+<span class="prop">@keyframes pulse</span> {
+  <span class="val">0%, 100%</span> { <span class="prop">opacity</span>: <span class="val">0.6</span>; <span class="prop">transform</span>: <span class="val">scale(1)</span>; }
+  <span class="val">50%</span>     { <span class="prop">opacity</span>: <span class="val">1</span>;   <span class="prop">transform</span>: <span class="val">scale(1.1)</span>; }
+}
+
+<span class="comment">/* IntersectionObserver JS */</span>
+<span class="str">const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => e.isIntersecting && e.target.classList.add('visible'));
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));</span></div>
+</section>
+
+<!-- ═══════════════════════════════════════════ COMPONENTS ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">06 — Component Patterns</div>
+  <h2 class="ds-section-title">Building Blocks</h2>
+  <div class="ds-section-desc">Reusable component patterns. Each uses surface background, whisper borders, and one accent color for categorization.</div>
+
+  <div class="component-grid" style="margin-bottom:2rem;">
+    <div class="example-card" style="border-top:2px solid var(--blue);">
+      <div class="card-tag" style="color:var(--blue);">Revenue — Q4 2025</div>
+      <div class="card-value" style="color:var(--blue);">$4.2M</div>
+      <div class="card-desc">Monthly recurring revenue up 18% from previous quarter, driven by enterprise tier upgrades.</div>
+    </div>
+    <div class="example-card" style="border-top:2px solid var(--violet);">
+      <div class="card-tag" style="color:var(--violet);">Users — Active</div>
+      <div class="card-value" style="color:var(--violet);">128K</div>
+      <div class="card-desc">Daily active users across all platforms. Mobile accounts for 73% of sessions.</div>
+    </div>
+    <div class="example-card" style="border-top:2px solid var(--lime);">
+      <div class="card-tag" style="color:var(--lime);">Performance — Uptime</div>
+      <div class="card-value" style="color:var(--lime);">99.97%</div>
+      <div class="card-desc">30-day rolling average. Zero P0 incidents this quarter.</div>
+    </div>
+  </div>
+
+  <div class="color-group-title" style="margin-bottom:1rem;">Callout / Feature Box</div>
+  <div style="background:linear-gradient(135deg, rgba(68,136,255,0.05), rgba(153,102,255,0.05)); border:1px solid rgba(68,136,255,0.15); border-radius:var(--radius-xl); padding:2.5rem; text-align:center; position:relative;">
+    <div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-family:var(--font-display);font-size:4rem;color:var(--blue);opacity:0.2;line-height:1;">"</div>
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-style:italic;line-height:1.5;max-width:600px;margin:0 auto 0.75rem;">
+      Callout blocks use cross-accent gradient backgrounds at 5% opacity with a matching 15% border.
+    </div>
+    <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-dim);letter-spacing:0.1em;">
+      USE FOR QUOTES, KEY INSIGHTS, OR FEATURED CONTENT
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ CSS VARS ═══════ -->
+<section class="ds-section">
+  <div class="ds-section-label">07 — Quick Reference</div>
+  <h2 class="ds-section-title">Copy-Paste Variables</h2>
+  <div class="ds-section-desc">The complete CSS custom properties block. Drop this into any project's :root to get started.</div>
+
+  <div class="code-block"><span class="comment">/* ═══ NOIR EDITORIAL — Design System v1.0 ═══ */</span>
+
+<span class="comment">/* Backgrounds */</span>
+<span class="prop">--bg-black</span>:         <span class="val">#0a0a0f</span>;
+<span class="prop">--bg-surface</span>:       <span class="val">#12121a</span>;
+<span class="prop">--bg-surface-hover</span>: <span class="val">#1a1a26</span>;
+<span class="prop">--bg-elevated</span>:      <span class="val">#22222e</span>;
+
+<span class="comment">/* Text */</span>
+<span class="prop">--text-primary</span>:     <span class="val">#f0ece4</span>;   <span class="comment">/* warm off-white */</span>
+<span class="prop">--text-secondary</span>:   <span class="val">#8a8694</span>;   <span class="comment">/* muted lavender grey */</span>
+<span class="prop">--text-dim</span>:         <span class="val">#5a5666</span>;   <span class="comment">/* labels, metadata */</span>
+<span class="prop">--text-ghost</span>:       <span class="val">#3a3646</span>;   <span class="comment">/* barely visible */</span>
+
+<span class="comment">/* Borders */</span>
+<span class="prop">--border</span>:           <span class="val">rgba(255,255,255,0.06)</span>;
+<span class="prop">--border-medium</span>:    <span class="val">rgba(255,255,255,0.10)</span>;
+<span class="prop">--border-strong</span>:    <span class="val">rgba(255,255,255,0.16)</span>;
+
+<span class="comment">/* Accents — each has base / light / dark / glow / subtle */</span>
+<span class="prop">--red</span>:    <span class="val">#ff3366</span>;  <span class="prop">--red-light</span>:    <span class="val">#ff6699</span>;  <span class="prop">--red-dark</span>:    <span class="val">#cc1a4a</span>;
+<span class="prop">--teal</span>:   <span class="val">#00d4aa</span>;  <span class="prop">--teal-light</span>:   <span class="val">#66eecc</span>;  <span class="prop">--teal-dark</span>:   <span class="val">#00a882</span>;
+<span class="prop">--amber</span>:  <span class="val">#ffaa00</span>;  <span class="prop">--amber-light</span>:  <span class="val">#ffcc55</span>;  <span class="prop">--amber-dark</span>:  <span class="val">#cc8800</span>;
+<span class="prop">--blue</span>:   <span class="val">#4488ff</span>;  <span class="prop">--blue-light</span>:   <span class="val">#77aaff</span>;  <span class="prop">--blue-dark</span>:   <span class="val">#2266dd</span>;
+<span class="prop">--violet</span>: <span class="val">#9966ff</span>;  <span class="prop">--violet-light</span>: <span class="val">#bb99ff</span>;  <span class="prop">--violet-dark</span>: <span class="val">#7744dd</span>;
+<span class="prop">--rose</span>:   <span class="val">#ff6b9d</span>;  <span class="prop">--rose-light</span>:   <span class="val">#ff99bb</span>;  <span class="prop">--rose-dark</span>:   <span class="val">#dd4477</span>;
+<span class="prop">--lime</span>:   <span class="val">#88dd44</span>;  <span class="prop">--lime-light</span>:   <span class="val">#aaee77</span>;  <span class="prop">--lime-dark</span>:   <span class="val">#66bb22</span>;
+<span class="prop">--cyan</span>:   <span class="val">#22ddee</span>;  <span class="prop">--cyan-light</span>:   <span class="val">#66eeff</span>;  <span class="prop">--cyan-dark</span>:   <span class="val">#00bbcc</span>;
+
+<span class="comment">/* Glow variants (for radial-gradient backgrounds) */</span>
+<span class="prop">--red-glow</span>:    <span class="val">rgba(255,51,102,0.15)</span>;
+<span class="prop">--teal-glow</span>:   <span class="val">rgba(0,212,170,0.15)</span>;
+<span class="prop">--amber-glow</span>:  <span class="val">rgba(255,170,0,0.15)</span>;
+<span class="prop">--blue-glow</span>:   <span class="val">rgba(68,136,255,0.15)</span>;
+<span class="prop">--violet-glow</span>: <span class="val">rgba(153,102,255,0.15)</span>;
+<span class="prop">--rose-glow</span>:   <span class="val">rgba(255,107,157,0.15)</span>;
+<span class="prop">--lime-glow</span>:   <span class="val">rgba(136,221,68,0.15)</span>;
+<span class="prop">--cyan-glow</span>:   <span class="val">rgba(34,221,238,0.15)</span>;
+
+<span class="comment">/* Subtle variants (for tinted backgrounds) */</span>
+<span class="prop">--red-subtle</span>:    <span class="val">rgba(255,51,102,0.06)</span>;
+<span class="prop">--teal-subtle</span>:   <span class="val">rgba(0,212,170,0.06)</span>;
+<span class="comment">/* ... same pattern for all accents */</span>
+
+<span class="comment">/* Gradients */</span>
+<span class="prop">--grad-sunset</span>:  <span class="val">linear-gradient(135deg, #ff3366, #ffaa00)</span>;
+<span class="prop">--grad-ocean</span>:   <span class="val">linear-gradient(135deg, #4488ff, #00d4aa)</span>;
+<span class="prop">--grad-aurora</span>:  <span class="val">linear-gradient(135deg, #9966ff, #22ddee)</span>;
+<span class="prop">--grad-fire</span>:    <span class="val">linear-gradient(135deg, #cc1a4a, #ffcc55)</span>;
+<span class="prop">--grad-neon</span>:    <span class="val">linear-gradient(135deg, #ff3366, #9966ff, #4488ff)</span>;
+
+<span class="comment">/* Fonts — load from Google Fonts */</span>
+<span class="prop">--font-display</span>:  <span class="str">'Playfair Display', Georgia, serif</span>;
+<span class="prop">--font-body</span>:     <span class="str">'DM Sans', -apple-system, sans-serif</span>;
+<span class="prop">--font-mono</span>:     <span class="str">'JetBrains Mono', 'Fira Code', monospace</span>;
+
+<span class="comment">/* Spacing */</span>
+<span class="prop">--space-xs</span>:  <span class="val">0.25rem</span>;  <span class="prop">--space-sm</span>:  <span class="val">0.5rem</span>;
+<span class="prop">--space-md</span>:  <span class="val">1rem</span>;     <span class="prop">--space-lg</span>:  <span class="val">1.5rem</span>;
+<span class="prop">--space-xl</span>:  <span class="val">2.5rem</span>;   <span class="prop">--space-2xl</span>: <span class="val">4rem</span>;
+<span class="prop">--space-3xl</span>: <span class="val">6rem</span>;
+
+<span class="comment">/* Radii */</span>
+<span class="prop">--radius-sm</span>:   <span class="val">6px</span>;     <span class="prop">--radius-md</span>:   <span class="val">12px</span>;
+<span class="prop">--radius-lg</span>:   <span class="val">16px</span>;    <span class="prop">--radius-xl</span>:   <span class="val">20px</span>;
+<span class="prop">--radius-pill</span>: <span class="val">9999px</span>;
+
+<span class="comment">/* Grain texture */</span>
+<span class="prop">--grain</span>: <span class="val">url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256'
+  xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E
+  %3CfeTurbulence type='fractalNoise' baseFrequency='0.9'
+  numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect
+  width='100%25' height='100%25' filter='url(%23noise)'
+  opacity='0.04'/%3E%3C/svg%3E")</span>;</div>
+</section>
+
+<!-- ═══════════════════════════════════════════ FOOTER ═══════ -->
+<footer style="padding:4rem 0; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+  <div style="font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); letter-spacing:0.1em;">
+    Noir Editorial Design System v1.0 · February 2026 · Created for reuse across web projects
+  </div>
+  <div style="font-family:var(--font-display); font-weight:700; font-size:0.9rem; color:var(--text-secondary);">
+    Noir Editorial
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

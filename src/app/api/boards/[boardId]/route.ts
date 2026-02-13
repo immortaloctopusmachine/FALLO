@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
   requireAuth,
   requireBoardAdmin,
@@ -340,8 +341,26 @@ export async function DELETE(
         return ApiErrors.validation('Only archived boards can be permanently deleted');
       }
 
-      await prisma.board.delete({
-        where: { id: boardId },
+      // Explicit cleanup keeps permanent delete reliable even if DB cascade
+      // constraints differ across environments/migrations.
+      await prisma.$transaction(async (tx) => {
+        await tx.userWeeklyAvailability.deleteMany({ where: { boardId } });
+        await tx.timelineEvent.deleteMany({ where: { boardId } });
+        await tx.timelineBlock.deleteMany({ where: { boardId } });
+        await tx.weeklyProgress.deleteMany({ where: { boardId } });
+        await tx.activity.deleteMany({ where: { boardId } });
+        await tx.boardMember.deleteMany({ where: { boardId } });
+        await tx.spineTrackerData.deleteMany({ where: { boardId } });
+        await tx.timeLog.deleteMany({
+          where: {
+            OR: [
+              { list: { boardId } },
+              { card: { list: { boardId } } },
+            ],
+          },
+        });
+        await tx.list.deleteMany({ where: { boardId } });
+        await tx.board.delete({ where: { id: boardId } });
       });
 
       return apiSuccess(null);
@@ -359,6 +378,20 @@ export async function DELETE(
     return apiSuccess(null);
   } catch (error) {
     console.error('Failed to delete board:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        return ApiErrors.notFound('Board');
+      }
+      if (error.code === 'P2003') {
+        return ApiErrors.conflict('Board cannot be deleted due to related records');
+      }
+      return ApiErrors.internal(`Delete failed (${error.code})`);
+    }
+
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      return ApiErrors.validation('Invalid delete request');
+    }
+
     return ApiErrors.internal('Failed to delete board');
   }
 }

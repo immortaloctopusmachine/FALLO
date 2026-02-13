@@ -816,7 +816,7 @@ export function PlanningView({
     <div className={cn(
       'border-b border-border bg-surface transition-all duration-300 overflow-hidden',
       statsExpanded ? 'max-h-[400px]' : 'max-h-10'
-    )}>
+    )} style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}>
       <div className="flex items-center justify-between px-4 py-2">
         <button
           onClick={() => setStatsExpanded(!statsExpanded)}
@@ -929,7 +929,10 @@ export function PlanningView({
 
   // Render epics sidebar
   const renderEpicsSidebar = () => (
-    <div className="w-[280px] shrink-0 border-r border-border bg-surface flex flex-col">
+    <div
+      className="w-[280px] shrink-0 border-r border-border bg-surface flex flex-col"
+      style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">

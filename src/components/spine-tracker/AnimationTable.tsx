@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { Plus, Trash2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,8 +64,8 @@ export function AnimationTable({
           </thead>
           <tbody>
             {animations.map((anim, i) => (
-              <>
-                <tr key={`anim-${i}`} className="border-b border-border/50 hover:bg-surface-hover/30">
+              <Fragment key={`anim-${i}`}>
+                <tr className="border-b border-border/50 hover:bg-surface-hover/30">
                   <td className="py-1.5 px-3">
                     {editMode ? (
                       <Input
@@ -161,7 +162,7 @@ export function AnimationTable({
                     onDelete={() => onDeleteSoundFx(i, j)}
                   />
                 ))}
-              </>
+              </Fragment>
             ))}
             {animations.length === 0 && (
               <tr>

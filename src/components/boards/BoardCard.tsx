@@ -62,6 +62,21 @@ export function BoardCard({
   const canManage = isAdmin || isSuperAdmin;
   const canDelete = isArchived && canManage;
 
+  const getErrorMessage = async (response: Response) => {
+    const fallback = `Request failed (${response.status} ${response.statusText})`;
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const payload = await response.json().catch(() => null) as
+        | { error?: { message?: string }; message?: string }
+        | null;
+      return payload?.error?.message || payload?.message || fallback;
+    }
+
+    const text = await response.text().catch(() => '');
+    return text || fallback;
+  };
+
   const handleClone = async (e: React.MouseEvent, asTemplate: boolean) => {
     e.preventDefault();
     e.stopPropagation();
@@ -80,7 +95,8 @@ export function BoardCard({
         router.push(`/boards/${result.data.id}`);
         router.refresh();
       } else {
-        console.error('Failed to clone board:', result.error);
+        const message = result?.error?.message || `Request failed (${response.status} ${response.statusText})`;
+        console.error('Failed to clone board:', message);
       }
     } catch (error) {
       console.error('Failed to clone board:', error);
@@ -106,8 +122,7 @@ export function BoardCard({
       if (response.ok) {
         router.refresh();
       } else {
-        const result = await response.json();
-        console.error('Failed to archive board:', result.error);
+        console.error('Failed to archive board:', await getErrorMessage(response));
       }
     } catch (error) {
       console.error('Failed to archive board:', error);
@@ -129,8 +144,7 @@ export function BoardCard({
       if (response.ok) {
         router.refresh();
       } else {
-        const result = await response.json();
-        console.error('Failed to unarchive board:', result.error);
+        console.error('Failed to unarchive board:', await getErrorMessage(response));
       }
     } catch (error) {
       console.error('Failed to unarchive board:', error);
@@ -157,8 +171,7 @@ export function BoardCard({
         onDeleted?.();
         router.refresh();
       } else {
-        const result = await response.json();
-        console.error('Failed to delete board:', result.error);
+        console.error('Failed to delete board:', await getErrorMessage(response));
       }
     } catch (error) {
       console.error('Failed to delete board:', error);
