@@ -116,16 +116,6 @@ export function TimelineView({
     return 'var(--surface)';
   }, []);
 
-  const getOpaqueTeamTint = useCallback((color: string | null | undefined, amount = 0.12) => {
-    if (!color || !color.startsWith('#') || color.length !== 7) return '#f8fafc';
-    const r = parseInt(color.slice(1, 3), 16);
-    const g = parseInt(color.slice(3, 5), 16);
-    const b = parseInt(color.slice(5, 7), 16);
-    const mix = (channel: number) => Math.round(255 * (1 - amount) + channel * amount);
-    const toHex = (channel: number) => mix(channel).toString(16).padStart(2, '0');
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-  }, []);
-
   // Local state for optimistic updates
   const [projects, setProjects] = useState(initialProjects);
 
@@ -537,11 +527,11 @@ export function TimelineView({
         teamTint: getTeamTint(project.board.team?.color, '14'),
         teamTintSoft: getTeamTint(project.board.team?.color, '0D'),
         teamTintRow: getTeamTint(project.board.team?.color, '10'),
-        leftTeamTint: getOpaqueTeamTint(project.board.team?.color, 0.1),
-        leftTeamTintSoft: getOpaqueTeamTint(project.board.team?.color, 0.07),
-        leftTeamTintRow: getOpaqueTeamTint(project.board.team?.color, 0.08),
+        leftTeamTint: getTeamTint(project.board.team?.color, '14'),
+        leftTeamTintSoft: getTeamTint(project.board.team?.color, '0D'),
+        leftTeamTintRow: getTeamTint(project.board.team?.color, '10'),
       })),
-    [filteredProjects, getProjectDisplayRows, getTeamTint, getOpaqueTeamTint]
+    [filteredProjects, getProjectDisplayRows, getTeamTint]
   );
 
   // Handlers
