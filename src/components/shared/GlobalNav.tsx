@@ -11,10 +11,19 @@ import {
   Users,
   User,
   Settings,
+  Palette,
   Moon,
   Sun,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface GlobalNavProps {
   userName?: string | null;
@@ -33,21 +42,30 @@ const navItems = [
 
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'slate' | 'light'>('slate');
+
+  const applyTheme = (nextTheme: 'dark' | 'slate' | 'light') => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'slate');
+    if (nextTheme === 'dark') root.classList.add('dark');
+    if (nextTheme === 'slate') root.classList.add('slate');
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const storedTheme = window.localStorage.getItem('ui.theme');
-    const nextTheme = storedTheme === 'light' ? 'light' : 'dark';
+    const nextTheme =
+      storedTheme === 'light' || storedTheme === 'slate' || storedTheme === 'dark'
+        ? storedTheme
+        : 'slate';
     setTheme(nextTheme);
-    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    applyTheme(nextTheme);
   }, []);
 
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  const setSkin = (nextTheme: 'dark' | 'slate' | 'light') => {
     setTheme(nextTheme);
     if (typeof window !== 'undefined') {
-      document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+      applyTheme(nextTheme);
       window.localStorage.setItem('ui.theme', nextTheme);
     }
   };
@@ -89,15 +107,26 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
           <span className="text-body text-text-secondary">
             {userName || userEmail}
           </span>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
+                title="Choose skin"
+                aria-label="Choose skin"
+              >
+                {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'slate' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuLabel>Skin</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as 'dark' | 'slate' | 'light')}>
+                <DropdownMenuRadioItem value="dark">Dark (Noir)</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="slate">Slate</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
