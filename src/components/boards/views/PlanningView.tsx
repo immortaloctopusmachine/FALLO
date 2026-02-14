@@ -35,12 +35,14 @@ import {
   LayoutGrid,
   CalendarRange,
   ArrowRight,
+  Boxes,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { List as ListComponent } from '../List';
 import { CardCompact } from '@/components/cards/CardCompact';
 import { CardModal } from '@/components/cards/CardModal';
+import { AddModuleToBoardModal } from '@/components/boards/AddModuleToBoardModal';
 import { BurnUpChart } from './BurnUpChart';
 import type {
   Board,
@@ -114,6 +116,8 @@ export function PlanningView({
   const [isSyncingTimeline, setIsSyncingTimeline] = useState(false);
   const [collapsedLists, setCollapsedLists] = useState<Set<string>>(new Set());
   const [releasingTaskIds, setReleasingTaskIds] = useState<Set<string>>(new Set());
+  const [isAddModuleOpen, setIsAddModuleOpen] = useState(false);
+  const [moduleDefaultPlanningListId, setModuleDefaultPlanningListId] = useState<string | undefined>(undefined);
 
   // Filter to get Epics and User Stories
   const epics = useMemo(() => {
@@ -664,6 +668,25 @@ export function PlanningView({
     mutations.invalidateBoard();
   }, [mutations]);
 
+  const handleOpenAddModule = useCallback((planningListId?: string) => {
+    setModuleDefaultPlanningListId(planningListId);
+    setIsAddModuleOpen(true);
+  }, []);
+
+  const handleModuleApplied = useCallback((createdCards: Card[]) => {
+    setBoard((prev) => ({
+      ...prev,
+      lists: prev.lists.map((list) => {
+        const newCards = createdCards.filter(
+          (card) => card.listId === list.id && !list.cards.some((existing) => existing.id === card.id)
+        );
+        if (newCards.length === 0) return list;
+        return { ...list, cards: [...list.cards, ...newCards] };
+      }),
+    }));
+    handleRefreshBoard();
+  }, [setBoard, handleRefreshBoard]);
+
   const handleReleaseStagedTask = useCallback(async (task: TaskCard) => {
     const releaseTargetListId =
       task.taskData?.releaseTargetListId ||
@@ -940,14 +963,25 @@ export function PlanningView({
           <span className="text-title font-semibold">Epics</span>
           <span className="text-caption text-text-tertiary">{epics.length}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
-          onClick={() => setIsAddingEpic(true)}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
+            onClick={() => handleOpenAddModule()}
+            title="Add module"
+          >
+            <Boxes className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
+            onClick={() => setIsAddingEpic(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Total SP */}
@@ -1070,6 +1104,17 @@ export function PlanningView({
       isCollapsible
       isCollapsed={collapsedLists.has(list.id)}
       onCollapseChange={handleCollapseChange}
+      extraHeaderActions={(
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
+          onClick={() => handleOpenAddModule(list.id)}
+          title="Add module"
+        >
+          <Boxes className="h-4 w-4" />
+        </Button>
+      )}
       secondaryCards={list.stagedTasks}
       secondarySectionTitle="Staged Tasks"
       secondaryEmptyText="No staged tasks in this phase."
@@ -1232,6 +1277,16 @@ export function PlanningView({
         taskLists={taskLists}
         planningLists={planningLists}
         allCards={allCards}
+      />
+
+      <AddModuleToBoardModal
+        isOpen={isAddModuleOpen}
+        onClose={() => setIsAddModuleOpen(false)}
+        boardId={board.id}
+        planningLists={planningLists}
+        taskLists={taskLists}
+        defaultPlanningListId={moduleDefaultPlanningListId}
+        onApplied={handleModuleApplied}
       />
     </div>
   );

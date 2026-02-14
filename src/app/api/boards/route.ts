@@ -60,9 +60,11 @@ async function findBlockTypeForList(list: {
 }
 
 // GET /api/boards - Get all boards for current user
+// Note: "projects" are non-template boards (same DB model, different UI view — see CLAUDE.md)
 // Query params:
-//   ?archived=true  - return archived boards
-//   ?projects=true  - return non-template boards with team + member data
+//   ?archived=true                - return archived boards
+//   ?projects=true                - return active projects (non-template, non-archived boards)
+//   ?projects=true&archived=true  - return archived projects
 export async function GET(request: Request) {
   try {
     const { session, response } = await requireAuth();
@@ -73,10 +75,11 @@ export async function GET(request: Request) {
     const projects = searchParams.get('projects') === 'true';
 
     if (projects) {
-      // All authenticated users can see all non-archived, non-template boards
+      // All authenticated users can see all non-template boards
+      // ?archived=true returns archived projects, otherwise active ones
       const boards = await prisma.board.findMany({
         where: {
-          archivedAt: null,
+          archivedAt: archived ? { not: null } : null,
           isTemplate: false,
         },
         include: {

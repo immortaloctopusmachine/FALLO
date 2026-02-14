@@ -18,6 +18,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     <ProjectDetailPageClient
       projectId={projectId}
       currentUserId={session.user.id}
+      userPermission={session.user.permission}
     />
   );
 }

@@ -69,6 +69,7 @@ interface ListProps {
   secondaryEmptyText?: string;
   renderSecondaryCardActions?: (card: Card) => ReactNode;
   chainMap?: Map<string, ChainLink[]>; // Dependency chain data for cards
+  extraHeaderActions?: ReactNode;
 }
 
 // Get subtle tint style based on list name — uses backgroundImage so it layers on top of bg-surface
@@ -122,6 +123,7 @@ export function List({
   secondaryEmptyText = 'No cards in this section.',
   renderSecondaryCardActions,
   chainMap,
+  extraHeaderActions,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -298,6 +300,7 @@ export function List({
           )}
         </div>
         <div className="flex items-center gap-1">
+          {extraHeaderActions}
           {isCollapsible && (
             <TooltipProvider>
               <Tooltip>

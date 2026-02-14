@@ -3,6 +3,23 @@
 ## Project Overview
 **Fallo** - A Trello-inspired project management application with custom functionality for production workflows. Features hierarchical card types (Epic → User Story → Task), role-based access, and optional LLM integration.
 
+## Project vs Board — Conceptual Model
+
+The app has two user-facing views of the same underlying data:
+
+- **Project** — the high-level view: dates, roles, stats, description, links. Shown at `/projects/[id]`. Think of it as the "overview dashboard" for a production.
+- **Board** — the Trello-like workspace: lists, cards, drag-and-drop. Shown at `/boards/[id]`. Think of it as the "work surface".
+
+**In the database, both map to a single `Board` row** (`prisma/schema.prisma` → `model Board`). There is no separate `Project` table. A project is simply a non-template board (`isTemplate: false`). The project detail page and the board detail page both fetch from `GET /api/boards/[boardId]`.
+
+**Naming convention in code:**
+- Files under `src/components/projects/` and `src/app/(dashboard)/projects/` should use "project" naming (e.g., `project`, `projectData`) — never `rawBoard` or `board` for the main entity.
+- Files under `src/components/boards/` and `src/app/(dashboard)/boards/` use "board" naming.
+- The API layer uses "board" everywhere since it serves both views. The query param `?projects=true` filters for non-template boards.
+- TanStack Query keys: `['projects']` for the project list, `['boards', id, 'project']` for a single project's data.
+
+**Future:** Add dedicated `/api/projects` routes as thin wrappers around the board logic to make the API self-documenting (tracked in `DOCUMENTS/TECH_DEBT.md`).
+
 ## Tech Stack
 - **Framework**: Next.js 15 (App Router) + TypeScript + React 19
 - **Styling**: Tailwind CSS + shadcn/ui

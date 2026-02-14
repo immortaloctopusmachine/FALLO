@@ -39,6 +39,9 @@ export async function GET(
         id: boardId,
       },
       include: {
+        team: {
+          select: { id: true, name: true, color: true },
+        },
         members: {
           include: {
             user: {
@@ -48,9 +51,28 @@ export async function GET(
                 email: true,
                 image: true,
                 permission: true,
+                userCompanyRoles: {
+                  include: {
+                    companyRole: {
+                      select: { id: true, name: true, color: true, position: true },
+                    },
+                  },
+                },
               },
             },
           },
+        },
+        timelineEvents: {
+          include: {
+            eventType: true,
+          },
+          orderBy: { startDate: 'asc' },
+        },
+        timelineBlocks: {
+          include: {
+            blockType: true,
+          },
+          orderBy: { position: 'asc' },
         },
         lists: {
           orderBy: { position: 'asc' },

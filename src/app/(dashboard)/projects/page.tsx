@@ -10,6 +10,7 @@ export default async function ProjectsPage() {
   }
 
   const isAdmin = session.user.permission === 'ADMIN' || session.user.permission === 'SUPER_ADMIN';
+  const isSuperAdmin = session.user.permission === 'SUPER_ADMIN';
 
-  return <ProjectsPageClient isAdmin={isAdmin} />;
+  return <ProjectsPageClient isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} currentUserId={session.user.id} />;
 }

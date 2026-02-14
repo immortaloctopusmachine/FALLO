@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { getContrastColor } from '@/lib/color-utils';
+import { getMonday } from '@/lib/date-utils';
 import type { TimelineBlock as TimelineBlockType } from '@/types';
 
 interface TimelineBlockProps {
@@ -71,6 +72,32 @@ function calculateBlockPositionFast(
 
 // Long press threshold in milliseconds
 const LONG_PRESS_THRESHOLD = 400;
+
+function parseHexColor(hexColor: string): { r: number; g: number; b: number } | null {
+  const normalized = hexColor.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null;
+
+  return {
+    r: parseInt(normalized.slice(0, 2), 16),
+    g: parseInt(normalized.slice(2, 4), 16),
+    b: parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function blendHexColors(baseColor: string, overlayColor: string, overlayWeight: number): string | null {
+  const base = parseHexColor(baseColor);
+  const overlay = parseHexColor(overlayColor);
+  if (!base || !overlay) return null;
+
+  const clampedWeight = Math.min(1, Math.max(0, overlayWeight));
+  const baseWeight = 1 - clampedWeight;
+
+  const r = Math.round(base.r * baseWeight + overlay.r * clampedWeight);
+  const g = Math.round(base.g * baseWeight + overlay.g * clampedWeight);
+  const b = Math.round(base.b * baseWeight + overlay.b * clampedWeight);
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
 
 function TimelineBlockComponent({
   block,
@@ -192,7 +219,22 @@ function TimelineBlockComponent({
   }, [wasDragging, isDragging, onClick]);
 
   const blockColor = block.blockType.color || '#6366f1';
-  const textColor = getContrastColor(blockColor);
+  const isPastBlock = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentWeekStart = getMonday(today);
+    currentWeekStart.setHours(0, 0, 0, 0);
+
+    const blockEnd = new Date(block.endDate);
+    blockEnd.setHours(0, 0, 0, 0);
+
+    return blockEnd < currentWeekStart;
+  }, [block.endDate]);
+
+  const displayBlockColor = isPastBlock
+    ? blendHexColors(blockColor, '#6b7280', 0.45) || '#6b7280'
+    : blockColor;
+  const textColor = isPastBlock ? '#1f2937' : getContrastColor(displayBlockColor);
 
   // Apply drag offset during dragging
   const displayLeft = left + dragOffset + 2;
@@ -205,6 +247,7 @@ function TimelineBlockComponent({
         isAdmin ? 'cursor-grab' : 'cursor-pointer',
         isDragging && 'cursor-grabbing shadow-lg z-20 opacity-90',
         !isDragging && 'hover:shadow-md hover:z-10 transition-shadow',
+        isPastBlock && !isDragging && 'opacity-95',
         isSelected && 'ring-2 ring-primary ring-offset-1'
       )}
       style={{
@@ -212,7 +255,7 @@ function TimelineBlockComponent({
         width: Math.max(width, columnWidth - 4),
         height: rowHeight - 8,
         top: 4,
-        backgroundColor: blockColor,
+        backgroundColor: displayBlockColor,
         // Use transform for smoother dragging (GPU accelerated)
         willChange: isDragging ? 'transform' : 'auto',
       }}

@@ -31,6 +31,7 @@ interface CreateLinkedTasksModalProps {
   userStoryId: string;
   userStoryListId: string;
   taskLists: List[];
+  planningLists: List[];
   boardMembers: BoardMember[];
   onTasksCreated: (tasks: Card[]) => void;
 }
@@ -42,17 +43,21 @@ interface TaskFormState {
   description: string;
   descriptionExpanded: boolean;
   listId: string;
+  stagingPlanningListId: string;
+  releaseTargetListId: string;
   destinationMode: TaskReleaseMode;
 }
 
-function createInitialStates(defaultListId: string): TaskFormState[] {
+function createInitialStates(defaultTaskListId: string, defaultPlanningListId: string): TaskFormState[] {
   return LINKED_TASK_PRESETS.map(() => ({
     titleOverride: null,
     assigneeId: null,
     storyPoints: null,
     description: '',
     descriptionExpanded: false,
-    listId: defaultListId,
+    listId: defaultTaskListId,
+    stagingPlanningListId: defaultPlanningListId,
+    releaseTargetListId: defaultTaskListId,
     destinationMode: 'IMMEDIATE' as TaskReleaseMode,
   }));
 }
@@ -69,13 +74,15 @@ export function CreateLinkedTasksModal({
   userStoryId,
   userStoryListId,
   taskLists,
+  planningLists,
   boardMembers,
   onTasksCreated,
 }: CreateLinkedTasksModalProps) {
-  const defaultListId = taskLists[0]?.id || '';
+  const defaultTaskListId = taskLists[0]?.id || '';
+  const defaultPlanningListId = userStoryListId || planningLists[0]?.id || '';
   const [baseName, setBaseName] = useState('');
   const [tasks, setTasks] = useState<TaskFormState[]>(
-    createInitialStates(defaultListId)
+    createInitialStates(defaultTaskListId, defaultPlanningListId)
   );
   const [isCreating, setIsCreating] = useState(false);
 
@@ -83,9 +90,9 @@ export function CreateLinkedTasksModal({
   useEffect(() => {
     if (isOpen) {
       setBaseName('');
-      setTasks(createInitialStates(defaultListId));
+      setTasks(createInitialStates(defaultTaskListId, defaultPlanningListId));
     }
-  }, [isOpen, defaultListId]);
+  }, [isOpen, defaultTaskListId, defaultPlanningListId]);
 
   const updateTask = useCallback(
     (index: number, updates: Partial<TaskFormState>) => {
@@ -123,7 +130,7 @@ export function CreateLinkedTasksModal({
         const task = tasks[i];
 
         const isStaged = task.destinationMode === 'STAGED';
-        const listId = isStaged ? userStoryListId : task.listId;
+        const listId = isStaged ? task.stagingPlanningListId : task.listId;
 
         const body: Record<string, unknown> = {
           title: effectiveTitles[i].trim(),
@@ -140,6 +147,8 @@ export function CreateLinkedTasksModal({
           taskDestination: {
             mode: task.destinationMode,
             immediateListId: task.listId,
+            stagingPlanningListId: task.stagingPlanningListId,
+            releaseTargetListId: task.releaseTargetListId,
           },
         };
 
@@ -281,26 +290,8 @@ export function CreateLinkedTasksModal({
                     </Select>
                   </div>
 
-                  {/* Row 2: List + Destination mode */}
+                  {/* Row 2: Destination mode + lists */}
                   <div className="flex items-center gap-2">
-                    <Select
-                      value={task.listId}
-                      onValueChange={(val) =>
-                        updateTask(index, { listId: val })
-                      }
-                    >
-                      <SelectTrigger className="flex-1 h-8">
-                        <SelectValue placeholder="Target list" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {taskLists.map((list) => (
-                          <SelectItem key={list.id} value={list.id}>
-                            {list.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
                     <Select
                       value={task.destinationMode}
                       onValueChange={(val) =>
@@ -315,10 +306,67 @@ export function CreateLinkedTasksModal({
                       <SelectContent>
                         <SelectItem value="IMMEDIATE">Send now</SelectItem>
                         <SelectItem value="STAGED">
-                          Stage for Friday
+                          Stage for release
                         </SelectItem>
                       </SelectContent>
                     </Select>
+
+                    {task.destinationMode === 'IMMEDIATE' ? (
+                      <Select
+                        value={task.listId}
+                        onValueChange={(val) =>
+                          updateTask(index, { listId: val })
+                        }
+                      >
+                        <SelectTrigger className="flex-1 h-8">
+                          <SelectValue placeholder="Target task list" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {taskLists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <>
+                        <Select
+                          value={task.stagingPlanningListId}
+                          onValueChange={(val) =>
+                            updateTask(index, { stagingPlanningListId: val })
+                          }
+                        >
+                          <SelectTrigger className="flex-1 h-8">
+                            <SelectValue placeholder="Staging planning list" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {planningLists.map((list) => (
+                              <SelectItem key={list.id} value={list.id}>
+                                {list.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={task.releaseTargetListId}
+                          onValueChange={(val) =>
+                            updateTask(index, { releaseTargetListId: val })
+                          }
+                        >
+                          <SelectTrigger className="flex-1 h-8">
+                            <SelectValue placeholder="Release task list" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taskLists.map((list) => (
+                              <SelectItem key={list.id} value={list.id}>
+                                {list.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    )}
 
                     {/* Description toggle */}
                     <button

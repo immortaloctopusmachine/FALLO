@@ -81,6 +81,28 @@
 - Hook dependency warnings reduced for targeted high-risk files.
 - `npm test` runs to completion in non-interactive mode.
 
+---
+
+## Future: Dedicated `/api/projects` Routes
+
+> Status: Planned
+> Priority: Low — cosmetic / DX improvement, no user-facing impact
+
+Currently, project pages fetch from `/api/boards/[boardId]` and `/api/boards?projects=true`. This works but obscures the intent — reading the code, it's not obvious that a "board" request is serving a project page.
+
+**Proposed change:** Add thin `/api/projects` and `/api/projects/[projectId]` routes that delegate to the same Prisma logic as the board routes. This would:
+- Make the API self-documenting (project pages fetch from project endpoints)
+- Allow project-specific query shaping (e.g., skip card details, include timeline data by default)
+- Reduce confusion when onboarding new contributors or AI assistants
+
+**Migration path:**
+1. Create `src/app/api/projects/route.ts` — wraps the `?projects=true` board query
+2. Create `src/app/api/projects/[projectId]/route.ts` — wraps the board detail query
+3. Update `use-projects.ts` hooks to point to new endpoints
+4. Keep `/api/boards` routes unchanged (boards page still uses them)
+
+---
+
 ## Completion Notes
 
 - Completed all planned phases.

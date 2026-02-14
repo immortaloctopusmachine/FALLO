@@ -123,6 +123,8 @@ export function CardModal({
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
   const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
   const [newLinkedTaskDestination, setNewLinkedTaskDestination] = useState<TaskReleaseMode>('IMMEDIATE');
+  const [newLinkedStagingPlanningListId, setNewLinkedStagingPlanningListId] = useState<string>('');
+  const [newLinkedReleaseTargetListId, setNewLinkedReleaseTargetListId] = useState<string>('');
   const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -360,6 +362,15 @@ export function CardModal({
     [onLinkedCardCreated]
   );
 
+  const defaultTaskListId = taskLists.find((list) => list.phase === 'BACKLOG')?.id || taskLists[0]?.id || '';
+
+  useEffect(() => {
+    if (card?.type !== 'USER_STORY') return;
+    setNewLinkedCardListId(defaultTaskListId);
+    setNewLinkedStagingPlanningListId(card.listId);
+    setNewLinkedReleaseTargetListId(defaultTaskListId);
+  }, [card?.id, card?.type, card?.listId, defaultTaskListId]);
+
   if (!card) return null;
 
   const config = cardTypeConfig[card.type];
@@ -393,7 +404,7 @@ export function CardModal({
 
     if (card.type === 'USER_STORY') {
       // Creating a Task - should go in TASKS view
-      targetListId = newLinkedCardListId || taskLists[0]?.id || card.listId;
+      targetListId = newLinkedCardListId || defaultTaskListId || card.listId;
     } else if (card.type === 'EPIC') {
       // Creating a User Story - should go in PLANNING view
       targetListId = newLinkedCardListId || planningLists[0]?.id || card.listId;
@@ -415,12 +426,16 @@ export function CardModal({
         body: JSON.stringify({
           title: newLinkedCardTitle.trim(),
           type: newCardType,
-          listId: isStagedTask ? card.listId : targetListId,
+          listId: isStagedTask ? (newLinkedStagingPlanningListId || card.listId) : targetListId,
           ...(isLinkedTaskFromUserStory && {
             taskDestination: {
               mode: newLinkedTaskDestination,
               ...(newLinkedTaskDestination === 'IMMEDIATE' && {
                 immediateListId: targetListId,
+              }),
+              ...(newLinkedTaskDestination === 'STAGED' && {
+                stagingPlanningListId: newLinkedStagingPlanningListId || card.listId,
+                releaseTargetListId: newLinkedReleaseTargetListId || defaultTaskListId,
               }),
             },
           }),
@@ -441,7 +456,9 @@ export function CardModal({
 
         // Clear the input and list selection
         setNewLinkedCardTitle('');
-        setNewLinkedCardListId('');
+        setNewLinkedCardListId(defaultTaskListId);
+        setNewLinkedStagingPlanningListId(card.listId);
+        setNewLinkedReleaseTargetListId(defaultTaskListId);
         setNewLinkedTaskDestination('IMMEDIATE');
         setIsCreatingLinkedCard(false);
 
@@ -470,8 +487,6 @@ export function CardModal({
       assignees: updatedAssignees,
     } as Card);
   };
-
-  const currentPlanningList = planningLists.find((list) => list.id === card.listId);
 
   // Compute dependency chain for TASK cards
   const dependencyChain: ChainLink[] | null =
@@ -790,14 +805,20 @@ export function CardModal({
                         const canCreateImmediate = newLinkedTaskDestination === 'IMMEDIATE' && (
                           taskLists.length === 0 || !!newLinkedCardListId
                         );
-                        const canCreateStaged = newLinkedTaskDestination === 'STAGED';
+                        const canCreateStaged = newLinkedTaskDestination === 'STAGED' && (
+                          planningLists.length === 0 || !!newLinkedStagingPlanningListId
+                        ) && (
+                          taskLists.length === 0 || !!newLinkedReleaseTargetListId
+                        );
                         if (e.key === 'Enter' && (canCreateImmediate || canCreateStaged)) {
                           handleCreateLinkedCard();
                         }
                         if (e.key === 'Escape') {
                           setIsCreatingLinkedCard(false);
                           setNewLinkedCardTitle('');
-                          setNewLinkedCardListId('');
+                          setNewLinkedCardListId(defaultTaskListId);
+                          setNewLinkedStagingPlanningListId(card.listId);
+                          setNewLinkedReleaseTargetListId(defaultTaskListId);
                           setNewLinkedTaskDestination('IMMEDIATE');
                         }
                       }}
@@ -834,9 +855,43 @@ export function CardModal({
                       </Select>
                     )}
                     {newLinkedTaskDestination === 'STAGED' && (
-                      <p className="rounded-md border border-border-subtle bg-surface px-3 py-2 text-caption text-text-secondary">
-                        This task will stay in <span className="font-medium text-text-primary">{currentPlanningList?.name ?? 'this planning list'}</span> and move to the Tasks backlog on the Friday before the list start date.
-                      </p>
+                      <div className="space-y-2">
+                        <Select
+                          value={newLinkedStagingPlanningListId}
+                          onValueChange={setNewLinkedStagingPlanningListId}
+                          disabled={isCreatingLinkedCardLoading}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Staging planning list..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {planningLists.map((list) => (
+                              <SelectItem key={list.id} value={list.id}>
+                                {list.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={newLinkedReleaseTargetListId}
+                          onValueChange={setNewLinkedReleaseTargetListId}
+                          disabled={isCreatingLinkedCardLoading}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Release target list..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taskLists.map((list) => (
+                              <SelectItem key={list.id} value={list.id}>
+                                {list.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="rounded-md border border-border-subtle bg-surface px-3 py-2 text-caption text-text-secondary">
+                          Staged tasks are scheduled for the Friday before the selected planning list starts.
+                        </p>
+                      </div>
                     )}
                     <div className="flex gap-2">
                       <Button
@@ -845,7 +900,9 @@ export function CardModal({
                         disabled={
                           isCreatingLinkedCardLoading ||
                           !newLinkedCardTitle.trim() ||
-                          (newLinkedTaskDestination === 'IMMEDIATE' && taskLists.length > 0 && !newLinkedCardListId)
+                          (newLinkedTaskDestination === 'IMMEDIATE' && taskLists.length > 0 && !newLinkedCardListId) ||
+                          (newLinkedTaskDestination === 'STAGED' && planningLists.length > 0 && !newLinkedStagingPlanningListId) ||
+                          (newLinkedTaskDestination === 'STAGED' && taskLists.length > 0 && !newLinkedReleaseTargetListId)
                         }
                         className="flex-1"
                       >
@@ -857,7 +914,9 @@ export function CardModal({
                         onClick={() => {
                           setIsCreatingLinkedCard(false);
                           setNewLinkedCardTitle('');
-                          setNewLinkedCardListId('');
+                          setNewLinkedCardListId(defaultTaskListId);
+                          setNewLinkedStagingPlanningListId(card.listId);
+                          setNewLinkedReleaseTargetListId(defaultTaskListId);
                           setNewLinkedTaskDestination('IMMEDIATE');
                         }}
                         disabled={isCreatingLinkedCardLoading}
@@ -875,6 +934,9 @@ export function CardModal({
                       onClick={() => {
                         setIsCreatingLinkedCard(true);
                         setNewLinkedTaskDestination('IMMEDIATE');
+                        setNewLinkedCardListId(defaultTaskListId);
+                        setNewLinkedStagingPlanningListId(card.listId);
+                        setNewLinkedReleaseTargetListId(defaultTaskListId);
                       }}
                     >
                       <CheckSquare className="mr-2 h-4 w-4" />
@@ -1418,6 +1480,7 @@ export function CardModal({
         userStoryId={card.id}
         userStoryListId={card.listId}
         taskLists={taskLists}
+        planningLists={planningLists}
         boardMembers={boardMembers}
         onTasksCreated={handleLinkedTasksCreated}
       />

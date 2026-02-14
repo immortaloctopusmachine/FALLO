@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sparkles, Tag, Layers, Calendar, Users, ArrowLeft, Plug, Library } from 'lucide-react';
+import { Sparkles, Tag, Layers, Calendar, Users, ArrowLeft, Plug, Library, Boxes, ListOrdered } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const settingsNav = [
   { name: 'Integrations', href: '/settings/integrations', icon: Plug },
   { name: 'Skills', href: '/settings/skills', icon: Sparkles },
+  { name: 'Epic Names', href: '/settings/epic-names', icon: ListOrdered },
+  { name: 'Modules', href: '/settings/modules', icon: Boxes },
   { name: 'Roles', href: '/settings/roles', icon: Users },
   { name: 'Tags', href: '/settings/tags', icon: Tag },
   { name: 'Block Types', href: '/settings/block-types', icon: Layers },

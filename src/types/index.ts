@@ -240,6 +240,8 @@ export interface BoardSettings {
   lastDayStaticArt?: string;           // ISO date string
   lastDayAnimationTweaks?: string;     // ISO date string
   releaseDate?: string;                // ISO date string
+  marketingAssetsDeadline?: string;    // ISO date string
+  customDates?: { id: string; label: string; date: string }[];
   listTemplate?: ListTemplateType;     // Which list template is used
   coreProjectTemplateId?: string;      // Dynamic core template used to create planning blocks/events
 
@@ -250,6 +252,7 @@ export interface BoardSettings {
     animationDocument?: string;
     gameSheetInfo?: string;
     gameNameBrainstorming?: string;
+    oneDrive?: string;
   };
 
   // Slack integration
@@ -265,6 +268,10 @@ export interface BoardSettings {
     roleColor?: string | null;
     userId: string;
   }[];
+
+  // Auto-calculated date overrides (from timeline TWEAK blocks)
+  lastTweakOverride?: string;       // ISO date, overrides calculated Last Tweak
+  lastStaticArtOverride?: string;   // ISO date, overrides calculated Last Static Art
 
   // Board background
   backgroundType?: 'none' | 'gradient' | 'image';
@@ -426,6 +433,46 @@ export interface Team {
   id: string;
   name: string;
   color: string;
+}
+
+export interface EpicNamePreset {
+  id: string;
+  name: string;
+  description: string | null;
+  position: number;
+}
+
+export interface ModuleTaskTemplate {
+  id: string;
+  title: string;
+  color: string;
+  description: string | null;
+  storyPoints: number | null;
+  featureImage: string | null;
+  destinationMode: TaskReleaseMode;
+  chainGroupId: string | null;
+  chainOrder: number | null;
+}
+
+export interface BoardModuleTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  symbol: string;
+  epicName: string;
+  userStoryDescription: string | null;
+  userStoryFeatureImage: string | null;
+  taskTemplates: ModuleTaskTemplate[];
+  position: number;
+}
+
+export interface ModuleImageAsset {
+  id: string;
+  name: string;
+  url: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Member info for timeline display (includes company roles)

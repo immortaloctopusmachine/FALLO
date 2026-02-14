@@ -1,13 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Archive } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ProjectCard } from '@/components/projects/ProjectCard';
-import { useProjects } from '@/hooks/api/use-projects';
+import { useProjects, useArchivedProjects } from '@/hooks/api/use-projects';
 import type { BoardSettings } from '@/types';
 
 interface ProjectsPageClientProps {
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  currentUserId: string;
 }
 
 function ProjectsSkeleton() {
@@ -41,18 +45,33 @@ function ProjectsSkeleton() {
   );
 }
 
-export function ProjectsPageClient({ isAdmin }: ProjectsPageClientProps) {
-  const { data: boards, isLoading } = useProjects();
+export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: ProjectsPageClientProps) {
+  const queryClient = useQueryClient();
+  const { data: projects, isLoading } = useProjects();
+  const { data: archivedProjectsData } = useArchivedProjects();
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
 
   if (isLoading) return <ProjectsSkeleton />;
 
-  const projectBoards = boards || [];
+  const activeProjects = projects || [];
+  const archivedProjects = archivedProjectsData || [];
+
+  const handleArchivedProjectAction = () => {
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
+  };
+
+  const isProjectAdmin = (project: typeof activeProjects[0]) => {
+    if (isSuperAdmin) return true;
+    const membership = project.members.find(m => m.userId === currentUserId);
+    return membership?.permission === 'ADMIN' || membership?.permission === 'SUPER_ADMIN';
+  };
 
   return (
     <main className="p-6 flex-1">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-title font-medium text-text-secondary">
-          Projects ({projectBoards.length})
+          Projects ({activeProjects.length})
         </h2>
         {isAdmin && (
           <Link
@@ -65,7 +84,7 @@ export function ProjectsPageClient({ isAdmin }: ProjectsPageClientProps) {
         )}
       </div>
 
-      {projectBoards.length === 0 ? (
+      {activeProjects.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
           <h3 className="text-title text-text-secondary">No projects yet</h3>
           <p className="mt-2 text-body text-text-tertiary">
@@ -74,17 +93,64 @@ export function ProjectsPageClient({ isAdmin }: ProjectsPageClientProps) {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {projectBoards.map((board) => (
+          {activeProjects.map((project) => (
             <ProjectCard
-              key={board.id}
-              id={board.id}
-              name={board.name}
-              teamName={board.team?.name || null}
-              teamColor={board.team?.color || null}
-              members={board.members}
-              settings={(board.settings as BoardSettings) || null}
+              key={project.id}
+              id={project.id}
+              name={project.name}
+              teamName={project.team?.name || null}
+              teamColor={project.team?.color || null}
+              members={project.members}
+              settings={(project.settings as BoardSettings) || null}
+              isAdmin={isProjectAdmin(project)}
+              isSuperAdmin={isSuperAdmin}
             />
           ))}
+        </div>
+      )}
+
+      {/* Archived Projects Section */}
+      {archivedProjects.length > 0 && isAdmin && (
+        <div className="mt-10">
+          <button
+            onClick={() => setArchivedExpanded(!archivedExpanded)}
+            className="mb-6 flex items-center gap-2 text-text-tertiary hover:text-text-secondary transition-colors"
+          >
+            {archivedExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <Archive className="h-4 w-4" />
+            <h2 className="text-title font-medium">
+              Archived ({archivedProjects.length})
+            </h2>
+          </button>
+
+          {archivedExpanded && (
+            <>
+              <p className="text-caption text-text-tertiary mb-4 ml-6">
+                Archived projects are hidden from the main view. Restore them to make them active again.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 opacity-75">
+                {archivedProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    id={project.id}
+                    name={project.name}
+                    teamName={project.team?.name || null}
+                    teamColor={project.team?.color || null}
+                    members={project.members}
+                    settings={(project.settings as BoardSettings) || null}
+                    isAdmin={isProjectAdmin(project)}
+                    isSuperAdmin={isSuperAdmin}
+                    isArchived
+                    onDeleted={handleArchivedProjectAction}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </main>

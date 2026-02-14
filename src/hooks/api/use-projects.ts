@@ -32,5 +32,12 @@ export function useProjects() {
   });
 }
 
+export function useArchivedProjects() {
+  return useQuery({
+    queryKey: ['projects', 'archived'],
+    queryFn: () => apiFetch<ProjectListItem[]>('/api/boards?projects=true&archived=true'),
+  });
+}
+
 // Re-export the type for use in client components
 export type { ProjectListItem };

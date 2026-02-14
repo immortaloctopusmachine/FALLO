@@ -196,6 +196,49 @@ model Tag {
   @@map("tags")
 }
 
+model EpicNamePreset {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([name])
+  @@index([position])
+  @@map("epic_name_presets")
+}
+
+model BoardModule {
+  id                    String   @id @default(cuid())
+  name                  String
+  description           String?
+  symbol                String
+  epicName              String
+  userStoryDescription  String?
+  userStoryFeatureImage String?
+  taskTemplates         Json     @default("[]")
+  position              Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([symbol])
+  @@index([position])
+  @@map("board_modules")
+}
+
+model ModuleImageAsset {
+  id        String   @id @default(cuid())
+  name      String
+  url       String   @unique
+  tags      Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("module_image_assets")
+}
+
 model CardTag {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -328,6 +371,9 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+/// Represents both boards (Trello-like workspace with lists/cards) and projects
+/// (high-level view with dates, roles, stats). A "project" is a non-template board
+/// (isTemplate = false). Both /boards/[id] and /projects/[id] pages read the same row.
 model Board {
   id          String    @id @default(cuid())
   name        String

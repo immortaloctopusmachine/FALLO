@@ -70,9 +70,11 @@ const EVENT_ROW_HEIGHT = 28;
 const USER_ROW_HEIGHT = 28;
 const COLUMN_WIDTH = 32; // Fixed column width for day view
 const WEEKS_TO_SHOW = 8; // Show 8 weeks (40 business days)
+const RANGE_LEFT_PADDING_DAYS = 5;
+const RANGE_RIGHT_PADDING_DAYS = 5;
 const LEFT_COLUMN_WIDTH = 376;
 const COLLAPSED_PROJECTS_STORAGE_KEY = 'timeline.collapsedProjectIds';
-const SHOW_BLOCK_INFO_STORAGE_KEY = 'timeline.showBlockInfo';
+const SHOW_BLOCK_INFO_STORAGE_KEY = 'timeline.showBlockInfo.v2';
 type TimelineDisplayRow = {
   id: string;
   userId: string;
@@ -147,7 +149,7 @@ export function TimelineView({
   });
   const [selectedBlockId, setSelectedBlockId] = useState<string>();
   const [selectedEventId, setSelectedEventId] = useState<string>();
-  const [showBlockInfo, setShowBlockInfo] = useState(true);
+  const [showBlockInfo, setShowBlockInfo] = useState(false);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(initialProjects.map((project) => project.board.id))
   );
@@ -191,6 +193,8 @@ export function TimelineView({
   const [headerHeight, setHeaderHeight] = useState(84);
   const dateHeaderRef = useRef<HTMLDivElement | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const previousDisplayStartOffsetRef = useRef<number | null>(null);
+  const shouldRealignTimelineRef = useRef(true);
   const knownProjectIdsRef = useRef<Set<string>>(
     new Set(initialProjects.map((project) => project.board.id))
   );
@@ -375,40 +379,66 @@ export function TimelineView({
 
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
-    if (target <= start) return 0;
+    if (target.getTime() === start.getTime()) return 0;
+
+    if (target > start) {
+      let count = 0;
+      const cursor = new Date(start);
+      while (cursor < target) {
+        const day = cursor.getDay();
+        if (day !== 0 && day !== 6) count++;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return count;
+    }
 
     let count = 0;
     const cursor = new Date(start);
-    while (cursor < target) {
+    while (cursor > target) {
+      cursor.setDate(cursor.getDate() - 1);
       const day = cursor.getDay();
-      if (day !== 0 && day !== 6) count++;
-      cursor.setDate(cursor.getDate() + 1);
+      if (day !== 0 && day !== 6) count--;
     }
 
     return count;
   }, [startDate]);
 
-  const contentTotalDays = useMemo(() => {
-    let maxColumns = baseTotalDays;
+  const { displayStartOffset, displayEndOffset } = useMemo(() => {
+    let minOffset = 0;
+    let maxOffset = Math.max(0, baseTotalDays - 1);
 
     for (const project of filteredProjects) {
       for (const block of project.blocks) {
+        const startOffset = getBusinessDayOffset(new Date(block.startDate));
         const endOffset = getBusinessDayOffset(new Date(block.endDate)) + 1;
-        if (endOffset > maxColumns) maxColumns = endOffset;
+        if (startOffset < minOffset) minOffset = startOffset;
+        if (endOffset > maxOffset) maxOffset = endOffset;
       }
       for (const event of project.events) {
+        const startOffset = getBusinessDayOffset(new Date(event.startDate));
         const endOffset = getBusinessDayOffset(new Date(event.endDate)) + 1;
-        if (endOffset > maxColumns) maxColumns = endOffset;
+        if (startOffset < minOffset) minOffset = startOffset;
+        if (endOffset > maxOffset) maxOffset = endOffset;
       }
       for (const availability of project.availability) {
+        const weekStartOffset = getBusinessDayOffset(new Date(availability.weekStart));
         const weekEnd = addBusinessDays(new Date(availability.weekStart), 4);
         const endOffset = getBusinessDayOffset(weekEnd) + 1;
-        if (endOffset > maxColumns) maxColumns = endOffset;
+        if (weekStartOffset < minOffset) minOffset = weekStartOffset;
+        if (endOffset > maxOffset) maxOffset = endOffset;
       }
     }
 
-    // Add one extra week of breathing room past the latest content.
-    return maxColumns + 5;
+    const computedStartOffset = Math.min(0, minOffset - RANGE_LEFT_PADDING_DAYS);
+    const computedEndOffset = Math.max(
+      Math.max(0, baseTotalDays - 1),
+      maxOffset + RANGE_RIGHT_PADDING_DAYS
+    );
+
+    return {
+      displayStartOffset: computedStartOffset,
+      displayEndOffset: computedEndOffset,
+    };
   }, [filteredProjects, baseTotalDays, getBusinessDayOffset]);
 
   const viewportTotalDays = useMemo(() => {
@@ -416,67 +446,92 @@ export function TimelineView({
     return Math.ceil(timelineViewportWidth / COLUMN_WIDTH);
   }, [timelineViewportWidth]);
 
-  const displayTotalDays = useMemo(
-    () => Math.max(baseTotalDays, contentTotalDays, viewportTotalDays),
-    [baseTotalDays, contentTotalDays, viewportTotalDays]
+  const displayTotalDays = useMemo(() => {
+    const minColumnsForViewport = displayStartOffset + Math.max(viewportTotalDays - 1, 0);
+    const effectiveEndOffset = Math.max(displayEndOffset, minColumnsForViewport);
+    return effectiveEndOffset - displayStartOffset + 1;
+  }, [displayStartOffset, displayEndOffset, viewportTotalDays]);
+
+  const displayStartDate = useMemo(
+    () => addBusinessDays(new Date(startDate), displayStartOffset),
+    [startDate, displayStartOffset]
   );
 
   const displayEndDate = useMemo(
-    () => addBusinessDays(new Date(startDate), Math.max(0, displayTotalDays - 1)),
-    [startDate, displayTotalDays]
+    () => addBusinessDays(new Date(displayStartDate), Math.max(0, displayTotalDays - 1)),
+    [displayStartDate, displayTotalDays]
   );
+
+  const anchorScrollLeft = useMemo(
+    () => Math.max(0, -displayStartOffset * COLUMN_WIDTH),
+    [displayStartOffset]
+  );
+
+  useEffect(() => {
+    shouldRealignTimelineRef.current = true;
+  }, [currentDate]);
+
+  useEffect(() => {
+    const element = timelineScrollRef.current;
+    if (!element) return;
+
+    const previousOffset = previousDisplayStartOffsetRef.current;
+
+    if (previousOffset === null) {
+      element.scrollLeft = anchorScrollLeft;
+      previousDisplayStartOffsetRef.current = displayStartOffset;
+      shouldRealignTimelineRef.current = false;
+      return;
+    }
+
+    const offsetDelta = displayStartOffset - previousOffset;
+
+    if (shouldRealignTimelineRef.current) {
+      element.scrollLeft = anchorScrollLeft;
+      shouldRealignTimelineRef.current = false;
+    } else if (offsetDelta !== 0) {
+      // Keep the same visible date anchored when the computed range grows/shrinks.
+      element.scrollLeft += -offsetDelta * COLUMN_WIDTH;
+    }
+
+    previousDisplayStartOffsetRef.current = displayStartOffset;
+  }, [anchorScrollLeft, displayStartOffset]);
 
   const getProjectDisplayRows = useCallback((project: TimelineData) => {
     const assignments = project.board.projectRoleAssignments || [];
+    if (assignments.length === 0) return [];
 
-    if (assignments.length > 0) {
-      const byUser = new Map<string, TimelineDisplayRow>();
-      for (const assignment of assignments) {
-        const member = project.board.members.find((m) => m.id === assignment.userId);
-        if (!member) continue;
+    const byUser = new Map<string, TimelineDisplayRow>();
+    for (const assignment of assignments) {
+      const member = project.board.members.find((m) => m.id === assignment.userId);
+      if (!member) continue;
 
-        const existing = byUser.get(member.id);
-        if (existing) {
-          // Avoid duplicate role tags for same role on same user
-          if (!existing.roles.some((role) => role.id === assignment.roleId)) {
-            existing.roles.push({
-              id: assignment.roleId,
-              name: assignment.roleName,
-              color: assignment.roleColor,
-            });
-          }
-          continue;
+      const existing = byUser.get(member.id);
+      if (existing) {
+        if (!existing.roles.some((role) => role.id === assignment.roleId)) {
+          existing.roles.push({
+            id: assignment.roleId,
+            name: assignment.roleName,
+            color: assignment.roleColor,
+          });
         }
-
-        byUser.set(member.id, {
-          id: assignment.id,
-          userId: member.id,
-          member,
-          roles: [
-            {
-              id: assignment.roleId,
-              name: assignment.roleName,
-              color: assignment.roleColor,
-            },
-          ],
-        });
+        continue;
       }
-      const rows = Array.from(byUser.values());
 
-      if (rows.length > 0) return rows;
+      byUser.set(member.id, {
+        id: assignment.id,
+        userId: member.id,
+        member,
+        roles: [
+          {
+            id: assignment.roleId,
+            name: assignment.roleName,
+            color: assignment.roleColor,
+          },
+        ],
+      });
     }
-
-    // Fallback to board members if no project-role rows are configured yet.
-    return project.board.members.map((member) => ({
-      id: `member-${project.board.id}-${member.id}`,
-      userId: member.id,
-      member,
-      roles: member.userCompanyRoles.map((ucr) => ({
-        id: ucr.companyRole.id,
-        name: ucr.companyRole.name,
-        color: ucr.companyRole.color,
-      })),
-    }));
+    return Array.from(byUser.values());
   }, []);
 
   const renderCompactRoleTags = useCallback((roles: TimelineDisplayRow['roles']) => {
@@ -1460,7 +1515,7 @@ export function TimelineView({
           >
             <div ref={dateHeaderRef} className="sticky top-0 z-20">
               <TimelineDateHeader
-                startDate={startDate}
+                startDate={displayStartDate}
                 endDate={displayEndDate}
                 columnWidth={COLUMN_WIDTH}
               />
@@ -1473,7 +1528,7 @@ export function TimelineView({
                 <div style={{ backgroundColor: item.teamTintSoft }}>
                   <TimelineEventsRow
                     events={item.project.events}
-                    startDate={startDate}
+                    startDate={displayStartDate}
                     columnWidth={COLUMN_WIDTH}
                     rowHeight={EVENT_ROW_HEIGHT}
                     onEventClick={(event) => handleEventClick(event, item.project.board.id)}
@@ -1492,7 +1547,7 @@ export function TimelineView({
                 <div style={{ backgroundColor: item.teamTint }}>
                   <TimelineBlocksRow
                     blocks={item.project.blocks}
-                    startDate={startDate}
+                    startDate={displayStartDate}
                     columnWidth={COLUMN_WIDTH}
                     rowHeight={ROW_HEIGHT}
                     onBlockClick={handleBlockClick}
@@ -1516,7 +1571,7 @@ export function TimelineView({
                       member={row.member}
                       availability={item.project.availability}
                       boardId={item.project.board.id}
-                      startDate={startDate}
+                      startDate={displayStartDate}
                       endDate={displayEndDate}
                       columnWidth={COLUMN_WIDTH}
                       rowHeight={USER_ROW_HEIGHT}

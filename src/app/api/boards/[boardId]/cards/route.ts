@@ -96,6 +96,9 @@ export async function POST(
       }
 
       if (linkedUserStoryId && destinationMode === 'STAGED') {
+        const selectedStagingPlanningListId = taskDestination?.stagingPlanningListId;
+        const selectedReleaseTargetListId = taskDestination?.releaseTargetListId;
+
         const linkedStory = await prisma.card.findFirst({
           where: {
             id: linkedUserStoryId,
@@ -118,30 +121,62 @@ export async function POST(
           return ApiErrors.validation('Linked User Story not found in this board');
         }
 
-        if (linkedStory.list.viewType !== 'PLANNING') {
-          return ApiErrors.validation('Staged tasks require a linked User Story in a planning list');
+        let stagingList = linkedStory.list;
+
+        if (selectedStagingPlanningListId) {
+          const requestedStagingList = await prisma.list.findFirst({
+            where: {
+              id: selectedStagingPlanningListId,
+              boardId,
+              viewType: 'PLANNING',
+            },
+            select: {
+              id: true,
+              startDate: true,
+              viewType: true,
+            },
+          });
+
+          if (!requestedStagingList) {
+            return ApiErrors.validation('Selected staging planning list was not found in this board');
+          }
+
+          stagingList = requestedStagingList;
         }
 
-        if (!linkedStory.list.startDate) {
-          return ApiErrors.validation('Cannot stage task: linked User Story list has no start date');
+        if (stagingList.viewType !== 'PLANNING') {
+          return ApiErrors.validation('Staged tasks require a planning-view staging list');
         }
 
-        const backlogList = await prisma.list.findFirst({
-          where: {
-            boardId,
-            viewType: 'TASKS',
-            phase: 'BACKLOG',
-          },
-          orderBy: { position: 'asc' },
-          select: { id: true },
-        });
-
-        if (!backlogList) {
-          return ApiErrors.validation('Cannot stage task: board has no Backlog list in Tasks view');
+        if (!stagingList.startDate) {
+          return ApiErrors.validation('Cannot stage task: selected planning list has no start date');
         }
 
-        const scheduledReleaseDate = getPreviousFriday(linkedStory.list.startDate);
-        targetListId = linkedStory.list.id;
+        const releaseTargetList = selectedReleaseTargetListId
+          ? await prisma.list.findFirst({
+              where: {
+                id: selectedReleaseTargetListId,
+                boardId,
+                viewType: 'TASKS',
+              },
+              select: { id: true },
+            })
+          : await prisma.list.findFirst({
+              where: {
+                boardId,
+                viewType: 'TASKS',
+                phase: 'BACKLOG',
+              },
+              orderBy: { position: 'asc' },
+              select: { id: true },
+            });
+
+        if (!releaseTargetList) {
+          return ApiErrors.validation('Cannot stage task: board has no valid Tasks-view target list');
+        }
+
+        const scheduledReleaseDate = getPreviousFriday(stagingList.startDate);
+        targetListId = stagingList.id;
 
         typeData.taskData = {
           storyPoints: null,
@@ -150,9 +185,9 @@ export async function POST(
           linkedEpicId: null,
           ...taskData,
           releaseMode: 'STAGED',
-          stagedFromPlanningListId: linkedStory.list.id,
+          stagedFromPlanningListId: stagingList.id,
           scheduledReleaseDate: scheduledReleaseDate.toISOString(),
-          releaseTargetListId: backlogList.id,
+          releaseTargetListId: releaseTargetList.id,
           releasedAt: null,
         };
       } else {
