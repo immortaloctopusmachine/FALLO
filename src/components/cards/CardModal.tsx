@@ -23,6 +23,7 @@ import { AttachmentSection } from './AttachmentSection';
 import { ConnectionPicker } from './ConnectionPicker';
 import { TimeLogSection } from './TimeLogSection';
 import { CreateLinkedTasksModal } from './CreateLinkedTasksModal';
+import { CardQualityPanel } from './QualityReviewPanel';
 import { toast } from 'sonner';
 import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,7 @@ interface CardModalProps {
   onCardClick?: (card: Card) => void;  // Open another card (e.g., a connected task)
   currentUserId?: string;
   isAdmin?: boolean;  // Whether current user is admin (for time log management)
+  canViewQualitySummaries?: boolean;  // PO, Lead, Head of Art — can see Details/Quality tabs
   taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
   planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
   allCards?: Card[];
@@ -60,6 +62,17 @@ const cardTypeConfig = {
 };
 
 const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13, 21];
+
+// Cold-to-warm color mapping for story point buttons
+const SP_COLORS: Record<number, { bg: string; bgSelected: string; text: string; border: string }> = {
+  1:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   bgSelected: 'bg-blue-500',   text: 'text-blue-700 dark:text-blue-300',   border: 'border-blue-200 dark:border-blue-800' },
+  2:  { bg: 'bg-cyan-50 dark:bg-cyan-950/30',    bgSelected: 'bg-cyan-500',   text: 'text-cyan-700 dark:text-cyan-300',   border: 'border-cyan-200 dark:border-cyan-800' },
+  3:  { bg: 'bg-green-50 dark:bg-green-950/30',   bgSelected: 'bg-green-500',  text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
+  5:  { bg: 'bg-yellow-50 dark:bg-yellow-950/30', bgSelected: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
+  8:  { bg: 'bg-orange-50 dark:bg-orange-950/30', bgSelected: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
+  13: { bg: 'bg-red-50 dark:bg-red-950/30',       bgSelected: 'bg-red-500',    text: 'text-red-700 dark:text-red-300',     border: 'border-red-200 dark:border-red-800' },
+  21: { bg: 'bg-rose-50 dark:bg-rose-950/30',     bgSelected: 'bg-rose-600',   text: 'text-rose-700 dark:text-rose-300',   border: 'border-rose-200 dark:border-rose-800' },
+};
 
 const USER_STORY_FLAGS: { value: UserStoryFlag; label: string; icon: typeof AlertTriangle; color: string }[] = [
   { value: 'COMPLEX', label: 'Complex', icon: Zap, color: 'text-warning bg-warning/10 border-warning/30' },
@@ -87,6 +100,7 @@ export function CardModal({
   onCardClick,
   currentUserId,
   isAdmin = false,
+  canViewQualitySummaries = false,
   taskLists = [],
   planningLists = [],
   allCards = [],
@@ -127,6 +141,7 @@ export function CardModal({
   const [newLinkedReleaseTargetListId, setNewLinkedReleaseTargetListId] = useState<string>('');
   const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [activePanelTab, setActivePanelTab] = useState<'details' | 'quality'>('details');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
 
@@ -335,19 +350,32 @@ export function CardModal({
   useEffect(() => {
     isInitialLoadRef.current = true;
     setAutoSaveStatus('idle');
+    setActivePanelTab('details');
   }, [card?.id]);
 
-  // Fetch board members for the linked tasks modal
+  const [availableTags, setAvailableTags] = useState<{ id: string; name: string }[]>([]);
+
+  // Fetch board members and tags for the linked tasks modal
   useEffect(() => {
-    if (isCreateLinkedTasksOpen && boardMembers.length === 0) {
-      fetch(`/api/boards/${boardId}/members`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) setBoardMembers(data.data);
-        })
-        .catch(console.error);
+    if (isCreateLinkedTasksOpen) {
+      if (boardMembers.length === 0) {
+        fetch(`/api/boards/${boardId}/members`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) setBoardMembers(data.data);
+          })
+          .catch(console.error);
+      }
+      if (availableTags.length === 0) {
+        fetch('/api/settings/tags')
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) setAvailableTags(data.data.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
+          })
+          .catch(console.error);
+      }
     }
-  }, [isCreateLinkedTasksOpen, boardId, boardMembers.length]);
+  }, [isCreateLinkedTasksOpen, boardId, boardMembers.length, availableTags.length]);
 
   // Handle bulk linked tasks creation
   const handleLinkedTasksCreated = useCallback(
@@ -375,6 +403,9 @@ export function CardModal({
 
   const config = cardTypeConfig[card.type];
   const Icon = config.icon;
+  const isTaskInTasksView =
+    card.type === 'TASK' &&
+    (taskLists.length === 0 || taskLists.some((list) => list.id === card.listId));
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this card?')) return;
@@ -559,19 +590,6 @@ export function CardModal({
               </DialogDescription>
             </div>
             <div className="flex items-center gap-2">
-              {/* Auto-save status indicator */}
-              {autoSaveStatus !== 'idle' && (
-                <span className={cn(
-                  'text-tiny font-medium transition-opacity',
-                  autoSaveStatus === 'saving' && 'text-text-tertiary',
-                  autoSaveStatus === 'saved' && 'text-success',
-                  autoSaveStatus === 'error' && 'text-error'
-                )}>
-                  {autoSaveStatus === 'saving' && 'Saving...'}
-                  {autoSaveStatus === 'saved' && 'Saved'}
-                  {autoSaveStatus === 'error' && 'Save failed'}
-                </span>
-              )}
               <div className={cn('flex items-center gap-1.5 rounded-md px-2 py-1', config.bg)}>
                 <Icon className={cn('h-4 w-4', config.color)} />
                 <span className={cn('text-caption font-medium', config.color)}>
@@ -582,10 +600,35 @@ export function CardModal({
           </div>
         </DialogHeader>
 
+        {canViewQualitySummaries && (
+          <div className="border-b border-border px-6 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={activePanelTab === 'details' ? 'default' : 'outline'}
+                onClick={() => setActivePanelTab('details')}
+              >
+                Details
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={activePanelTab === 'quality' ? 'default' : 'outline'}
+                onClick={() => setActivePanelTab('quality')}
+              >
+                Quality
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Main Content Area */}
-          <div className="flex-1 min-w-0 space-y-4 overflow-y-auto p-6">
+          <div className="flex-1 min-w-0 overflow-y-auto p-6">
+            {(!canViewQualitySummaries || activePanelTab === 'details') ? (
+              <div className="space-y-4">
             {/* Dependency Chain (Task cards only) */}
             {card.type === 'TASK' && dependencyChain && (
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -949,7 +992,7 @@ export function CardModal({
                       onClick={() => setIsCreateLinkedTasksOpen(true)}
                     >
                       <Layers className="mr-2 h-4 w-4" />
-                      Create 3 Linked
+                      Create 4 Linked
                     </Button>
                   </div>
                 )}
@@ -1171,6 +1214,18 @@ export function CardModal({
                 }}
               />
             </div>
+              </div>
+            ) : card.type !== 'TASK' ? (
+              <div className="rounded-md border border-border-subtle bg-surface p-4 text-body text-text-tertiary">
+                Quality evaluations apply only to Task cards.
+              </div>
+            ) : !isTaskInTasksView ? (
+              <div className="rounded-md border border-border-subtle bg-surface p-4 text-body text-text-tertiary">
+                Quality evaluations become available once this task is moved to the Tasks view.
+              </div>
+            ) : (
+              <CardQualityPanel cardId={card.id} />
+            )}
           </div>
 
           {/* Middle Column - Attachments */}
@@ -1222,20 +1277,25 @@ export function CardModal({
                   Story Points
                 </Label>
                 <div className="flex flex-wrap gap-1">
-                  {FIBONACCI_POINTS.map((points) => (
-                    <Button
-                      key={points}
-                      variant={storyPoints === points ? 'default' : 'outline'}
-                      size="sm"
-                      className={cn(
-                        'h-8 w-8 p-0',
-                        storyPoints === points && 'bg-card-task hover:bg-card-task/90'
-                      )}
-                      onClick={() => setStoryPoints(storyPoints === points ? null : points)}
-                    >
-                      {points}
-                    </Button>
-                  ))}
+                  {FIBONACCI_POINTS.map((points) => {
+                    const isSelected = storyPoints === points;
+                    const colors = SP_COLORS[points];
+                    return (
+                      <button
+                        key={points}
+                        type="button"
+                        onClick={() => setStoryPoints(isSelected ? null : points)}
+                        className={cn(
+                          'h-8 min-w-[2rem] rounded border px-2 text-caption font-medium transition-colors',
+                          isSelected
+                            ? `${colors.bgSelected} text-white border-transparent`
+                            : `${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`
+                        )}
+                      >
+                        {points}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1482,6 +1542,7 @@ export function CardModal({
         taskLists={taskLists}
         planningLists={planningLists}
         boardMembers={boardMembers}
+        availableTags={availableTags}
         onTasksCreated={handleLinkedTasksCreated}
       />
     )}

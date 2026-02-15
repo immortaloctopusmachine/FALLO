@@ -40,6 +40,13 @@ export async function GET(
                     },
                   },
                 },
+                userCompanyRoles: {
+                  include: {
+                    companyRole: {
+                      select: { id: true, name: true, color: true, position: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -93,7 +100,7 @@ export async function PATCH(
 
     const { teamId } = await params;
     const body = await request.json();
-    const { name, description, image, color, position, studioId } = body;
+    const { name, description, image, color, position, studioId, settings } = body;
 
     // Check if team exists
     const existingTeam = await prisma.team.findUnique({
@@ -111,6 +118,7 @@ export async function PATCH(
     if (color !== undefined) updateData.color = color;
     if (position !== undefined) updateData.position = position;
     if (studioId !== undefined) updateData.studioId = studioId || null;
+    if (settings !== undefined) updateData.settings = settings;
 
     const team = await prisma.team.update({
       where: { id: teamId },

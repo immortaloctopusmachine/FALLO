@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -24,6 +24,11 @@ import { LINKED_TASK_PRESETS } from '@/lib/task-presets';
 import { STORY_POINT_VALUES } from '@/lib/utils';
 import type { Card, BoardMember, List, TaskReleaseMode } from '@/types';
 
+interface TagOption {
+  id: string;
+  name: string;
+}
+
 interface CreateLinkedTasksModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -33,6 +38,7 @@ interface CreateLinkedTasksModalProps {
   taskLists: List[];
   planningLists: List[];
   boardMembers: BoardMember[];
+  availableTags: TagOption[];
   onTasksCreated: (tasks: Card[]) => void;
 }
 
@@ -40,6 +46,7 @@ interface TaskFormState {
   titleOverride: string | null; // null = auto-generated from baseName
   assigneeId: string | null;
   storyPoints: number | null;
+  tagId: string | null;
   description: string;
   descriptionExpanded: boolean;
   listId: string;
@@ -48,18 +55,28 @@ interface TaskFormState {
   destinationMode: TaskReleaseMode;
 }
 
-function createInitialStates(defaultTaskListId: string, defaultPlanningListId: string): TaskFormState[] {
-  return LINKED_TASK_PRESETS.map(() => ({
-    titleOverride: null,
-    assigneeId: null,
-    storyPoints: null,
-    description: '',
-    descriptionExpanded: false,
-    listId: defaultTaskListId,
-    stagingPlanningListId: defaultPlanningListId,
-    releaseTargetListId: defaultTaskListId,
-    destinationMode: 'IMMEDIATE' as TaskReleaseMode,
-  }));
+function createInitialStates(
+  defaultTaskListId: string,
+  defaultPlanningListId: string,
+  availableTags: TagOption[],
+): TaskFormState[] {
+  return LINKED_TASK_PRESETS.map((preset) => {
+    const matchedTag = availableTags.find(
+      (t) => t.name.toLowerCase() === preset.defaultTag.toLowerCase()
+    );
+    return {
+      titleOverride: null,
+      assigneeId: null,
+      storyPoints: preset.defaultStoryPoints,
+      tagId: matchedTag?.id || null,
+      description: '',
+      descriptionExpanded: false,
+      listId: defaultTaskListId,
+      stagingPlanningListId: defaultPlanningListId,
+      releaseTargetListId: defaultTaskListId,
+      destinationMode: 'IMMEDIATE' as TaskReleaseMode,
+    };
+  });
 }
 
 function getEffectiveTitle(task: TaskFormState, index: number, baseName: string): string {
@@ -76,13 +93,14 @@ export function CreateLinkedTasksModal({
   taskLists,
   planningLists,
   boardMembers,
+  availableTags,
   onTasksCreated,
 }: CreateLinkedTasksModalProps) {
   const defaultTaskListId = taskLists[0]?.id || '';
   const defaultPlanningListId = userStoryListId || planningLists[0]?.id || '';
   const [baseName, setBaseName] = useState('');
   const [tasks, setTasks] = useState<TaskFormState[]>(
-    createInitialStates(defaultTaskListId, defaultPlanningListId)
+    createInitialStates(defaultTaskListId, defaultPlanningListId, availableTags)
   );
   const [isCreating, setIsCreating] = useState(false);
 
@@ -90,9 +108,9 @@ export function CreateLinkedTasksModal({
   useEffect(() => {
     if (isOpen) {
       setBaseName('');
-      setTasks(createInitialStates(defaultTaskListId, defaultPlanningListId));
+      setTasks(createInitialStates(defaultTaskListId, defaultPlanningListId, availableTags));
     }
-  }, [isOpen, defaultTaskListId, defaultPlanningListId]);
+  }, [isOpen, defaultTaskListId, defaultPlanningListId, availableTags]);
 
   const updateTask = useCallback(
     (index: number, updates: Partial<TaskFormState>) => {
@@ -139,6 +157,7 @@ export function CreateLinkedTasksModal({
           description: task.description.trim() || null,
           color: preset.color,
           assigneeIds: task.assigneeId ? [task.assigneeId] : [],
+          tagIds: task.tagId ? [task.tagId] : [],
           taskData: {
             linkedUserStoryId: userStoryId,
             storyPoints: task.storyPoints,
@@ -165,7 +184,7 @@ export function CreateLinkedTasksModal({
       }
 
       onTasksCreated(createdCards);
-      toast.success('3 linked tasks created');
+      toast.success(`${LINKED_TASK_PRESETS.length} linked tasks created`);
       onClose();
     } catch (error) {
       console.error('Failed to create linked tasks:', error);
@@ -181,7 +200,7 @@ export function CreateLinkedTasksModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Linked Tasks</DialogTitle>
         </DialogHeader>
@@ -200,7 +219,7 @@ export function CreateLinkedTasksModal({
               className="mt-1"
             />
             <p className="mt-1 text-tiny text-text-tertiary">
-              Auto-generates: &quot;{baseName || '...'} - CONCEPT&quot;, &quot;{baseName || '...'} - STATIC ART&quot;, &quot;{baseName || '...'} - FX/ANIMATION&quot;
+              Auto-generates titles like &quot;{baseName || '...'} - CONCEPT&quot;, &quot;{baseName || '...'} - STATIC ART&quot;, etc.
             </p>
           </div>
 
@@ -208,6 +227,7 @@ export function CreateLinkedTasksModal({
           <div className="space-y-3">
             {LINKED_TASK_PRESETS.map((preset, index) => {
               const task = tasks[index];
+              const selectedTag = availableTags.find((t) => t.id === task.tagId);
               return (
                 <div
                   key={preset.key}
@@ -238,7 +258,7 @@ export function CreateLinkedTasksModal({
                         })
                       }
                     >
-                      <SelectTrigger className="w-[160px] h-8">
+                      <SelectTrigger className="w-[140px] h-8">
                         <SelectValue placeholder="Assignee" />
                       </SelectTrigger>
                       <SelectContent>
@@ -288,6 +308,39 @@ export function CreateLinkedTasksModal({
                         ))}
                       </SelectContent>
                     </Select>
+
+                    {/* Tag picker */}
+                    {selectedTag ? (
+                      <span className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-1 text-tiny shrink-0">
+                        {selectedTag.name}
+                        <button
+                          type="button"
+                          onClick={() => updateTask(index, { tagId: null })}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ) : (
+                      <Select
+                        value="none"
+                        onValueChange={(val) => {
+                          if (val === 'none') return;
+                          updateTask(index, { tagId: val });
+                        }}
+                      >
+                        <SelectTrigger className="w-[100px] h-8 text-tiny">
+                          <SelectValue placeholder="Tag" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No tag</SelectItem>
+                          {availableTags.map((tag) => (
+                            <SelectItem key={tag.id} value={tag.id}>
+                              {tag.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {/* Row 2: Destination mode + lists */}
@@ -422,7 +475,7 @@ export function CreateLinkedTasksModal({
                   Creating...
                 </>
               ) : (
-                'Create All 3 Tasks'
+                `Create All ${LINKED_TASK_PRESETS.length} Tasks`
               )}
             </Button>
           </div>

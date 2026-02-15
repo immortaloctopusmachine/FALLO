@@ -44,6 +44,7 @@ export async function POST(
       description,
       color,
       assigneeIds,
+      tagIds,
       taskData,
       userStoryData,
       epicData,
@@ -290,6 +291,17 @@ export async function POST(
         },
       },
     });
+
+    // Create tag associations if tagIds provided
+    if (Array.isArray(tagIds) && tagIds.length > 0) {
+      const validTagIds = tagIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0);
+      if (validTagIds.length > 0) {
+        await prisma.cardTag.createMany({
+          data: validTagIds.map((tagId: string) => ({ cardId: card.id, tagId })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     return apiSuccess(card, 201);
   } catch (error) {

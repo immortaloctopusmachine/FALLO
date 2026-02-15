@@ -5,6 +5,7 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import { handleCardListTransition } from '@/lib/quality-review';
 
 // Helper to check if a list is an "in progress" list (for time tracking)
 function isInProgressList(listName: string): boolean {
@@ -44,6 +45,12 @@ export async function POST(
       where: {
         id: { in: [sourceListId, destinationListId] },
         boardId,
+      },
+      select: {
+        id: true,
+        name: true,
+        phase: true,
+        viewType: true,
       },
     });
 
@@ -95,6 +102,14 @@ export async function POST(
               data: { position: i },
             });
           }
+        }
+
+        if (sourceList && destList) {
+          await handleCardListTransition(tx, {
+            cardId,
+            fromList: sourceList,
+            toList: destList,
+          });
         }
       } else {
         // Moving within the same list

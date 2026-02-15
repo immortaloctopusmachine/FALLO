@@ -2,15 +2,17 @@ import type { Card, TaskCard } from '@/types';
 
 // Preset definitions for linked task creation from User Stories
 export const LINKED_TASK_PRESETS = [
-  { key: 'concept', suffix: 'CONCEPT', color: '#8b5cf6' },
-  { key: 'static_art', suffix: 'STATIC ART', color: '#22c55e' },
-  { key: 'fx_animation', suffix: 'FX/ANIMATION', color: '#ec4899' },
+  { key: 'concept', suffix: 'CONCEPT', color: '#8b5cf6', defaultStoryPoints: 3, defaultTag: 'Concept' },
+  { key: 'static_art', suffix: 'STATIC ART', color: '#22c55e', defaultStoryPoints: 5, defaultTag: 'Final' },
+  { key: 'concept_fx', suffix: 'CONCEPT : FX/ANIMATION', color: '#8b5cf6', defaultStoryPoints: 3, defaultTag: 'Concept' },
+  { key: 'fx_animation', suffix: 'FX/ANIMATION', color: '#ec4899', defaultStoryPoints: 5, defaultTag: 'Final' },
 ] as const;
 
 export type LinkedTaskPresetKey = (typeof LINKED_TASK_PRESETS)[number]['key'];
 
 // Known suffixes for extracting type label from card title
-const KNOWN_SUFFIXES = ['CONCEPT', 'STATIC ART', 'FX/ANIMATION'] as const;
+// Order matters: longer suffixes first so "CONCEPT : FX/ANIMATION" matches before "FX/ANIMATION"
+const KNOWN_SUFFIXES = ['CONCEPT : FX/ANIMATION', 'CONCEPT', 'STATIC ART', 'FX/ANIMATION'] as const;
 
 /** Extract the type label from a task title (e.g. "Walk cycle - CONCEPT" → "Concept") */
 export function extractTaskTypeLabel(title: string): string | null {
@@ -30,7 +32,7 @@ export function extractTaskTypeLabel(title: string): string | null {
 export interface ChainLink {
   id: string;
   title: string;
-  typeLabel: string; // "Concept", "Static Art", "Fx/Animation", or truncated title
+  typeLabel: string; // "Concept", "Static Art", "Concept : Fx/Animation", "Fx/Animation", or truncated title
   isComplete: boolean;
   isCurrent: boolean;
   listName?: string;

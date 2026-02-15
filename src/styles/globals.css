@@ -38,6 +38,14 @@
     --error: #EF4444;
     --info: #3B82F6;
 
+    --board-gradient-purple: linear-gradient(135deg, #E9D5FF 0%, #C4B5FD 50%, #818CF8 100%);
+    --board-gradient-yellow: linear-gradient(135deg, #FEF3C7 0%, #FCD34D 50%, #F59E0B 100%);
+    --board-gradient-blue: linear-gradient(135deg, #DBEAFE 0%, #93C5FD 50%, #3B82F6 100%);
+    --board-gradient-green: linear-gradient(135deg, #DCFCE7 0%, #86EFAC 50%, #22C55E 100%);
+    --board-gradient-pink: linear-gradient(135deg, #FCE7F3 0%, #F9A8D4 50%, #EC4899 100%);
+    --board-gradient-teal: linear-gradient(135deg, #CCFBF1 0%, #5EEAD4 50%, #0D9488 100%);
+    --board-gradient-red: linear-gradient(135deg, #FEE2E2 0%, #FCA5A5 50%, #EF4444 100%);
+
     --grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
   }
 
@@ -75,6 +83,14 @@
     --warning: #FFAA00;
     --error: #FF3366;
     --info: #4488FF;
+
+    --board-gradient-purple: linear-gradient(135deg, #2E1065 0%, #4C1D95 50%, #7C3AED 100%);
+    --board-gradient-yellow: linear-gradient(135deg, #422006 0%, #713F12 50%, #CA8A04 100%);
+    --board-gradient-blue: linear-gradient(135deg, #172554 0%, #1E3A8A 50%, #2563EB 100%);
+    --board-gradient-green: linear-gradient(135deg, #052E16 0%, #14532D 50%, #16A34A 100%);
+    --board-gradient-pink: linear-gradient(135deg, #500724 0%, #831843 50%, #DB2777 100%);
+    --board-gradient-teal: linear-gradient(135deg, #042F2E 0%, #115E59 50%, #0F766E 100%);
+    --board-gradient-red: linear-gradient(135deg, #450A0A 0%, #7F1D1D 50%, #DC2626 100%);
   }
 
   .slate {
@@ -111,6 +127,14 @@
     --warning: #F3B24B;
     --error: #F25C84;
     --info: #5A97F8;
+
+    --board-gradient-purple: linear-gradient(135deg, #312E81 0%, #6D28D9 50%, #8B5CF6 100%);
+    --board-gradient-yellow: linear-gradient(135deg, #78350F 0%, #B45309 50%, #F59E0B 100%);
+    --board-gradient-blue: linear-gradient(135deg, #1E3A8A 0%, #2563EB 50%, #60A5FA 100%);
+    --board-gradient-green: linear-gradient(135deg, #14532D 0%, #16A34A 50%, #4ADE80 100%);
+    --board-gradient-pink: linear-gradient(135deg, #831843 0%, #BE185D 50%, #F472B6 100%);
+    --board-gradient-teal: linear-gradient(135deg, #134E4A 0%, #0F766E 50%, #2DD4BF 100%);
+    --board-gradient-red: linear-gradient(135deg, #7F1D1D 0%, #B91C1C 50%, #F87171 100%);
   }
 
   * {

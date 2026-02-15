@@ -218,6 +218,20 @@ export interface Board {
   isTemplate: boolean;
   settings: BoardSettings;
   lists: List[];
+  timelineBlocks?: {
+    id: string;
+    startDate: string;
+    endDate: string;
+    position: number;
+    blockType: {
+      id: string;
+      name: string;
+      color: string;
+      description: string | null;
+      isDefault: boolean;
+      position: number;
+    };
+  }[];
   members: BoardMember[];
   createdAt: string;
   updatedAt: string;
@@ -257,6 +271,7 @@ export interface BoardSettings {
 
   // Slack integration
   slackChannelId?: string;
+  slackChannelName?: string;
   slackAlertsEnabled?: boolean;
   slackSlowProgressThresholdPct?: number;
 
@@ -277,6 +292,21 @@ export interface BoardSettings {
   backgroundType?: 'none' | 'gradient' | 'image';
   backgroundGradient?: string;
   backgroundImageUrl?: string;
+}
+
+export interface TeamSettings {
+  // Slack integration
+  slackChannelId?: string;
+  slackChannelName?: string;
+
+  // Team-specific role rows (same pattern as project role assignments)
+  teamRoleAssignments?: {
+    id: string;
+    roleId: string;
+    roleName: string;
+    roleColor?: string | null;
+    userId: string;
+  }[];
 }
 
 export interface CoreProjectTemplateBlockItem {
@@ -445,10 +475,12 @@ export interface EpicNamePreset {
 export interface ModuleTaskTemplate {
   id: string;
   title: string;
+  titleOverride: string | null;
   color: string;
   description: string | null;
   storyPoints: number | null;
   featureImage: string | null;
+  tags: string[];
   destinationMode: TaskReleaseMode;
   chainGroupId: string | null;
   chainOrder: number | null;
@@ -517,4 +549,11 @@ export interface TimelineData {
   availability: UserWeeklyAvailability[];
   blockTypes: BlockType[];
   eventTypes: EventType[];
+}
+
+export interface TimelineArchivedProjectSummary {
+  id: string;
+  name: string;
+  teamId: string | null;
+  team: Team | null;
 }

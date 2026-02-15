@@ -1,9 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
-import type { TimelineData, BlockType, EventType } from '@/types';
+import type {
+  TimelineData,
+  TimelineArchivedProjectSummary,
+  BlockType,
+  EventType,
+} from '@/types';
 
 interface TimelineResponse {
   projects: TimelineData[];
+  archivedProjects: TimelineArchivedProjectSummary[];
   teams: { id: string; name: string; color: string }[];
   users: { id: string; name: string | null; email: string; image: string | null }[];
   blockTypes: BlockType[];

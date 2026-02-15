@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import {
   requireAuth,
   requireBoardMember,
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import {
+  closeAndLockCardReviewCycles,
+  handleCardListTransition,
+} from '@/lib/quality-review';
 
 // Validation constants
 const MAX_TITLE_LENGTH = 500;
@@ -257,6 +262,34 @@ export async function PATCH(
     const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
     if (memberResponse) return memberResponse;
 
+    const existingCard = await prisma.card.findFirst({
+      where: {
+        id: cardId,
+        list: { boardId },
+      },
+      select: {
+        id: true,
+        listId: true,
+        list: {
+          select: {
+            id: true,
+            name: true,
+            phase: true,
+            viewType: true,
+            board: {
+              select: {
+                settings: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!existingCard) {
+      return ApiErrors.notFound('Card');
+    }
+
     const body = await request.json();
     const { title, description, position, listId, color, featureImage, featureImagePosition, taskData, userStoryData, epicData, utilityData } = body;
 
@@ -275,46 +308,96 @@ export async function PATCH(
       return ApiErrors.validation(`Card description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters`);
     }
 
-    const card = await prisma.card.update({
-      where: { id: cardId },
-      data: {
-        ...(title && { title: title.trim() }),
-        ...(description !== undefined && { description: description?.trim() || null }),
-        ...(position !== undefined && { position }),
-        ...(listId && { listId }),
-        ...(color !== undefined && { color }),
-        ...(featureImage !== undefined && { featureImage }),
-        ...(featureImagePosition !== undefined && { featureImagePosition }),
-        ...(taskData && { taskData }),
-        ...(userStoryData && { userStoryData }),
-        ...(epicData && { epicData }),
-        ...(utilityData && { utilityData }),
-      },
-      include: {
-        assignees: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
+    if (listId !== undefined && (typeof listId !== 'string' || !listId.trim())) {
+      return ApiErrors.validation('Invalid listId');
+    }
+
+    let destinationList:
+      | {
+        id: string;
+        name: string;
+        phase: string | null;
+        viewType: string;
+      }
+      | null = null;
+
+    const hasListTransition =
+      typeof listId === 'string' &&
+      listId.trim().length > 0 &&
+      listId !== existingCard.listId;
+
+    if (hasListTransition) {
+      destinationList = await prisma.list.findFirst({
+        where: {
+          id: listId,
+          boardId,
+        },
+        select: {
+          id: true,
+          name: true,
+          phase: true,
+          viewType: true,
+        },
+      });
+
+      if (!destinationList) {
+        return ApiErrors.notFound('List');
+      }
+    }
+
+    const card = await prisma.$transaction(async (tx) => {
+      const updatedCard = await tx.card.update({
+        where: { id: cardId },
+        data: {
+          ...(title && { title: title.trim() }),
+          ...(description !== undefined && { description: description?.trim() || null }),
+          ...(position !== undefined && { position }),
+          ...(listId !== undefined && { listId }),
+          ...(color !== undefined && { color }),
+          ...(featureImage !== undefined && { featureImage }),
+          ...(featureImagePosition !== undefined && { featureImagePosition }),
+          ...(taskData && { taskData }),
+          ...(userStoryData && { userStoryData }),
+          ...(epicData && { epicData }),
+          ...(utilityData && { utilityData }),
+        },
+        include: {
+          assignees: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
               },
             },
           },
-        },
-        _count: {
-          select: {
-            attachments: true,
-            comments: true,
+          _count: {
+            select: {
+              attachments: true,
+              comments: true,
+            },
+          },
+          checklists: {
+            include: {
+              items: true,
+            },
           },
         },
-        checklists: {
-          include: {
-            items: true,
-          },
-        },
-      },
+      });
+
+      if (hasListTransition && destinationList) {
+        await handleCardListTransition(tx, {
+          cardId,
+          fromList: existingCard.list,
+          toList: destinationList,
+          boardSettings: existingCard.list.board.settings as Prisma.JsonValue,
+        });
+      }
+
+      return updatedCard;
     });
 
     return apiSuccess(card);
@@ -338,9 +421,25 @@ export async function DELETE(
     const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
     if (memberResponse) return memberResponse;
 
-    await prisma.card.update({
-      where: { id: cardId },
-      data: { archivedAt: new Date() },
+    const existingCard = await prisma.card.findFirst({
+      where: {
+        id: cardId,
+        list: { boardId },
+      },
+      select: { id: true },
+    });
+
+    if (!existingCard) {
+      return ApiErrors.notFound('Card');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.card.update({
+        where: { id: cardId },
+        data: { archivedAt: new Date() },
+      });
+
+      await closeAndLockCardReviewCycles(tx, cardId);
     });
 
     return apiSuccess(null);

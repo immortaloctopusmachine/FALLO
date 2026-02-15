@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Calendar, Users, MoreHorizontal, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import {
@@ -53,7 +52,6 @@ export function ProjectCard({
   isArchived = false,
   onDeleted,
 }: ProjectCardProps) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

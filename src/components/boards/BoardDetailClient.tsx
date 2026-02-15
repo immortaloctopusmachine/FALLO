@@ -10,6 +10,7 @@ interface BoardDetailClientProps {
   boardId: string;
   currentUserId: string;
   userPermission?: string;
+  canViewQualitySummaries?: boolean;
 }
 
 function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; weeklyProgress: WeeklyProgress[] } {
@@ -19,6 +20,20 @@ function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; week
     description: rawData.description as string | null,
     isTemplate: rawData.isTemplate as boolean,
     settings: (rawData.settings || {}) as Board['settings'],
+    timelineBlocks: ((rawData.timelineBlocks as Record<string, unknown>[]) || []).map((block) => ({
+      id: block.id as string,
+      startDate: block.startDate as string,
+      endDate: block.endDate as string,
+      position: block.position as number,
+      blockType: {
+        id: (block.blockType as Record<string, unknown>).id as string,
+        name: (block.blockType as Record<string, unknown>).name as string,
+        color: (block.blockType as Record<string, unknown>).color as string,
+        description: ((block.blockType as Record<string, unknown>).description as string) || null,
+        isDefault: Boolean((block.blockType as Record<string, unknown>).isDefault),
+        position: Number((block.blockType as Record<string, unknown>).position || 0),
+      },
+    })),
     createdAt: rawData.createdAt as string,
     updatedAt: rawData.updatedAt as string,
     archivedAt: (rawData.archivedAt as string) || null,
@@ -68,7 +83,12 @@ function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; week
   return { board, weeklyProgress };
 }
 
-export function BoardDetailClient({ boardId, currentUserId, userPermission }: BoardDetailClientProps) {
+export function BoardDetailClient({
+  boardId,
+  currentUserId,
+  userPermission,
+  canViewQualitySummaries = false,
+}: BoardDetailClientProps) {
   const { data: rawLightData, isLoading } = useBoard(boardId, 'light');
   const {
     data: rawFullData,
@@ -124,6 +144,7 @@ export function BoardDetailClient({ boardId, currentUserId, userPermission }: Bo
       currentUserId={currentUserId}
       weeklyProgress={weeklyProgress}
       isAdmin={canEdit}
+      canViewQualitySummaries={canViewQualitySummaries}
       hasFullData={hasFullData}
       isLoadingFullData={isFetchingFullData}
       onLoadFullData={loadFullData}

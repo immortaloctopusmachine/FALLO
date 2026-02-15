@@ -273,12 +273,27 @@ export async function POST(
         },
       });
 
+      // Resolve tag names to Tag IDs for task tagging
+      const allTagNames = new Set<string>();
+      orderedMergedTaskTemplates.forEach(({ template }) => {
+        template.tags?.forEach((t) => allTagNames.add(t));
+      });
+
+      const tagsByName = new Map<string, string>();
+      if (allTagNames.size > 0) {
+        const tags = await tx.tag.findMany({
+          where: { name: { in: Array.from(allTagNames) } },
+          select: { id: true, name: true },
+        });
+        tags.forEach((t) => tagsByName.set(t.name, t.id));
+      }
+
       const createdTasks = [] as Array<{ id: string }>;
       const previousTaskIdByChain = new Map<string, string | null>();
 
       for (const { template, override } of orderedMergedTaskTemplates) {
         const mode = override?.destinationMode || template.destinationMode;
-        const taskTitle = (override?.title?.trim() || `${storyTitle} - ${template.title}`);
+        const taskTitle = override?.title?.trim() || template.titleOverride || `${storyTitle} - ${template.title}`;
         const chainKey = template.chainGroupId ? `chain:${template.chainGroupId}` : `single:${template.id}`;
         const dependsOnTaskId = previousTaskIdByChain.get(chainKey) || null;
 
@@ -314,6 +329,17 @@ export async function POST(
             },
             select: { id: true },
           })).id;
+
+          // Create tag associations for this task
+          if (template.tags?.length) {
+            const tagCreateData = template.tags
+              .map((name) => tagsByName.get(name))
+              .filter((id): id is string => !!id)
+              .map((tagId) => ({ cardId: createdTaskId, tagId }));
+            if (tagCreateData.length > 0) {
+              await tx.cardTag.createMany({ data: tagCreateData });
+            }
+          }
 
           previousTaskIdByChain.set(chainKey, createdTaskId);
           createdTasks.push({ id: createdTaskId });
@@ -366,6 +392,17 @@ export async function POST(
           },
           select: { id: true },
         })).id;
+
+        // Create tag associations for this task
+        if (template.tags?.length) {
+          const tagCreateData = template.tags
+            .map((name) => tagsByName.get(name))
+            .filter((id): id is string => !!id)
+            .map((tagId) => ({ cardId: createdTaskId, tagId }));
+          if (tagCreateData.length > 0) {
+            await tx.cardTag.createMany({ data: tagCreateData });
+          }
+        }
 
         previousTaskIdByChain.set(chainKey, createdTaskId);
         createdTasks.push({ id: createdTaskId });

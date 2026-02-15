@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRef } from 'react';
-import { Settings, Calendar, Link as LinkIcon, Sparkles, Save, AlertTriangle, Archive, Copy, FileText, Paintbrush, ImageIcon, X, Ban } from 'lucide-react';
+import { Settings, Save, AlertTriangle, Archive, Copy, FileText, Paintbrush, ImageIcon, X, Ban } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,15 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import type { BoardSettings, ListTemplateType } from '@/types';
+import type { BoardSettings } from '@/types';
 import { BOARD_GRADIENTS } from '@/lib/board-backgrounds';
 import { cn } from '@/lib/utils';
 
@@ -34,12 +26,6 @@ interface BoardSettingsModalProps {
   isTemplate?: boolean;
   settings: BoardSettings;
   onSave: (settings: BoardSettings) => Promise<void>;
-}
-
-interface SlackChannelOption {
-  id: string;
-  name: string;
-  isPrivate: boolean;
 }
 
 export function BoardSettingsModal({
@@ -58,48 +44,13 @@ export function BoardSettingsModal({
   const [isCloning, setIsCloning] = useState(false);
   const [archiveConfirmation, setArchiveConfirmation] = useState('');
   const [cloneName, setCloneName] = useState('');
-  const [slackChannels, setSlackChannels] = useState<SlackChannelOption[]>([]);
-  const [isLoadingSlackChannels, setIsLoadingSlackChannels] = useState(false);
   const [isUploadingBg, setIsUploadingBg] = useState(false);
   const bgFileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const loadSlackChannels = async () => {
-      setIsLoadingSlackChannels(true);
-      try {
-        const response = await fetch('/api/integrations/slack/channels');
-        const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          setSlackChannels(data.data);
-        }
-      } catch {
-        // Slack integration is optional.
-      } finally {
-        setIsLoadingSlackChannels(false);
-      }
-    };
-    void loadSlackChannels();
-  }, [isOpen]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Check if project start date was changed
-      const startDateChanged = settings.projectStartDate !== initialSettings.projectStartDate;
-
       await onSave(settings);
-
-      // If start date was set/changed, apply dates to planning lists
-      if (startDateChanged && settings.projectStartDate) {
-        try {
-          await fetch(`/api/boards/${boardId}/apply-dates`, {
-            method: 'POST',
-          });
-        } catch (error) {
-          console.error('Failed to apply dates to lists:', error);
-        }
-      }
 
       router.refresh(); // Refresh to get updated list data
       onClose();
@@ -185,26 +136,6 @@ export function BoardSettingsModal({
     }
   };
 
-  const updateSetting = <K extends keyof BoardSettings>(
-    key: K,
-    value: BoardSettings[K]
-  ) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const updateProjectLink = (
-    key: keyof NonNullable<BoardSettings['projectLinks']>,
-    value: string
-  ) => {
-    setSettings((prev) => ({
-      ...prev,
-      projectLinks: {
-        ...prev.projectLinks,
-        [key]: value,
-      },
-    }));
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -214,7 +145,7 @@ export function BoardSettingsModal({
             Board Settings
           </DialogTitle>
           <DialogDescription>
-            Configure project dates, links, and other board settings.
+            Configure board background and board management settings.
           </DialogDescription>
         </DialogHeader>
 
@@ -316,248 +247,6 @@ export function BoardSettingsModal({
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Project Dates Section */}
-          <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-title font-semibold">
-              <Calendar className="h-4 w-4" />
-              Project Dates
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="projectStartDate">Project Start Date</Label>
-                <Input
-                  id="projectStartDate"
-                  type="date"
-                  value={settings.projectStartDate?.split('T')[0] || ''}
-                  onChange={(e) =>
-                    updateSetting(
-                      'projectStartDate',
-                      e.target.value ? new Date(e.target.value).toISOString() : undefined
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="listTemplate">List Template</Label>
-                <Select
-                  value={settings.listTemplate || 'STANDARD_SLOT'}
-                  onValueChange={(value) =>
-                    updateSetting('listTemplate', value as ListTemplateType)
-                  }
-                >
-                  <SelectTrigger id="listTemplate">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="STANDARD_SLOT">Standard Slot (14 weeks)</SelectItem>
-                    <SelectItem value="BRANDED_GAME">Branded Game (6 weeks)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastDayStaticArt">Last Day for Static Art</Label>
-                <Input
-                  id="lastDayStaticArt"
-                  type="date"
-                  value={settings.lastDayStaticArt?.split('T')[0] || ''}
-                  onChange={(e) =>
-                    updateSetting(
-                      'lastDayStaticArt',
-                      e.target.value ? new Date(e.target.value).toISOString() : undefined
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastDayAnimationTweaks">Last Day for Animation Tweaks</Label>
-                <Input
-                  id="lastDayAnimationTweaks"
-                  type="date"
-                  value={settings.lastDayAnimationTweaks?.split('T')[0] || ''}
-                  onChange={(e) =>
-                    updateSetting(
-                      'lastDayAnimationTweaks',
-                      e.target.value ? new Date(e.target.value).toISOString() : undefined
-                    )
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Project Links Section */}
-          <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-title font-semibold">
-              <LinkIcon className="h-4 w-4" />
-              Project Links
-            </h3>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="gameSpecification">Game Specification</Label>
-                <Input
-                  id="gameSpecification"
-                  type="url"
-                  placeholder="https://..."
-                  value={settings.projectLinks?.gameSpecification || ''}
-                  onChange={(e) => updateProjectLink('gameSpecification', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gameOverviewPlanning">
-                  Game Overview Planning
-                  <span className="text-text-tertiary text-tiny ml-2">(has default)</span>
-                </Label>
-                <Input
-                  id="gameOverviewPlanning"
-                  type="url"
-                  placeholder="https://..."
-                  value={settings.projectLinks?.gameOverviewPlanning || ''}
-                  onChange={(e) => updateProjectLink('gameOverviewPlanning', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="animationDocument">
-                  Animation Document
-                  <span className="text-text-tertiary text-tiny ml-2">(has default)</span>
-                </Label>
-                <Input
-                  id="animationDocument"
-                  type="url"
-                  placeholder="https://..."
-                  value={settings.projectLinks?.animationDocument || ''}
-                  onChange={(e) => updateProjectLink('animationDocument', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gameSheetInfo">
-                  Game Sheet Info
-                  <span className="text-text-tertiary text-tiny ml-2">(has default)</span>
-                </Label>
-                <Input
-                  id="gameSheetInfo"
-                  type="url"
-                  placeholder="https://..."
-                  value={settings.projectLinks?.gameSheetInfo || ''}
-                  onChange={(e) => updateProjectLink('gameSheetInfo', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gameNameBrainstorming">
-                  Game Name Brainstorming
-                  <span className="text-text-tertiary text-tiny ml-2">(has default)</span>
-                </Label>
-                <Input
-                  id="gameNameBrainstorming"
-                  type="url"
-                  placeholder="https://..."
-                  value={settings.projectLinks?.gameNameBrainstorming || ''}
-                  onChange={(e) => updateProjectLink('gameNameBrainstorming', e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* LLM Settings Section */}
-          <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-title font-semibold">
-              <Sparkles className="h-4 w-4" />
-              AI Features
-            </h3>
-            <div className="flex items-center justify-between rounded-lg border border-border p-4">
-              <div>
-                <div className="font-medium">Enable AI Features</div>
-                <div className="text-caption text-text-tertiary">
-                  Use Claude to summarize feedback, extract action items, and more.
-                </div>
-              </div>
-              <Switch
-                checked={settings.llmEnabled || false}
-                onCheckedChange={(checked) => updateSetting('llmEnabled', checked)}
-              />
-            </div>
-          </div>
-
-          {/* Slack Integration Section */}
-          <div className="space-y-4">
-            <h3 className="flex items-center gap-2 text-title font-semibold">
-              <LinkIcon className="h-4 w-4" />
-              Slack Integration
-            </h3>
-            <div className="space-y-3 rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">Enable Slack Alerts</div>
-                  <div className="text-caption text-text-tertiary">
-                    Send slow-progress and weekly summary messages to the mapped project channel.
-                  </div>
-                </div>
-                <Switch
-                  checked={settings.slackAlertsEnabled ?? true}
-                  onCheckedChange={(checked) => updateSetting('slackAlertsEnabled', checked)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slackChannelId">Project Slack Channel</Label>
-                {slackChannels.length > 0 ? (
-                  <div className="space-y-2">
-                    <Select
-                      value={settings.slackChannelId || ''}
-                      onValueChange={(value) => updateSetting('slackChannelId', value || undefined)}
-                    >
-                      <SelectTrigger id="slackChannelId">
-                        <SelectValue placeholder={isLoadingSlackChannels ? 'Loading channels...' : 'Select channel'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {slackChannels.map((channel) => (
-                          <SelectItem key={channel.id} value={channel.id}>
-                            {channel.isPrivate ? '[private] ' : '#'}{channel.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateSetting('slackChannelId', undefined)}
-                    >
-                      Clear channel mapping
-                    </Button>
-                  </div>
-                ) : (
-                  <Input
-                    id="slackChannelId"
-                    placeholder="e.g. C0123456789"
-                    value={settings.slackChannelId || ''}
-                    onChange={(e) => updateSetting('slackChannelId', e.target.value || undefined)}
-                  />
-                )}
-                <p className="text-caption text-text-tertiary">
-                  Channel ID is stored per project. Invite the bot to private channels.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slackSlowProgressThresholdPct">Slow Progress Threshold (%)</Label>
-                <Input
-                  id="slackSlowProgressThresholdPct"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={settings.slackSlowProgressThresholdPct ?? 50}
-                  onChange={(e) => {
-                    const value = Number(e.target.value);
-                    updateSetting(
-                      'slackSlowProgressThresholdPct',
-                      Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 50
-                    );
-                  }}
-                />
-              </div>
             </div>
           </div>
 

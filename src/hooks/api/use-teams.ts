@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
+import type { TeamSettings } from '@/types';
 
 interface TeamMember {
   id: string;
@@ -29,7 +30,7 @@ interface TeamListItem {
   };
 }
 
-interface TeamDetailMember {
+export interface TeamDetailMember {
   id: string;
   userId: string;
   permission: string;
@@ -48,6 +49,14 @@ interface TeamDetailMember {
         color: string | null;
       };
     }[];
+    userCompanyRoles?: {
+      companyRole: {
+        id: string;
+        name: string;
+        color: string | null;
+        position: number;
+      };
+    }[];
   };
 }
 
@@ -61,13 +70,14 @@ interface TeamDetailBoard {
   _count: { lists: number; members: number };
 }
 
-interface TeamDetail {
+export interface TeamDetail {
   id: string;
   name: string;
   description: string | null;
   image: string | null;
   color: string;
   archivedAt: string | null;
+  settings: TeamSettings;
   studio: { id: string; name: string; color: string | null } | null;
   members: TeamDetailMember[];
   boards: TeamDetailBoard[];

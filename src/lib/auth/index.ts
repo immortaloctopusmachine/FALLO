@@ -183,6 +183,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!token.permission && (token as Record<string, unknown>).role) {
         token.permission = (token as Record<string, unknown>).role as UserPermission;
       }
+      // Always refresh permission from DB so changes take effect without re-login
+      if (token.id) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { permission: true },
+          });
+          if (dbUser) {
+            token.permission = dbUser.permission as UserPermission;
+          }
+        } catch {
+          // If DB query fails, keep the cached permission
+        }
+      }
       return token;
     },
     async session({ session, token }) {

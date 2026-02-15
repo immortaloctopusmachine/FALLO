@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, type WheelEvent } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -63,6 +63,7 @@ interface PlanningViewProps {
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
   isAdmin?: boolean;
+  canViewQualitySummaries?: boolean;
 }
 
 // Epic health status
@@ -78,11 +79,122 @@ interface PlanningListSection extends List {
   stagedTasks: TaskCard[];
 }
 
+const getTodayStart = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+const parseListDate = (value: string | null | undefined) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+};
+
+const isListOlderThanToday = (list: Pick<List, 'startDate' | 'endDate'>) => {
+  const today = getTodayStart();
+  const endDate = parseListDate(list.endDate);
+  if (endDate) {
+    return endDate.getTime() < today.getTime();
+  }
+
+  const startDate = parseListDate(list.startDate);
+  if (startDate) {
+    return startDate.getTime() < today.getTime();
+  }
+
+  return false;
+};
+
+const getAutoCollapsedPlanningListIds = (lists: Array<Pick<List, 'id' | 'startDate' | 'endDate'>>) => {
+  const collapsed = new Set<string>();
+  for (const list of lists) {
+    if (isListOlderThanToday(list)) {
+      collapsed.add(list.id);
+    }
+  }
+  return collapsed;
+};
+
+interface ProjectQualitySummary {
+  totals: {
+    doneTaskCount: number;
+    finalizedTaskCount: number;
+    overallAverage: number | null;
+    overallQualityTier: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED';
+  };
+  tierDistribution: {
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+    UNSCORED: number;
+  };
+  perDimension: Array<{
+    dimensionId: string;
+    name: string;
+    average: number | null;
+    count: number;
+    confidence: 'GREEN' | 'AMBER' | 'RED';
+  }>;
+  iterationMetrics: {
+    averageCyclesToDone: number | null;
+    highChurnThreshold: number;
+    highChurnCount: number;
+    highChurnRate: number | null;
+  };
+}
+
+interface QualityAdjustedVelocityMetrics {
+  totals: {
+    doneTaskCount: number;
+    scoredTaskCount: number;
+    totalRawPoints: number | null;
+    totalAdjustedPoints: number | null;
+    totalAdjustmentDelta: number | null;
+    overallAdjustmentFactor: number | null;
+  };
+  series: Array<{
+    weekStart: string;
+    perWeek: {
+      taskCount: number;
+      scoredTaskCount: number;
+      rawPoints: number | null;
+      adjustedPoints: number | null;
+      adjustmentDelta: number | null;
+      adjustmentFactor: number | null;
+    };
+  }>;
+}
+
+interface IterationDistributionMetrics {
+  totals: {
+    doneTaskCount: number;
+    scoredTaskCount: number;
+    withReviewCyclesCount: number;
+    withoutReviewCyclesCount: number;
+    averageCyclesToDone: number | null;
+    highChurnThreshold: number;
+    highChurnCount: number;
+    highChurnRate: number | null;
+  };
+  distribution: Array<{
+    cycleCount: number;
+    taskCount: number;
+    percentage: number | null;
+    scoredTaskCount: number;
+    averageQuality: number | null;
+    qualityTier: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED';
+  }>;
+}
+
 export function PlanningView({
   board: initialBoard,
   currentUserId,
   weeklyProgress = [],
   isAdmin: _isAdmin = false,
+  canViewQualitySummaries = false,
 }: PlanningViewProps) {
   const [localBoard, setLocalBoard] = useState(initialBoard);
   const mutations = useBoardMutations(initialBoard.id);
@@ -110,14 +222,91 @@ export function PlanningView({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [statsExpanded, setStatsExpanded] = useState(true);
+  const [statsExpanded, setStatsExpanded] = useState(false);
   const [isCreatingLists, setIsCreatingLists] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<'STANDARD_SLOT' | 'BRANDED_GAME'>('STANDARD_SLOT');
   const [isSyncingTimeline, setIsSyncingTimeline] = useState(false);
-  const [collapsedLists, setCollapsedLists] = useState<Set<string>>(new Set());
+  const initialPlanningLists = useMemo(
+    () => initialBoard.lists.filter((list) => list.viewType === 'PLANNING'),
+    [initialBoard.lists]
+  );
+  const [collapsedLists, setCollapsedLists] = useState<Set<string>>(
+    () => getAutoCollapsedPlanningListIds(initialPlanningLists)
+  );
+  const knownPlanningListIdsRef = useRef<Set<string>>(
+    new Set(initialPlanningLists.map((list) => list.id))
+  );
+  const initializedBoardIdRef = useRef<string | null>(null);
   const [releasingTaskIds, setReleasingTaskIds] = useState<Set<string>>(new Set());
   const [isAddModuleOpen, setIsAddModuleOpen] = useState(false);
   const [moduleDefaultPlanningListId, setModuleDefaultPlanningListId] = useState<string | undefined>(undefined);
+  const [qualitySummary, setQualitySummary] = useState<ProjectQualitySummary | null>(null);
+  const [qualityAdjustedVelocity, setQualityAdjustedVelocity] =
+    useState<QualityAdjustedVelocityMetrics | null>(null);
+  const [iterationDistribution, setIterationDistribution] =
+    useState<IterationDistributionMetrics | null>(null);
+  const [isLoadingQualitySummary, setIsLoadingQualitySummary] = useState(false);
+
+  useEffect(() => {
+    if (!canViewQualitySummaries) {
+      setQualitySummary(null);
+      setQualityAdjustedVelocity(null);
+      setIterationDistribution(null);
+      setIsLoadingQualitySummary(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadQualitySummary = async () => {
+      setIsLoadingQualitySummary(true);
+      try {
+        const fetchMetric = async <T,>(url: string): Promise<T> => {
+          const response = await fetch(url);
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error?.message || `Failed to load ${url}`);
+          }
+
+          return data.data as T;
+        };
+
+        const [summaryData, adjustedVelocityData, iterationData] =
+          await Promise.all([
+            fetchMetric<ProjectQualitySummary>(`/api/metrics/projects/${board.id}/quality-summary`),
+            fetchMetric<QualityAdjustedVelocityMetrics>(
+              `/api/metrics/quality-adjusted-velocity?projectId=${board.id}`
+            ),
+            fetchMetric<IterationDistributionMetrics>(
+              `/api/metrics/iteration-distribution?projectId=${board.id}`
+            ),
+          ]);
+
+        if (!isCancelled) {
+          setQualitySummary(summaryData);
+          setQualityAdjustedVelocity(adjustedVelocityData);
+          setIterationDistribution(iterationData);
+        }
+      } catch {
+        if (!isCancelled) {
+          setQualitySummary(null);
+          setQualityAdjustedVelocity(null);
+          setIterationDistribution(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingQualitySummary(false);
+        }
+      }
+    };
+
+    void loadQualitySummary();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [board.id, canViewQualitySummaries]);
 
   // Filter to get Epics and User Stories
   const epics = useMemo(() => {
@@ -151,6 +340,32 @@ export function PlanningView({
       };
     });
   }, [planningLists]);
+
+  useEffect(() => {
+    if (initializedBoardIdRef.current === board.id) return;
+
+    initializedBoardIdRef.current = board.id;
+    knownPlanningListIdsRef.current = new Set(planningListSections.map((list) => list.id));
+    setCollapsedLists(getAutoCollapsedPlanningListIds(planningListSections));
+  }, [board.id, planningListSections]);
+
+  useEffect(() => {
+    setCollapsedLists((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+
+      for (const list of planningListSections) {
+        if (knownPlanningListIdsRef.current.has(list.id)) continue;
+        knownPlanningListIdsRef.current.add(list.id);
+        if (isListOlderThanToday(list)) {
+          next.add(list.id);
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [planningListSections]);
 
   // Get TASKS view lists for linked card creation
   const taskLists = useMemo(() => {
@@ -294,6 +509,24 @@ export function PlanningView({
       },
     })
   );
+
+  const handlePlanningListsWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    const container = event.currentTarget;
+    const canScrollHorizontally = container.scrollWidth > container.clientWidth;
+    if (!canScrollHorizontally) return;
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('[data-list-cards-scroll="true"]')) {
+      return;
+    }
+
+    const dominantDelta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (Math.abs(dominantDelta) < 0.5) return;
+
+    container.scrollLeft += dominantDelta;
+    event.preventDefault();
+  }, []);
 
   const cardToListMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -834,11 +1067,29 @@ export function PlanningView({
     }
   };
 
+  const qualityTierClass = (tier: ProjectQualitySummary['totals']['overallQualityTier']) => {
+    if (tier === 'HIGH') return 'text-success';
+    if (tier === 'MEDIUM') return 'text-warning';
+    if (tier === 'LOW') return 'text-error';
+    return 'text-text-tertiary';
+  };
+
+  const confidenceDotClass = (confidence: 'GREEN' | 'AMBER' | 'RED') => {
+    if (confidence === 'GREEN') return 'bg-success';
+    if (confidence === 'AMBER') return 'bg-warning';
+    return 'bg-error';
+  };
+
+  const formatWeekStartLabel = (weekStart: string) => {
+    const weekDate = new Date(`${weekStart}T00:00:00`);
+    return weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   // Render stats dashboard
   const renderStats = () => (
     <div className={cn(
       'border-b border-border bg-surface transition-all duration-300 overflow-hidden',
-      statsExpanded ? 'max-h-[400px]' : 'max-h-10'
+      statsExpanded ? 'max-h-[900px]' : 'max-h-10'
     )} style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}>
       <div className="flex items-center justify-between px-4 py-2">
         <button
@@ -945,6 +1196,183 @@ export function PlanningView({
               <BurnUpChart data={weeklyProgress} height={80} />
             </div>
           </div>
+
+          {canViewQualitySummaries && (
+            <div className="mt-4 rounded-lg border border-border-subtle bg-background p-3">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-caption font-medium text-text-secondary">Team Quality Summary</div>
+              {isLoadingQualitySummary && (
+                <div className="text-caption text-text-tertiary">Loading...</div>
+              )}
+            </div>
+
+            {qualitySummary ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="text-caption text-text-tertiary">Overall</div>
+                    <div className={cn('text-title font-semibold mt-1', qualityTierClass(qualitySummary.totals.overallQualityTier))}>
+                      {qualitySummary.totals.overallAverage !== null
+                        ? qualitySummary.totals.overallAverage.toFixed(2)
+                        : 'Unscored'}
+                    </div>
+                    <div className="text-caption text-text-tertiary">{qualitySummary.totals.overallQualityTier}</div>
+                  </div>
+
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="text-caption text-text-tertiary">Coverage</div>
+                    <div className="text-title font-semibold mt-1 text-text-primary">
+                      {qualitySummary.totals.finalizedTaskCount}/{qualitySummary.totals.doneTaskCount}
+                    </div>
+                    <div className="text-caption text-text-tertiary">finalized vs done tasks</div>
+                  </div>
+
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="text-caption text-text-tertiary">Avg Cycles To Done</div>
+                    <div className="text-title font-semibold mt-1 text-text-primary">
+                      {qualitySummary.iterationMetrics.averageCyclesToDone !== null
+                        ? qualitySummary.iterationMetrics.averageCyclesToDone.toFixed(2)
+                        : 'N/A'}
+                    </div>
+                    <div className="text-caption text-text-tertiary">review loops per finalized task</div>
+                  </div>
+
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="text-caption text-text-tertiary">High Churn</div>
+                    <div className="text-title font-semibold mt-1 text-text-primary">
+                      {qualitySummary.iterationMetrics.highChurnRate !== null
+                        ? `${qualitySummary.iterationMetrics.highChurnRate.toFixed(1)}%`
+                        : 'N/A'}
+                    </div>
+                    <div className="text-caption text-text-tertiary">
+                      {qualitySummary.iterationMetrics.highChurnCount} tasks with {qualitySummary.iterationMetrics.highChurnThreshold}+ cycles
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="mb-2 text-caption font-medium text-text-secondary">Tier Distribution</div>
+                    <div className="grid grid-cols-2 gap-2 text-body">
+                      <div className="rounded border border-border-subtle px-2 py-1 text-success">
+                        High: {qualitySummary.tierDistribution.HIGH}
+                      </div>
+                      <div className="rounded border border-border-subtle px-2 py-1 text-warning">
+                        Medium: {qualitySummary.tierDistribution.MEDIUM}
+                      </div>
+                      <div className="rounded border border-border-subtle px-2 py-1 text-error">
+                        Low: {qualitySummary.tierDistribution.LOW}
+                      </div>
+                      <div className="rounded border border-border-subtle px-2 py-1 text-text-tertiary">
+                        Unscored: {qualitySummary.tierDistribution.UNSCORED}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="mb-2 text-caption font-medium text-text-secondary">Per Dimension</div>
+                    <div className="space-y-2 max-h-44 overflow-y-auto">
+                      {qualitySummary.perDimension.map((dimension) => (
+                        <div key={dimension.dimensionId} className="flex items-center justify-between rounded border border-border-subtle px-2 py-1.5">
+                          <div className="text-body text-text-primary">{dimension.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className={cn('h-2.5 w-2.5 rounded-full', confidenceDotClass(dimension.confidence))} />
+                            <span className="text-body font-medium text-text-primary">
+                              {dimension.average !== null ? dimension.average.toFixed(2) : 'N/A'}
+                            </span>
+                            <span className="text-caption text-text-tertiary">n={dimension.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="mb-2 text-caption font-medium text-text-secondary">
+                      Quality-Adjusted Velocity
+                    </div>
+                    {qualityAdjustedVelocity ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-2 text-caption">
+                          <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                            Raw: {qualityAdjustedVelocity.totals.totalRawPoints?.toFixed(2) ?? 'N/A'}
+                          </div>
+                          <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                            Adjusted: {qualityAdjustedVelocity.totals.totalAdjustedPoints?.toFixed(2) ?? 'N/A'}
+                          </div>
+                          <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                            Delta: {qualityAdjustedVelocity.totals.totalAdjustmentDelta?.toFixed(2) ?? 'N/A'}
+                          </div>
+                          <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                            Factor: {qualityAdjustedVelocity.totals.overallAdjustmentFactor?.toFixed(3) ?? 'N/A'}x
+                          </div>
+                        </div>
+                        <div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
+                          {qualityAdjustedVelocity.series.slice(-6).map((bucket) => (
+                            <div
+                              key={bucket.weekStart}
+                              className="flex items-center justify-between rounded border border-border-subtle px-2 py-1 text-caption"
+                            >
+                              <span className="text-text-tertiary">
+                                {formatWeekStartLabel(bucket.weekStart)}
+                              </span>
+                              <span className="text-text-primary">
+                                {bucket.perWeek.rawPoints?.toFixed(1) ?? '0.0'} {'->'} {bucket.perWeek.adjustedPoints?.toFixed(1) ?? '0.0'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-caption text-text-tertiary">Not available.</div>
+                    )}
+                  </div>
+
+                  <div className="rounded-md border border-border-subtle bg-surface p-2.5">
+                    <div className="mb-2 text-caption font-medium text-text-secondary">
+                      Iteration Distribution
+                    </div>
+                    {iterationDistribution ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-2 text-caption mb-2">
+                          <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                            With cycles: {iterationDistribution.totals.withReviewCyclesCount}
+                          </div>
+                          <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                            No cycles: {iterationDistribution.totals.withoutReviewCyclesCount}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                          {iterationDistribution.distribution.map((bucket) => (
+                            <div
+                              key={bucket.cycleCount}
+                              className="flex items-center justify-between rounded border border-border-subtle px-2 py-1.5"
+                            >
+                              <span className="text-caption text-text-tertiary">
+                                {bucket.cycleCount} cycle{bucket.cycleCount === 1 ? '' : 's'}
+                              </span>
+                              <span className="text-caption text-text-primary">
+                                {bucket.taskCount} tasks ({bucket.percentage !== null ? `${bucket.percentage.toFixed(1)}%` : 'N/A'})
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-caption text-text-tertiary">Not available.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-body text-text-tertiary">
+                Quality summary is not available yet.
+              </div>
+            )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1104,6 +1532,7 @@ export function PlanningView({
       isCollapsible
       isCollapsed={collapsedLists.has(list.id)}
       onCollapseChange={handleCollapseChange}
+      useTwoRowHeaderActions
       extraHeaderActions={(
         <Button
           variant="ghost"
@@ -1154,7 +1583,10 @@ export function PlanningView({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
+            <div
+              className="flex-1 flex items-start gap-4 overflow-x-auto p-4"
+              onWheel={handlePlanningListsWheel}
+            >
               {planningListSections.map((list) => renderPlanningListColumn(list))}
             </div>
           )}
@@ -1240,10 +1672,13 @@ export function PlanningView({
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
-              {planningListSections.map((list) => (
-                <SortableContext
-                  key={list.id}
+          <div
+            className="flex-1 flex items-start gap-4 overflow-x-auto p-4"
+            onWheel={handlePlanningListsWheel}
+          >
+            {planningListSections.map((list) => (
+              <SortableContext
+                key={list.id}
                   items={list.userStories.map((c) => c.id)}
                   strategy={verticalListSortingStrategy}
                 >
@@ -1274,6 +1709,7 @@ export function PlanningView({
         onLinkedCardCreated={handleLinkedCardCreated}
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
+        canViewQualitySummaries={canViewQualitySummaries}
         taskLists={taskLists}
         planningLists={planningLists}
         allCards={allCards}

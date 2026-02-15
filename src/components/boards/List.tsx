@@ -70,6 +70,7 @@ interface ListProps {
   renderSecondaryCardActions?: (card: Card) => ReactNode;
   chainMap?: Map<string, ChainLink[]>; // Dependency chain data for cards
   extraHeaderActions?: ReactNode;
+  useTwoRowHeaderActions?: boolean; // Move add/actions icons to a second header row
 }
 
 // Get subtle tint style based on list name — uses backgroundImage so it layers on top of bg-surface
@@ -124,6 +125,7 @@ export function List({
   renderSecondaryCardActions,
   chainMap,
   extraHeaderActions,
+  useTwoRowHeaderActions = false,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -261,7 +263,10 @@ export function List({
       )}
 
       {/* List Header */}
-      <div className="flex items-center justify-between px-2 py-2">
+      <div className={cn(
+        'flex items-center justify-between px-2',
+        useTwoRowHeaderActions ? 'pt-2 pb-1' : 'py-2'
+      )}>
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <h3 className="text-title font-semibold text-text-primary">{name}</h3>
@@ -300,7 +305,35 @@ export function List({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {extraHeaderActions}
+          {!useTwoRowHeaderActions && extraHeaderActions}
+          {!useTwoRowHeaderActions && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
+              onClick={() => setIsAddingCard(true)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {timelineBlock && onDetachFromTimeline && (
+                <DropdownMenuItem onClick={() => onDetachFromTimeline(id)}>
+                  <Unlink className="h-4 w-4 mr-2" />
+                  Detach from Timeline
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onDeleteList(id)} className="text-error">
+                Delete List
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {isCollapsible && (
             <TooltipProvider>
               <Tooltip>
@@ -320,34 +353,23 @@ export function List({
               </Tooltip>
             </TooltipProvider>
           )}
+        </div>
+      </div>
+
+      {useTwoRowHeaderActions && (
+        <div className="flex items-center justify-end gap-1 px-2 pb-2">
+          {extraHeaderActions}
           <Button
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
             onClick={() => setIsAddingCard(true)}
+            title="Add card"
           >
             <Plus className="h-4 w-4" />
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {timelineBlock && onDetachFromTimeline && (
-                <DropdownMenuItem onClick={() => onDetachFromTimeline(id)}>
-                  <Unlink className="h-4 w-4 mr-2" />
-                  Detach from Timeline
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => onDeleteList(id)} className="text-error">
-                Delete List
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
-      </div>
+      )}
 
       {/* Divider */}
       <div className="mx-2 border-t border-border-subtle" />
@@ -410,7 +432,10 @@ export function List({
       )}
 
       {/* Cards Container */}
-      <div className="space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]">
+      <div
+        className="space-y-2 overflow-y-auto p-2 max-h-[calc(100vh-14rem)]"
+        data-list-cards-scroll="true"
+      >
         {cards.map((card) => (
           <CardCompact
             key={card.id}

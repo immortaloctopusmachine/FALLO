@@ -1,81 +1,61 @@
 import { prisma } from '@/lib/prisma';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
-import type { TimelineData, BlockType, EventType } from '@/types';
+import type {
+  TimelineData,
+  TimelineArchivedProjectSummary,
+  BlockType,
+  EventType,
+} from '@/types';
+
+const OLD_PROJECT_DAYS = 30;
+const RELEASE_EVENT_NAME = 'Release';
+
+function parseOptionalDate(value: unknown): Date | null {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function getReleaseDateFromSettings(settings: unknown): Date | null {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    return null;
+  }
+
+  const rawReleaseDate = (settings as Record<string, unknown>).releaseDate;
+  return parseOptionalDate(rawReleaseDate);
+}
+
+function getLaterDate(a: Date | null, b: Date | null): Date | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a.getTime() >= b.getTime() ? a : b;
+}
 
 // GET /api/timeline - Get aggregate timeline data for all user's boards
 export async function GET() {
   try {
-    const { session, response } = await requireAuth();
+    const { response } = await requireAuth();
     if (response) return response;
 
-    const [boards, blockTypes, eventTypes, teams, users] = await Promise.all([
+    const [baseBoards, blockTypes, eventTypes, teams, users] = await Promise.all([
       // All authenticated users can see all non-archived boards in timeline
       prisma.board.findMany({
         where: {
           archivedAt: null,
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          teamId: true,
+          settings: true,
           team: {
             select: {
               id: true,
               name: true,
               color: true,
             },
-          },
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                  userCompanyRoles: {
-                    include: {
-                      companyRole: {
-                        select: {
-                          id: true,
-                          name: true,
-                          color: true,
-                          position: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          weeklyAvailability: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
-              },
-            },
-          },
-          timelineBlocks: {
-            include: {
-              blockType: true,
-              list: {
-                select: {
-                  id: true,
-                  name: true,
-                  phase: true,
-                },
-              },
-            },
-            orderBy: { startDate: 'asc' },
-          },
-          timelineEvents: {
-            include: {
-              eventType: true,
-            },
-            orderBy: { startDate: 'asc' },
           },
         },
         orderBy: { name: 'asc' },
@@ -105,6 +85,170 @@ export async function GET() {
         orderBy: { name: 'asc' },
       }),
     ]);
+
+    const boardIds = baseBoards.map((board) => board.id);
+
+    const [blockEndMaxByBoard, eventEndMaxByBoard, releaseEvents] = boardIds.length
+      ? await Promise.all([
+          prisma.timelineBlock.groupBy({
+            by: ['boardId'],
+            where: { boardId: { in: boardIds } },
+            _max: { endDate: true },
+          }),
+          prisma.timelineEvent.groupBy({
+            by: ['boardId'],
+            where: { boardId: { in: boardIds } },
+            _max: { endDate: true },
+          }),
+          prisma.timelineEvent.findMany({
+            where: {
+              boardId: { in: boardIds },
+              eventType: {
+                name: {
+                  equals: RELEASE_EVENT_NAME,
+                  mode: 'insensitive',
+                },
+              },
+            },
+            select: {
+              boardId: true,
+              startDate: true,
+              endDate: true,
+            },
+          }),
+        ])
+      : [[], [], []];
+
+    const blockEndMap = new Map<string, Date>();
+    for (const row of blockEndMaxByBoard) {
+      if (row._max.endDate) {
+        blockEndMap.set(row.boardId, row._max.endDate);
+      }
+    }
+
+    const eventEndMap = new Map<string, Date>();
+    for (const row of eventEndMaxByBoard) {
+      if (row._max.endDate) {
+        eventEndMap.set(row.boardId, row._max.endDate);
+      }
+    }
+
+    const releaseEventDateMap = new Map<string, Date>();
+    for (const event of releaseEvents) {
+      const candidate = event.endDate || event.startDate;
+      const previous = releaseEventDateMap.get(event.boardId) || null;
+      releaseEventDateMap.set(event.boardId, getLaterDate(previous, candidate) as Date);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const oldCutoff = new Date(today);
+    oldCutoff.setDate(oldCutoff.getDate() - OLD_PROJECT_DAYS);
+
+    const archivedProjects: TimelineArchivedProjectSummary[] = [];
+    const activeBoardIds: string[] = [];
+
+    for (const board of baseBoards) {
+      const releaseDate =
+        getReleaseDateFromSettings(board.settings) ||
+        releaseEventDateMap.get(board.id) ||
+        null;
+      const latestTimelineDate = getLaterDate(
+        blockEndMap.get(board.id) || null,
+        eventEndMap.get(board.id) || null
+      );
+
+      const isOld = releaseDate
+        ? releaseDate.getTime() < oldCutoff.getTime()
+        : latestTimelineDate
+          ? latestTimelineDate.getTime() < oldCutoff.getTime()
+          : false;
+
+      if (isOld) {
+        archivedProjects.push({
+          id: board.id,
+          name: board.name,
+          teamId: board.teamId,
+          team: board.team,
+        });
+      } else {
+        activeBoardIds.push(board.id);
+      }
+    }
+
+    const boards = activeBoardIds.length
+      ? await prisma.board.findMany({
+          where: {
+            archivedAt: null,
+            id: { in: activeBoardIds },
+          },
+          include: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                    userCompanyRoles: {
+                      include: {
+                        companyRole: {
+                          select: {
+                            id: true,
+                            name: true,
+                            color: true,
+                            position: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            weeklyAvailability: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                  },
+                },
+              },
+            },
+            timelineBlocks: {
+              include: {
+                blockType: true,
+                list: {
+                  select: {
+                    id: true,
+                    name: true,
+                    phase: true,
+                  },
+                },
+              },
+              orderBy: { startDate: 'asc' },
+            },
+            timelineEvents: {
+              include: {
+                eventType: true,
+              },
+              orderBy: { startDate: 'asc' },
+            },
+          },
+          orderBy: { name: 'asc' },
+        })
+      : [];
 
     const linkedListIds = boards
       .flatMap((board) => board.timelineBlocks.map((block) => block.listId))
@@ -318,6 +462,7 @@ export async function GET() {
 
     return apiSuccess({
       projects,
+      archivedProjects,
       teams,
       users,
       blockTypes: mappedBlockTypes,

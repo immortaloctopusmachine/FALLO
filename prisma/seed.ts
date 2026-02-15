@@ -194,6 +194,84 @@ async function main() {
 
   console.log('Created default company roles:', defaultCompanyRoles.map(r => r.name).join(', '));
 
+  // Seed default quality review questions
+  const defaultReviewDimensions = [
+    {
+      id: 'default-review-dimension-1',
+      name: 'Technical Quality',
+      description: 'Craft and execution quality - mesh, textures, rigging',
+      position: 1,
+    },
+    {
+      id: 'default-review-dimension-2',
+      name: 'Art Direction Alignment',
+      description: 'Matches the project visual target and style guide',
+      position: 2,
+    },
+    {
+      id: 'default-review-dimension-3',
+      name: 'Context Fit',
+      description: 'Works in the actual game/product - camera distance, clipping, readability',
+      position: 3,
+    },
+    {
+      id: 'default-review-dimension-4',
+      name: 'Delivery',
+      description: 'Notes addressed, delivered on time, professional process',
+      position: 4,
+    },
+  ];
+
+  for (const dimension of defaultReviewDimensions) {
+    await prisma.reviewDimension.upsert({
+      where: { id: dimension.id },
+      update: {
+        name: dimension.name,
+        description: dimension.description,
+        position: dimension.position,
+        isActive: true,
+      },
+      create: {
+        id: dimension.id,
+        name: dimension.name,
+        description: dimension.description,
+        position: dimension.position,
+        isActive: true,
+      },
+    });
+  }
+
+  console.log(
+    'Created default review dimensions:',
+    defaultReviewDimensions.map((d) => d.name).join(', ')
+  );
+
+  // Default audience mappings (Head of Art is handled in app logic as always eligible)
+  const dimensionRoleMappings = [
+    { dimensionId: 'default-review-dimension-1', role: 'LEAD' as const },
+    { dimensionId: 'default-review-dimension-2', role: 'LEAD' as const },
+    { dimensionId: 'default-review-dimension-3', role: 'PO' as const },
+    { dimensionId: 'default-review-dimension-4', role: 'PO' as const },
+  ];
+
+  for (const mapping of dimensionRoleMappings) {
+    await prisma.dimensionRole.upsert({
+      where: {
+        dimensionId_role: {
+          dimensionId: mapping.dimensionId,
+          role: mapping.role,
+        },
+      },
+      update: {},
+      create: {
+        dimensionId: mapping.dimensionId,
+        role: mapping.role,
+      },
+    });
+  }
+
+  console.log('Created default review audience mappings');
+
   console.log('Seeding completed!');
 }
 

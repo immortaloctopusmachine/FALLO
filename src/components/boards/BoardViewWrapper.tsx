@@ -26,6 +26,7 @@ interface BoardViewWrapperProps {
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
   isAdmin?: boolean;
+  canViewQualitySummaries?: boolean;
   hasFullData?: boolean;
   isLoadingFullData?: boolean;
   onLoadFullData?: () => Promise<void>;
@@ -36,6 +37,7 @@ export function BoardViewWrapper({
   currentUserId,
   weeklyProgress = [],
   isAdmin = false,
+  canViewQualitySummaries = false,
   hasFullData = true,
   isLoadingFullData = false,
   onLoadFullData,
@@ -86,6 +88,12 @@ export function BoardViewWrapper({
       <BoardHeader
         name={board.name}
         memberCount={board.members.length}
+        members={board.members.map((member) => ({
+          id: member.user.id,
+          name: member.user.name,
+          email: member.user.email,
+          image: member.user.image,
+        }))}
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         onSettingsClick={() => setSettingsOpen(true)}
@@ -98,6 +106,7 @@ export function BoardViewWrapper({
             board={board}
             currentUserId={currentUserId}
             weeklyProgress={weeklyProgress}
+            canViewQualitySummaries={canViewQualitySummaries}
           />
         ) : viewMode === 'planning' ? (
           isLoadingFullData && !hasFullData ? (
@@ -110,13 +119,14 @@ export function BoardViewWrapper({
               currentUserId={currentUserId}
               weeklyProgress={weeklyProgress}
               isAdmin={isAdmin}
+              canViewQualitySummaries={canViewQualitySummaries}
             />
           )
         ) : viewMode === 'spine' ? (
           <SpineTrackerView boardId={board.id} />
         ) : (
           // Fallback to original BoardView for legacy
-          <BoardView board={board} currentUserId={currentUserId} />
+          <BoardView board={board} currentUserId={currentUserId} canViewQualitySummaries={canViewQualitySummaries} />
         )}
       </div>
 

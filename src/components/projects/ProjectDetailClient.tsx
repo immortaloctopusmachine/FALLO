@@ -12,6 +12,8 @@ import {
   X,
   Check,
   ChevronsUpDown,
+  ChevronDown,
+  ChevronRight,
   Target,
   TrendingUp,
   CheckCircle2,
@@ -27,7 +29,9 @@ import {
   User,
   Settings,
   Archive,
-  ArchiveRestore,
+  Gauge,
+  Hash,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -177,6 +181,78 @@ interface ProjectDetailClientProps {
   eventTypes: EventTypeInfo[];
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  canViewQualitySummaries: boolean;
+}
+
+interface ProjectQualitySummary {
+  totals: {
+    doneTaskCount: number;
+    finalizedTaskCount: number;
+    overallAverage: number | null;
+    overallQualityTier: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED';
+  };
+  tierDistribution: {
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+    UNSCORED: number;
+  };
+  perDimension: Array<{
+    dimensionId: string;
+    name: string;
+    average: number | null;
+    count: number;
+    confidence: 'GREEN' | 'AMBER' | 'RED';
+  }>;
+  iterationMetrics: {
+    averageCyclesToDone: number | null;
+    highChurnThreshold: number;
+    highChurnCount: number;
+    highChurnRate: number | null;
+  };
+}
+
+interface QualityAdjustedVelocityMetrics {
+  totals: {
+    doneTaskCount: number;
+    scoredTaskCount: number;
+    totalRawPoints: number | null;
+    totalAdjustedPoints: number | null;
+    totalAdjustmentDelta: number | null;
+    overallAdjustmentFactor: number | null;
+  };
+  series: Array<{
+    weekStart: string;
+    perWeek: {
+      taskCount: number;
+      scoredTaskCount: number;
+      rawPoints: number | null;
+      adjustedPoints: number | null;
+      adjustmentDelta: number | null;
+      adjustmentFactor: number | null;
+    };
+  }>;
+}
+
+interface IterationDistributionMetrics {
+  totals: {
+    doneTaskCount: number;
+    scoredTaskCount: number;
+    withReviewCyclesCount: number;
+    withoutReviewCyclesCount: number;
+    averageCyclesToDone: number | null;
+    highChurnThreshold: number;
+    highChurnCount: number;
+    highChurnRate: number | null;
+  };
+  distribution: Array<{
+    cycleCount: number;
+    taskCount: number;
+    percentage: number | null;
+    scoredTaskCount: number;
+    averageQuality: number | null;
+    qualityTier: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED';
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +399,7 @@ export function ProjectDetailClient({
   eventTypes,
   isAdmin,
   isSuperAdmin,
+  canViewQualitySummaries,
 }: ProjectDetailClientProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -354,6 +431,13 @@ export function ProjectDetailClient({
   const [gameSheetUrl, setGameSheetUrl] = useState(board.settings.projectLinks?.gameSheetInfo || '');
   const [isSavingLinks, setIsSavingLinks] = useState(false);
 
+  // ---- Slack channel state ----
+  const [slackChannelId, setSlackChannelId] = useState(board.settings.slackChannelId || '');
+  const [slackChannelName, setSlackChannelName] = useState(board.settings.slackChannelName || '');
+  const [slackChannels, setSlackChannels] = useState<{ id: string; name: string; isPrivate: boolean }[]>([]);
+  const [slackChannelOpen, setSlackChannelOpen] = useState(false);
+  const [isSavingSlackChannel, setIsSavingSlackChannel] = useState(false);
+
   // ---- Project roles state ----
   const [projectRoleAssignments, setProjectRoleAssignments] = useState<ProjectRoleAssignment[]>(
     board.settings.projectRoleAssignments || []
@@ -375,6 +459,13 @@ export function ProjectDetailClient({
   // ---- Archive / Delete state ----
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [qualitySummary, setQualitySummary] = useState<ProjectQualitySummary | null>(null);
+  const [qualityAdjustedVelocity, setQualityAdjustedVelocity] =
+    useState<QualityAdjustedVelocityMetrics | null>(null);
+  const [iterationDistribution, setIterationDistribution] =
+    useState<IterationDistributionMetrics | null>(null);
+  const [isLoadingQualitySummary, setIsLoadingQualitySummary] = useState(false);
+  const [qualitySummaryExpanded, setQualitySummaryExpanded] = useState(false);
 
   // ---- Derived values ----
   const selectedTeam = teams.find(t => t.id === teamId);
@@ -432,6 +523,226 @@ export function ProjectDetailClient({
       atRiskStories,
     };
   }, [board.lists, board.weeklyProgress]);
+
+  const qualityTierClass = (tier: ProjectQualitySummary['totals']['overallQualityTier']) => {
+    if (tier === 'HIGH') return 'text-green-600';
+    if (tier === 'MEDIUM') return 'text-amber-600';
+    if (tier === 'LOW') return 'text-red-600';
+    return 'text-text-tertiary';
+  };
+
+  const confidenceDotClass = (confidence: 'GREEN' | 'AMBER' | 'RED') => {
+    if (confidence === 'GREEN') return 'bg-green-500';
+    if (confidence === 'AMBER') return 'bg-amber-500';
+    return 'bg-red-500';
+  };
+
+  const formatWeekStartLabel = (weekStart: string) => {
+    const weekDate = new Date(`${weekStart}T00:00:00`);
+    return weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const renderQualitySummary = () => {
+    if (!canViewQualitySummaries) {
+      return null;
+    }
+
+    return (
+      <div
+        className={cn(
+          'border-b border-border bg-surface transition-all duration-300 overflow-hidden',
+          qualitySummaryExpanded ? 'max-h-[1200px]' : 'max-h-10'
+        )}
+      >
+        <div className="px-6 py-2">
+          <button
+            onClick={() => setQualitySummaryExpanded(!qualitySummaryExpanded)}
+            className="flex items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            {qualitySummaryExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <Gauge className="h-4 w-4" />
+            Quality Summary
+          </button>
+        </div>
+
+        {qualitySummaryExpanded && (
+          <div className="px-6 pb-5">
+            <div className="max-w-6xl rounded-lg border border-border bg-surface p-4 space-y-4">
+              {isLoadingQualitySummary ? (
+                <div className="text-body text-text-tertiary">Loading quality summary...</div>
+              ) : qualitySummary ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="text-caption text-text-tertiary">Overall</div>
+                      <div className={cn('text-title font-semibold mt-1', qualityTierClass(qualitySummary.totals.overallQualityTier))}>
+                        {qualitySummary.totals.overallAverage !== null
+                          ? qualitySummary.totals.overallAverage.toFixed(2)
+                          : 'Unscored'}
+                      </div>
+                      <div className="text-caption text-text-tertiary">
+                        {qualitySummary.totals.overallQualityTier}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="text-caption text-text-tertiary">Coverage</div>
+                      <div className="text-title font-semibold mt-1 text-text-primary">
+                        {qualitySummary.totals.finalizedTaskCount}/{qualitySummary.totals.doneTaskCount}
+                      </div>
+                      <div className="text-caption text-text-tertiary">finalized vs done tasks</div>
+                    </div>
+
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="text-caption text-text-tertiary">Avg Cycles</div>
+                      <div className="text-title font-semibold mt-1 text-text-primary">
+                        {qualitySummary.iterationMetrics.averageCyclesToDone !== null
+                          ? qualitySummary.iterationMetrics.averageCyclesToDone.toFixed(2)
+                          : 'N/A'}
+                      </div>
+                      <div className="text-caption text-text-tertiary">to reach Done</div>
+                    </div>
+
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="text-caption text-text-tertiary">High Churn</div>
+                      <div className="text-title font-semibold mt-1 text-text-primary">
+                        {qualitySummary.iterationMetrics.highChurnRate !== null
+                          ? `${qualitySummary.iterationMetrics.highChurnRate.toFixed(1)}%`
+                          : 'N/A'}
+                      </div>
+                      <div className="text-caption text-text-tertiary">
+                        {qualitySummary.iterationMetrics.highChurnCount} tasks with {qualitySummary.iterationMetrics.highChurnThreshold}+ cycles
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="mb-2 text-caption font-medium text-text-secondary">Tier Distribution</div>
+                      <div className="grid grid-cols-2 gap-2 text-body">
+                        <div className="rounded border border-border-subtle px-2 py-1 text-green-600">
+                          High: {qualitySummary.tierDistribution.HIGH}
+                        </div>
+                        <div className="rounded border border-border-subtle px-2 py-1 text-amber-600">
+                          Medium: {qualitySummary.tierDistribution.MEDIUM}
+                        </div>
+                        <div className="rounded border border-border-subtle px-2 py-1 text-red-600">
+                          Low: {qualitySummary.tierDistribution.LOW}
+                        </div>
+                        <div className="rounded border border-border-subtle px-2 py-1 text-text-tertiary">
+                          Unscored: {qualitySummary.tierDistribution.UNSCORED}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="mb-2 text-caption font-medium text-text-secondary">Per Dimension</div>
+                      <div className="space-y-2 max-h-44 overflow-y-auto">
+                        {qualitySummary.perDimension.map((dimension) => (
+                          <div key={dimension.dimensionId} className="flex items-center justify-between rounded border border-border-subtle px-2 py-1.5">
+                            <div className="text-body text-text-primary">{dimension.name}</div>
+                            <div className="flex items-center gap-2">
+                              <span className={cn('h-2.5 w-2.5 rounded-full', confidenceDotClass(dimension.confidence))} />
+                              <span className="text-body font-medium text-text-primary">
+                                {dimension.average !== null ? dimension.average.toFixed(2) : 'N/A'}
+                              </span>
+                              <span className="text-caption text-text-tertiary">n={dimension.count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="mb-2 text-caption font-medium text-text-secondary">
+                        Quality-Adjusted Velocity
+                      </div>
+                      {qualityAdjustedVelocity ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-2 text-caption">
+                            <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                              Raw: {qualityAdjustedVelocity.totals.totalRawPoints?.toFixed(2) ?? 'N/A'}
+                            </div>
+                            <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                              Adjusted: {qualityAdjustedVelocity.totals.totalAdjustedPoints?.toFixed(2) ?? 'N/A'}
+                            </div>
+                            <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                              Delta: {qualityAdjustedVelocity.totals.totalAdjustmentDelta?.toFixed(2) ?? 'N/A'}
+                            </div>
+                            <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                              Factor: {qualityAdjustedVelocity.totals.overallAdjustmentFactor?.toFixed(3) ?? 'N/A'}x
+                            </div>
+                          </div>
+                          <div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
+                            {qualityAdjustedVelocity.series.slice(-6).map((bucket) => (
+                              <div
+                                key={bucket.weekStart}
+                                className="flex items-center justify-between rounded border border-border-subtle px-2 py-1 text-caption"
+                              >
+                                <span className="text-text-tertiary">
+                                  {formatWeekStartLabel(bucket.weekStart)}
+                                </span>
+                                <span className="text-text-primary">
+                                  {bucket.perWeek.rawPoints?.toFixed(1) ?? '0.0'} {'->'} {bucket.perWeek.adjustedPoints?.toFixed(1) ?? '0.0'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-caption text-text-tertiary">Not available.</div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-border-subtle bg-background p-3">
+                      <div className="mb-2 text-caption font-medium text-text-secondary">
+                        Iteration Distribution
+                      </div>
+                      {iterationDistribution ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-2 text-caption mb-2">
+                            <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                              With cycles: {iterationDistribution.totals.withReviewCyclesCount}
+                            </div>
+                            <div className="rounded border border-border-subtle px-2 py-1 text-text-secondary">
+                              No cycles: {iterationDistribution.totals.withoutReviewCyclesCount}
+                            </div>
+                          </div>
+                          <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                            {iterationDistribution.distribution.map((bucket) => (
+                              <div
+                                key={bucket.cycleCount}
+                                className="flex items-center justify-between rounded border border-border-subtle px-2 py-1.5"
+                              >
+                                <span className="text-caption text-text-tertiary">
+                                  {bucket.cycleCount} cycle{bucket.cycleCount === 1 ? '' : 's'}
+                                </span>
+                                <span className="text-caption text-text-primary">
+                                  {bucket.taskCount} tasks ({bucket.percentage !== null ? `${bucket.percentage.toFixed(1)}%` : 'N/A'})
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-caption text-text-tertiary">Not available.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-body text-text-tertiary">
+                  Quality summary is not available yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ---- Background style ----
   const bgStyle = getBoardBackgroundStyle(board.settings);
@@ -521,12 +832,94 @@ export function ProjectDetailClient({
   }, [isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/integrations/slack/channels');
+        const json = await res.json();
+        if (!cancelled && json.success && Array.isArray(json.data)) {
+          setSlackChannels(
+            [...json.data].sort((a, b) =>
+              String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' })
+            )
+          );
+        }
+      } catch {
+        // Slack not configured — leave empty
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  useEffect(() => {
     setProjectRoleAssignments(board.settings.projectRoleAssignments || []);
   }, [board.settings.projectRoleAssignments]);
 
   useEffect(() => {
     setOptimisticEvents([]);
   }, [board.timelineEvents]);
+
+  useEffect(() => {
+    if (!canViewQualitySummaries) {
+      setQualitySummary(null);
+      setQualityAdjustedVelocity(null);
+      setIterationDistribution(null);
+      setIsLoadingQualitySummary(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadQualitySummary = async () => {
+      setIsLoadingQualitySummary(true);
+      try {
+        const fetchMetric = async <T,>(url: string): Promise<T> => {
+          const response = await fetch(url);
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error?.message || `Failed to load ${url}`);
+          }
+
+          return data.data as T;
+        };
+
+        const [summaryData, adjustedVelocityData, iterationData] =
+          await Promise.all([
+            fetchMetric<ProjectQualitySummary>(`/api/metrics/projects/${board.id}/quality-summary`),
+            fetchMetric<QualityAdjustedVelocityMetrics>(
+              `/api/metrics/quality-adjusted-velocity?projectId=${board.id}`
+            ),
+            fetchMetric<IterationDistributionMetrics>(
+              `/api/metrics/iteration-distribution?projectId=${board.id}`
+            ),
+          ]);
+
+        if (!isCancelled) {
+          setQualitySummary(summaryData);
+          setQualityAdjustedVelocity(adjustedVelocityData);
+          setIterationDistribution(iterationData);
+        }
+      } catch {
+        if (!isCancelled) {
+          setQualitySummary(null);
+          setQualityAdjustedVelocity(null);
+          setIterationDistribution(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingQualitySummary(false);
+        }
+      }
+    };
+
+    void loadQualitySummary();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [board.id, canViewQualitySummaries]);
 
   // Close context menu on click outside
   useEffect(() => {
@@ -679,6 +1072,30 @@ export function ProjectDetailClient({
       console.error('Failed to save links:', err);
     } finally {
       setIsSavingLinks(false);
+    }
+  };
+
+  const handleSaveSlackChannel = async (channelId: string, channelName: string) => {
+    setIsSavingSlackChannel(true);
+    try {
+      const updatedSettings: BoardSettings = {
+        ...board.settings,
+        slackChannelId: channelId || undefined,
+        slackChannelName: channelName || undefined,
+      };
+      const response = await fetch(`/api/boards/${board.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: updatedSettings }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['boards', board.id, 'project'] });
+      }
+    } catch (err) {
+      console.error('Failed to save Slack channel:', err);
+    } finally {
+      setIsSavingSlackChannel(false);
     }
   };
 
@@ -1185,6 +1602,8 @@ export function ProjectDetailClient({
         </div>
       </div>
 
+      {renderQualitySummary()}
+
       {/* ================================================================= */}
       {/* SECTION 4 — Three-Column Layout                                   */}
       {/* ================================================================= */}
@@ -1381,6 +1800,91 @@ export function ProjectDetailClient({
                       </Button>
                     </div>
                   )}
+
+                  <div className="border-t border-border my-2" />
+
+                  {/* Slack channel */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-caption font-medium text-text-secondary w-24 shrink-0">Slack</span>
+                    {isAdmin && slackChannels.length > 0 ? (
+                      <Popover open={slackChannelOpen} onOpenChange={setSlackChannelOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            className={cn(
+                              'flex items-center gap-1.5 flex-1 rounded-md border border-border px-3 py-1.5 text-body text-left',
+                              slackChannelId ? 'text-text-primary' : 'text-text-tertiary'
+                            )}
+                            disabled={isSavingSlackChannel}
+                          >
+                            {slackChannelId ? (
+                              <>
+                                <Hash className="h-3.5 w-3.5 text-text-secondary shrink-0" />
+                                <span className="truncate">{slackChannelName || slackChannelId}</span>
+                              </>
+                            ) : (
+                              <span>Select channel...</span>
+                            )}
+                            <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-0" align="end">
+                          <Command>
+                            <CommandInput placeholder="Search channels..." />
+                            <CommandList>
+                              <CommandEmpty>
+                                No channels found. For private channels, invite the Slack app first.
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {slackChannelId && (
+                                  <CommandItem
+                                    onSelect={() => {
+                                      setSlackChannelId('');
+                                      setSlackChannelName('');
+                                      setSlackChannelOpen(false);
+                                      handleSaveSlackChannel('', '');
+                                    }}
+                                    className="text-text-tertiary"
+                                  >
+                                    <X className="mr-2 h-3.5 w-3.5" />
+                                    Remove channel
+                                  </CommandItem>
+                                )}
+                                {slackChannels.map((ch) => (
+                                  <CommandItem
+                                    key={ch.id}
+                                    value={`${ch.name} ${ch.name.replace(/[-_]/g, ' ')} ${ch.id}`}
+                                    onSelect={() => {
+                                      setSlackChannelId(ch.id);
+                                      setSlackChannelName(ch.name);
+                                      setSlackChannelOpen(false);
+                                      handleSaveSlackChannel(ch.id, ch.name);
+                                    }}
+                                  >
+                                    {ch.isPrivate ? (
+                                      <Lock className="mr-2 h-3.5 w-3.5 text-text-tertiary" />
+                                    ) : (
+                                      <Hash className="mr-2 h-3.5 w-3.5 text-text-tertiary" />
+                                    )}
+                                    <span className="truncate">{ch.name}</span>
+                                    {ch.id === slackChannelId && (
+                                      <Check className="ml-auto h-3.5 w-3.5 text-primary" />
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    ) : slackChannelId ? (
+                      <span className="text-body text-text-primary flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-text-secondary" />
+                        {slackChannelName || slackChannelId}
+                      </span>
+                    ) : (
+                      <span className="text-body text-text-tertiary">Not connected</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1496,6 +2000,7 @@ export function ProjectDetailClient({
           </div>
         </div>
       </div>
+
     </main>
   );
 }

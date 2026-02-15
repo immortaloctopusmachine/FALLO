@@ -17,6 +17,7 @@ export function TimelinePageClient({ isAdmin, openCreateDialog }: TimelinePageCl
   return (
     <TimelineView
       projects={data.projects}
+      archivedProjects={data.archivedProjects || []}
       teams={data.teams}
       users={data.users}
       blockTypes={data.blockTypes}

@@ -4,6 +4,9 @@ interface SlackApiResponse<T> {
   members?: T[];
   channels?: T[];
   user?: T;
+  response_metadata?: {
+    next_cursor?: string;
+  };
 }
 
 export interface SlackUserProfile {
@@ -99,28 +102,43 @@ export async function listSlackUsers(): Promise<SlackUserProfile[]> {
 }
 
 export async function listSlackChannels(): Promise<SlackChannel[]> {
-  const result = await slackApiRequest<{
+  const allChannels: Array<{
     id: string;
     name: string;
     is_archived: boolean;
     is_private: boolean;
-  }>('conversations.list', {
-    types: 'public_channel,private_channel',
-    limit: '1000',
-    exclude_archived: 'true',
-  });
+  }> = [];
 
-  if (!result.ok) {
-    throw new Error(result.error || 'Failed to list Slack channels');
-  }
+  let cursor = '';
+  do {
+    const result = await slackApiRequest<{
+      id: string;
+      name: string;
+      is_archived: boolean;
+      is_private: boolean;
+    }>('conversations.list', {
+      types: 'public_channel,private_channel',
+      limit: '200',
+      exclude_archived: 'true',
+      ...(cursor ? { cursor } : {}),
+    });
 
-  return (result.channels || [])
+    if (!result.ok) {
+      throw new Error(result.error || 'Failed to list Slack channels');
+    }
+
+    allChannels.push(...(result.channels || []));
+    cursor = result.response_metadata?.next_cursor?.trim() || '';
+  } while (cursor);
+
+  return allChannels
     .filter((channel) => !channel.is_archived)
     .map((channel) => ({
       id: channel.id,
       name: channel.name,
       isPrivate: channel.is_private,
-    }));
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
 export async function getSlackUserProfile(slackUserId: string): Promise<SlackUserProfile | null> {

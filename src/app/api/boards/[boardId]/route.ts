@@ -15,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string }> }
 ) {
   try {
-    const { session, response: authResponse } = await requireAuth();
+    const { response: authResponse } = await requireAuth();
     if (authResponse) return authResponse;
 
     const { boardId } = await params;

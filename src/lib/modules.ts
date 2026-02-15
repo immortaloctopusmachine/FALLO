@@ -4,10 +4,12 @@ import type { TaskReleaseMode } from '@/types';
 export interface ModuleTaskTemplate {
   id: string;
   title: string;
+  titleOverride: string | null;
   color: string;
   description: string | null;
   storyPoints: number | null;
   featureImage: string | null;
+  tags: string[];
   destinationMode: TaskReleaseMode;
   chainGroupId: string | null;
   chainOrder: number | null;
@@ -25,26 +27,30 @@ export function createSingleModuleTaskTemplate(): ModuleTaskTemplate {
   return {
     id: createId('task'),
     title: 'TASK',
+    titleOverride: null,
     color: '#3b82f6',
     description: null,
     storyPoints: null,
     featureImage: null,
+    tags: [],
     destinationMode: 'IMMEDIATE',
     chainGroupId: null,
     chainOrder: null,
   };
 }
 
-export function createLinkedThreeTaskTemplates(): ModuleTaskTemplate[] {
+export function createLinkedFourTaskTemplates(): ModuleTaskTemplate[] {
   const chainGroupId = createId('chain');
 
   return LINKED_TASK_PRESETS.map((preset, index) => ({
     id: createId('task'),
     title: preset.suffix,
+    titleOverride: null,
     color: preset.color,
     description: null,
-    storyPoints: null,
+    storyPoints: preset.defaultStoryPoints,
     featureImage: null,
+    tags: [preset.defaultTag],
     destinationMode: 'IMMEDIATE' as TaskReleaseMode,
     chainGroupId,
     chainOrder: index,
@@ -52,7 +58,7 @@ export function createLinkedThreeTaskTemplates(): ModuleTaskTemplate[] {
 }
 
 export function getDefaultModuleTaskTemplates(): ModuleTaskTemplate[] {
-  return createLinkedThreeTaskTemplates();
+  return createLinkedFourTaskTemplates();
 }
 
 export function normalizeModuleTaskTemplates(value: unknown): ModuleTaskTemplate[] {
@@ -69,7 +75,8 @@ export function normalizeModuleTaskTemplates(value: unknown): ModuleTaskTemplate
       concept: { title: 'CONCEPT', color: '#8b5cf6', order: 0 },
       static_assets: { title: 'STATIC ART', color: '#22c55e', order: 1 },
       static_art: { title: 'STATIC ART', color: '#22c55e', order: 1 },
-      fx_animation: { title: 'FX/ANIMATION', color: '#ec4899', order: 2 },
+      concept_fx: { title: 'CONCEPT : FX/ANIMATION', color: '#8b5cf6', order: 2 },
+      fx_animation: { title: 'FX/ANIMATION', color: '#ec4899', order: 3 },
     };
     const legacy = legacyKey ? legacyMap[legacyKey] : undefined;
 
@@ -78,12 +85,18 @@ export function normalizeModuleTaskTemplates(value: unknown): ModuleTaskTemplate
       title: typeof row.title === 'string' && row.title.trim()
         ? row.title.trim()
         : legacy?.title || 'TASK',
+      titleOverride: typeof row.titleOverride === 'string' && row.titleOverride.trim()
+        ? row.titleOverride.trim()
+        : null,
       color: typeof row.color === 'string' && row.color.trim()
         ? row.color.trim()
         : legacy?.color || '#3b82f6',
       description: typeof row.description === 'string' ? row.description.trim() || null : null,
       storyPoints: typeof row.storyPoints === 'number' ? row.storyPoints : null,
       featureImage: typeof row.featureImage === 'string' ? row.featureImage.trim() || null : null,
+      tags: Array.isArray(row.tags)
+        ? (row.tags as unknown[]).filter((t): t is string => typeof t === 'string' && t.trim().length > 0).map(t => t.trim())
+        : [],
       destinationMode: normalizeDestinationMode(row.destinationMode),
       chainGroupId: typeof row.chainGroupId === 'string' && row.chainGroupId.trim()
         ? row.chainGroupId.trim()

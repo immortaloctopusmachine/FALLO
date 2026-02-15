@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   DndContext,
@@ -29,21 +30,41 @@ import { CardModal } from '@/components/cards/CardModal';
 import { BurnUpChart } from './BurnUpChart';
 import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } from '@/types';
 import { cn } from '@/lib/utils';
-import { DEFAULT_PROJECT_LINKS } from '@/lib/list-templates';
-import { formatDisplayDate } from '@/lib/date-utils';
+import { formatDisplayDate, getBusinessDaysBetween } from '@/lib/date-utils';
 import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
 
 interface TasksViewProps {
   board: Board;
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
+  canViewQualitySummaries?: boolean;
 }
 
 interface QuickFilter {
   type: 'all' | 'mine' | 'unassigned';
 }
 
-export function TasksView({ board: initialBoard, currentUserId, weeklyProgress = [] }: TasksViewProps) {
+interface SidebarLink {
+  label: string;
+  url: string;
+  isInternal?: boolean;
+}
+
+interface ImportantDateItem {
+  label: string;
+  date: Date;
+  note?: string;
+}
+
+function parseOptionalDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+export function TasksView({ board: initialBoard, currentUserId, weeklyProgress = [], canViewQualitySummaries = false }: TasksViewProps) {
   const [localBoard, setLocalBoard] = useState(initialBoard);
   const mutations = useBoardMutations(initialBoard.id);
   const boardSnapshotRef = useRef<Board | null>(null);
@@ -134,52 +155,97 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   // Get settings
   const settings: BoardSettings = useMemo(() => board.settings || {}, [board.settings]);
 
-  // Project links
-  const projectLinks = useMemo(() => [
-    {
-      label: 'Game Specification',
-      url: settings.projectLinks?.gameSpecification,
-      hasDefault: false,
-    },
-    {
-      label: 'Game Overview Planning',
-      url: settings.projectLinks?.gameOverviewPlanning || DEFAULT_PROJECT_LINKS.gameOverviewPlanning,
-      hasDefault: true,
-    },
-    {
-      label: 'Animation Document',
-      url: settings.projectLinks?.animationDocument || DEFAULT_PROJECT_LINKS.animationDocument,
-      hasDefault: true,
-    },
-    {
-      label: 'Game Sheet Info',
-      url: settings.projectLinks?.gameSheetInfo || DEFAULT_PROJECT_LINKS.gameSheetInfo,
-      hasDefault: true,
-    },
-    {
-      label: 'Game Name Brainstorming',
-      url: settings.projectLinks?.gameNameBrainstorming || DEFAULT_PROJECT_LINKS.gameNameBrainstorming,
-      hasDefault: true,
-    },
-  ], [settings]);
+  const tweakBlockEndDate = useMemo(() => {
+    const timelineBlocks = board.timelineBlocks || [];
+    let latestTweakDate: Date | null = null;
 
-  // Important dates
-  const importantDates = useMemo(() => {
-    const dates = [];
-    if (settings.lastDayStaticArt) {
+    for (const block of timelineBlocks) {
+      if (!block.blockType.name.toLowerCase().includes('tweak')) continue;
+      const endDate = parseOptionalDate(block.endDate);
+      if (!endDate) continue;
+      if (!latestTweakDate || endDate.getTime() > latestTweakDate.getTime()) {
+        latestTweakDate = endDate;
+      }
+    }
+
+    return latestTweakDate;
+  }, [board.timelineBlocks]);
+
+  const lastTweakDate = useMemo(() => {
+    const override = parseOptionalDate(settings.lastTweakOverride);
+    if (override) return override;
+    if (tweakBlockEndDate) return tweakBlockEndDate;
+    return parseOptionalDate(settings.lastDayAnimationTweaks);
+  }, [settings.lastTweakOverride, settings.lastDayAnimationTweaks, tweakBlockEndDate]);
+
+  const lastStaticAssetsDate = useMemo(() => {
+    const override = parseOptionalDate(settings.lastStaticArtOverride);
+    if (override) return override;
+
+    if (lastTweakDate) {
+      const calculated = new Date(lastTweakDate);
+      calculated.setDate(calculated.getDate() - 2); // Friday -> Wednesday
+      return calculated;
+    }
+
+    return parseOptionalDate(settings.lastDayStaticArt);
+  }, [settings.lastStaticArtOverride, settings.lastDayStaticArt, lastTweakDate]);
+
+  const lastStaticAssetsCountdown = useMemo(() => {
+    if (!lastStaticAssetsDate) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(lastStaticAssetsDate);
+    target.setHours(0, 0, 0, 0);
+
+    if (target.getTime() >= today.getTime()) {
+      const daysLeft = Math.max(0, getBusinessDaysBetween(today, target) - 1);
+      const weeksLeft = (daysLeft / 5).toFixed(1);
+      return `${daysLeft} working day${daysLeft === 1 ? '' : 's'} left (${weeksLeft} weeks)`;
+    }
+
+    const daysOverdue = Math.max(0, getBusinessDaysBetween(target, today) - 1);
+    const weeksOverdue = (daysOverdue / 5).toFixed(1);
+    return `Overdue by ${daysOverdue} working day${daysOverdue === 1 ? '' : 's'} (${weeksOverdue} weeks)`;
+  }, [lastStaticAssetsDate]);
+
+  const importantDates = useMemo<ImportantDateItem[]>(() => {
+    const dates: ImportantDateItem[] = [];
+    if (lastTweakDate) {
       dates.push({
-        label: 'Last day for static art',
-        date: new Date(settings.lastDayStaticArt),
+        label: 'Last Tweak',
+        date: lastTweakDate,
       });
     }
-    if (settings.lastDayAnimationTweaks) {
+    if (lastStaticAssetsDate) {
       dates.push({
-        label: 'Last day for animation tweaks',
-        date: new Date(settings.lastDayAnimationTweaks),
+        label: 'Last Static Assets',
+        date: lastStaticAssetsDate,
+        note: lastStaticAssetsCountdown || undefined,
       });
     }
     return dates;
-  }, [settings]);
+  }, [lastTweakDate, lastStaticAssetsDate, lastStaticAssetsCountdown]);
+
+  const projectLinks = useMemo<SidebarLink[]>(() => {
+    const links: SidebarLink[] = [
+      { label: 'Project Page', url: `/projects/${board.id}`, isInternal: true },
+      { label: 'Spine Tracker', url: `/boards/${board.id}?view=spine`, isInternal: true },
+    ];
+
+    if (settings.projectLinks?.oneDrive) {
+      links.push({ label: 'OneDrive', url: settings.projectLinks.oneDrive });
+    }
+    if (settings.projectLinks?.gameSpecification) {
+      links.push({ label: 'Game Specification', url: settings.projectLinks.gameSpecification });
+    }
+    if (settings.projectLinks?.gameSheetInfo) {
+      links.push({ label: 'Game Sheet', url: settings.projectLinks.gameSheetInfo });
+    }
+
+    return links;
+  }, [board.id, settings.projectLinks]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -535,6 +601,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         'shrink-0 border-l border-border bg-surface transition-all duration-300 flex flex-col',
         sidebarExpanded ? 'w-[280px]' : 'w-[48px]'
       )}
+      style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}
     >
       {/* Sidebar Toggle */}
       <button
@@ -565,12 +632,15 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                   >
                     <div className="text-text-tertiary text-tiny">{item.label}</div>
                     <div className="font-medium">{formatDisplayDate(item.date)}</div>
+                    {item.note ? (
+                      <div className="mt-1 text-tiny text-text-tertiary">{item.note}</div>
+                    ) : null}
                   </div>
                 ))}
               </div>
             ) : (
               <p className="text-caption text-text-tertiary italic">
-                No dates set. Configure in board settings.
+                No dates set. Configure on the project page.
               </p>
             )}
           </div>
@@ -582,24 +652,30 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
               Project Links
             </h3>
             <div className="space-y-1">
-              {projectLinks.map((link, idx) => (
-                <a
-                  key={idx}
-                  href={link.url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn(
-                    'flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors',
-                    link.url
-                      ? 'hover:bg-surface-hover text-text-primary'
-                      : 'text-text-tertiary cursor-not-allowed'
-                  )}
-                >
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{link.label}</span>
-                  {!link.url && <span className="text-tiny">(not set)</span>}
-                </a>
-              ))}
+              {projectLinks.map((link, idx) => {
+                const className = 'flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors hover:bg-surface-hover text-text-primary';
+                return link.isInternal ? (
+                  <Link
+                    key={idx}
+                    href={link.url}
+                    className={className}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{link.label}</span>
+                  </Link>
+                ) : (
+                  <a
+                    key={idx}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={className}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{link.label}</span>
+                  </a>
+                );
+              })}
             </div>
           </div>
 
@@ -635,7 +711,10 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     return (
       <div className="flex flex-col h-full">
         {/* Sub-header placeholder */}
-        <div className="shrink-0 border-b border-border bg-surface-hover px-4 py-2">
+        <div
+          className="shrink-0 border-b border-border bg-surface px-4 py-2"
+          style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}
+        >
           <div className="flex items-center gap-4">
             <span className="text-caption text-text-tertiary">Filters:</span>
             <div className="flex gap-2">
@@ -672,7 +751,10 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   return (
     <div className="flex flex-col h-full">
       {/* Sub-header with filters */}
-      <div className="shrink-0 border-b border-border bg-surface-hover px-4 py-2">
+      <div
+        className="shrink-0 border-b border-border bg-surface px-4 py-2"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}
+      >
         <div className="flex items-center gap-4">
           <span className="text-caption text-text-tertiary">Filters:</span>
           <div className="flex gap-2">
@@ -808,6 +890,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         onLinkedCardCreated={handleLinkedCardCreated}
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
+        canViewQualitySummaries={canViewQualitySummaries}
         taskLists={taskLists}
         planningLists={planningLists}
         allCards={allCards}

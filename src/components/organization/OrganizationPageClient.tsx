@@ -108,6 +108,7 @@ export function OrganizationPageClient() {
           <div className="space-y-4">
             {studios.map((studio) => {
               const studioTeams = teams.filter((t) => t.studio?.id === studio.id);
+              const hasStudioHeaderImage = Boolean(studio.image);
               return (
                 <div
                   key={studio.id}
@@ -115,24 +116,49 @@ export function OrganizationPageClient() {
                 >
                   <Link
                     href={`/studios/${studio.id}`}
-                    className="flex items-center gap-3 p-4 hover:bg-surface-hover transition-colors"
+                    className="relative block p-4 hover:bg-surface-hover transition-colors"
+                    style={{
+                      backgroundImage: hasStudioHeaderImage ? `url(${studio.image})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundColor: !hasStudioHeaderImage && studio.color
+                        ? `${studio.color}18`
+                        : undefined,
+                    }}
                   >
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
-                      style={{
-                        backgroundColor: studio.color ? `${studio.color}20` : 'rgba(99, 102, 241, 0.1)',
-                        color: studio.color || '#6366f1',
-                      }}
-                    >
-                      <Building2 className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-text-primary">{studio.name}</div>
-                      <div className="text-caption text-text-tertiary">
-                        {studio._count.teams} teams
+                    {hasStudioHeaderImage && (
+                      <div className="absolute inset-0 bg-black/35" />
+                    )}
+                    <div className="relative flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
+                        style={{
+                          backgroundColor: hasStudioHeaderImage
+                            ? 'rgba(0, 0, 0, 0.45)'
+                            : studio.color
+                              ? `${studio.color}20`
+                              : 'rgba(99, 102, 241, 0.1)',
+                          color: hasStudioHeaderImage ? '#ffffff' : studio.color || '#6366f1',
+                        }}
+                      >
+                        <Building2 className="h-5 w-5" />
                       </div>
+                      <div
+                        className={
+                          hasStudioHeaderImage
+                            ? 'min-w-0 rounded-md border border-white/20 bg-black/45 px-2.5 py-1.5 backdrop-blur-sm'
+                            : 'min-w-0'
+                        }
+                      >
+                        <div className={hasStudioHeaderImage ? 'font-medium text-white' : 'font-medium text-text-primary'}>
+                          {studio.name}
+                        </div>
+                        <div className={hasStudioHeaderImage ? 'text-caption text-white/90' : 'text-caption text-text-tertiary'}>
+                          {studio._count.teams} teams
+                        </div>
+                      </div>
+                      <ChevronRight className={hasStudioHeaderImage ? 'h-4 w-4 text-white/80 ml-auto' : 'h-4 w-4 text-text-tertiary ml-auto'} />
                     </div>
-                    <ChevronRight className="h-4 w-4 text-text-tertiary" />
                   </Link>
                   {studioTeams.length > 0 && (
                     <div className="border-t border-border divide-y divide-border">

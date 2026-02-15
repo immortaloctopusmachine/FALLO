@@ -31,8 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { apiFetch } from '@/lib/api-client';
 import type {
   TimelineData,
+  TimelineArchivedProjectSummary,
   BlockType,
   EventType,
   TimelineBlock,
@@ -56,6 +58,7 @@ interface TimelineFilters {
 
 interface TimelineViewProps {
   projects: TimelineData[];
+  archivedProjects: TimelineArchivedProjectSummary[];
   teams: Team[];
   users: TimelineUser[];
   blockTypes: BlockType[];
@@ -73,6 +76,7 @@ const WEEKS_TO_SHOW = 8; // Show 8 weeks (40 business days)
 const RANGE_LEFT_PADDING_DAYS = 5;
 const RANGE_RIGHT_PADDING_DAYS = 5;
 const LEFT_COLUMN_WIDTH = 376;
+const ARCHIVED_SECTION_HEADER_HEIGHT = 24;
 const COLLAPSED_PROJECTS_STORAGE_KEY = 'timeline.collapsedProjectIds';
 const SHOW_BLOCK_INFO_STORAGE_KEY = 'timeline.showBlockInfo.v2';
 type TimelineDisplayRow = {
@@ -103,6 +107,7 @@ interface BlockDeleteOptions {
 
 export function TimelineView({
   projects: initialProjects,
+  archivedProjects: initialArchivedProjects,
   teams,
   users,
   blockTypes,
@@ -120,11 +125,15 @@ export function TimelineView({
 
   // Local state for optimistic updates
   const [projects, setProjects] = useState(initialProjects);
+  const [archivedProjects, setArchivedProjects] = useState(initialArchivedProjects);
 
   // Sync with server data when it changes
   useEffect(() => {
     setProjects(initialProjects);
   }, [initialProjects]);
+  useEffect(() => {
+    setArchivedProjects(initialArchivedProjects);
+  }, [initialArchivedProjects]);
 
   // State
   const [currentDate, setCurrentDate] = useState(() => {
@@ -163,6 +172,12 @@ export function TimelineView({
     x: number;
     y: number;
   } | null>(null);
+  const [archivedProjectContextMenu, setArchivedProjectContextMenu] = useState<{
+    projectId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [loadingArchivedProjectId, setLoadingArchivedProjectId] = useState<string | null>(null);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [createProjectStartDate, setCreateProjectStartDate] = useState<Date | undefined>();
   const [editingBlock, setEditingBlock] = useState<TimelineBlock | null>(null);
@@ -308,11 +323,12 @@ export function TimelineView({
   }, []);
 
   useEffect(() => {
-    if (!userContextMenu && !projectContextMenu) return;
+    if (!userContextMenu && !projectContextMenu && !archivedProjectContextMenu) return;
 
     const closeMenus = () => {
       setUserContextMenu(null);
       setProjectContextMenu(null);
+      setArchivedProjectContextMenu(null);
     };
     document.addEventListener('click', closeMenus);
     document.addEventListener('scroll', closeMenus, true);
@@ -321,7 +337,7 @@ export function TimelineView({
       document.removeEventListener('click', closeMenus);
       document.removeEventListener('scroll', closeMenus, true);
     };
-  }, [userContextMenu, projectContextMenu]);
+  }, [userContextMenu, projectContextMenu, archivedProjectContextMenu]);
 
   // Base date range - fixed 8 weeks
   const { startDate, totalDays: baseTotalDays } = useMemo(() => {
@@ -591,17 +607,59 @@ export function TimelineView({
 
   // Handlers
 
-  const handleTodayClick = useCallback(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const centerTimelineOnDate = useCallback((targetDate: Date) => {
+    const normalizedTarget = new Date(targetDate);
+    normalizedTarget.setHours(0, 0, 0, 0);
 
-    const centeredStart = addBusinessDays(today, -Math.floor((WEEKS_TO_SHOW * 5) / 2));
+    const centeredStart = addBusinessDays(
+      normalizedTarget,
+      -Math.floor((WEEKS_TO_SHOW * 5) / 2)
+    );
     const day = centeredStart.getDay();
     const diff = centeredStart.getDate() - day + (day === 0 ? -6 : 1);
     centeredStart.setDate(diff);
 
     setCurrentDate(centeredStart);
   }, []);
+
+  const getProjectCenterDate = useCallback((project: TimelineData): Date | null => {
+    const rangeDates: Date[] = [];
+
+    for (const block of project.blocks) {
+      rangeDates.push(new Date(block.startDate));
+      rangeDates.push(new Date(block.endDate));
+    }
+    for (const event of project.events) {
+      rangeDates.push(new Date(event.startDate));
+      rangeDates.push(new Date(event.endDate));
+    }
+    for (const availability of project.availability) {
+      const weekStart = new Date(availability.weekStart);
+      rangeDates.push(weekStart);
+      rangeDates.push(addBusinessDays(new Date(weekStart), 4));
+    }
+
+    if (rangeDates.length === 0) {
+      return null;
+    }
+
+    let minTime = rangeDates[0].getTime();
+    let maxTime = rangeDates[0].getTime();
+
+    for (const date of rangeDates) {
+      const timestamp = date.getTime();
+      if (timestamp < minTime) minTime = timestamp;
+      if (timestamp > maxTime) maxTime = timestamp;
+    }
+
+    return new Date(Math.round((minTime + maxTime) / 2));
+  }, []);
+
+  const handleTodayClick = useCallback(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    centerTimelineOnDate(today);
+  }, [centerTimelineOnDate]);
 
   const handleTimelineWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
@@ -681,6 +739,7 @@ export function TimelineView({
     e.preventDefault();
     e.stopPropagation();
     setProjectContextMenu(null);
+    setArchivedProjectContextMenu(null);
     setUserContextMenu({
       userId,
       x: e.clientX,
@@ -695,12 +754,34 @@ export function TimelineView({
     e.preventDefault();
     e.stopPropagation();
     setUserContextMenu(null);
+    setArchivedProjectContextMenu(null);
     setProjectContextMenu({
       projectId,
       x: e.clientX,
       y: e.clientY,
     });
   }, []);
+
+  const handleArchivedProjectContextMenu = useCallback((
+    e: React.MouseEvent<HTMLDivElement>,
+    projectId: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setUserContextMenu(null);
+    setProjectContextMenu(null);
+    setArchivedProjectContextMenu({
+      projectId,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }, []);
+
+  const handleCenterOnProject = useCallback((project: TimelineData) => {
+    const centerDate = getProjectCenterDate(project);
+    if (!centerDate) return;
+    centerTimelineOnDate(centerDate);
+  }, [centerTimelineOnDate, getProjectCenterDate]);
 
   const handleOpenUserPage = useCallback((userId: string) => {
     router.push(`/users/${userId}`);
@@ -710,7 +791,43 @@ export function TimelineView({
   const handleOpenProjectPage = useCallback((projectId: string) => {
     router.push(`/projects/${projectId}`);
     setProjectContextMenu(null);
+    setArchivedProjectContextMenu(null);
   }, [router]);
+
+  const handleLoadArchivedProject = useCallback(async (projectId: string) => {
+    if (!projectId || loadingArchivedProjectId === projectId) return;
+
+    setLoadingArchivedProjectId(projectId);
+    try {
+      const result = await apiFetch<{ project: TimelineData }>(
+        `/api/timeline/projects/${projectId}`
+      );
+      const loadedProject = result.project;
+
+      setProjects((prev) => {
+        if (prev.some((project) => project.board.id === loadedProject.board.id)) {
+          return prev;
+        }
+        return [...prev, loadedProject].sort((a, b) =>
+          a.board.name.localeCompare(b.board.name, undefined, { sensitivity: 'base' })
+        );
+      });
+
+      setCollapsedProjectIds((prev) => {
+        const next = new Set(prev);
+        next.add(loadedProject.board.id);
+        return next;
+      });
+      setArchivedProjects((prev) => prev.filter((project) => project.id !== projectId));
+
+      handleCenterOnProject(loadedProject);
+    } catch (error) {
+      console.error('Failed to load archived project:', error);
+    } finally {
+      setLoadingArchivedProjectId(null);
+      setArchivedProjectContextMenu(null);
+    }
+  }, [handleCenterOnProject, loadingArchivedProjectId]);
 
   const handleBlockClick = useCallback((block: TimelineBlock) => {
     setSelectedBlockId(block.id);
@@ -1440,6 +1557,7 @@ export function TimelineView({
                     backgroundColor: item.leftTeamTint,
                   }}
                   onContextMenu={(e) => handleProjectContextMenu(e, item.project.board.id)}
+                  onDoubleClick={() => handleCenterOnProject(item.project)}
                 >
                   {item.project.board.team?.color ? (
                     <div
@@ -1500,6 +1618,30 @@ export function TimelineView({
                 </div>
               );
             })}
+
+            {archivedProjects.length > 0 && (
+              <div
+                className="flex items-center px-3 border-y border-border bg-surface/70"
+                style={{ height: ARCHIVED_SECTION_HEADER_HEIGHT }}
+              >
+                <span className="text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+                  Archived projects
+                </span>
+              </div>
+            )}
+
+            {archivedProjects.map((project) => (
+              <div
+                key={`archived-title-${project.id}`}
+                className="flex items-center px-3 border-b border-border-subtle bg-surface-hover/40"
+                style={{ height: ROW_HEIGHT }}
+                onContextMenu={(e) => handleArchivedProjectContextMenu(e, project.id)}
+              >
+                <span className="text-caption text-text-secondary truncate" title={project.name}>
+                  {project.name}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -1591,7 +1733,22 @@ export function TimelineView({
               );
             })}
 
-            {projectViews.length === 0 && (
+            {archivedProjects.length > 0 && (
+              <div
+                className="border-y border-border bg-surface/70"
+                style={{ height: ARCHIVED_SECTION_HEADER_HEIGHT }}
+              />
+            )}
+
+            {archivedProjects.map((project) => (
+              <div
+                key={`archived-spacer-${project.id}`}
+                className="border-b border-border-subtle"
+                style={{ height: ROW_HEIGHT }}
+              />
+            ))}
+
+            {projectViews.length === 0 && archivedProjects.length === 0 && (
               <div className="flex items-center justify-center py-24 text-text-tertiary min-w-full">
                 <div className="text-center">
                   <p className="text-body">No projects match the current filters</p>
@@ -1643,6 +1800,24 @@ export function TimelineView({
               onClick={() => handleOpenProjectPage(projectContextMenu.projectId)}
             >
               Open project page
+            </button>
+          </div>
+        )}
+
+        {archivedProjectContextMenu && (
+          <div
+            className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50 min-w-48"
+            style={{ left: archivedProjectContextMenu.x, top: archivedProjectContextMenu.y }}
+          >
+            <button
+              type="button"
+              className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover disabled:opacity-60"
+              disabled={loadingArchivedProjectId === archivedProjectContextMenu.projectId}
+              onClick={() => handleLoadArchivedProject(archivedProjectContextMenu.projectId)}
+            >
+              {loadingArchivedProjectId === archivedProjectContextMenu.projectId
+                ? 'Loading project...'
+                : 'Load and center project'}
             </button>
           </div>
         )}

@@ -9,6 +9,7 @@ interface ProjectDetailPageClientProps {
   projectId: string;
   currentUserId: string;
   userPermission: string;
+  canViewQualitySummaries: boolean;
 }
 
 function ProjectDetailSkeleton() {
@@ -165,7 +166,12 @@ interface EventTypeOption {
   position: number;
 }
 
-export function ProjectDetailPageClient({ projectId, currentUserId, userPermission }: ProjectDetailPageClientProps) {
+export function ProjectDetailPageClient({
+  projectId,
+  currentUserId,
+  userPermission,
+  canViewQualitySummaries,
+}: ProjectDetailPageClientProps) {
   const { data: project, isLoading: isLoading } = useQuery({
     queryKey: ['boards', projectId, 'project'],
     queryFn: () => apiFetch<ProjectData>(`/api/boards/${projectId}`),
@@ -223,6 +229,7 @@ export function ProjectDetailPageClient({ projectId, currentUserId, userPermissi
       eventTypes={eventTypes || []}
       isAdmin={isAdmin}
       isSuperAdmin={userPermission === 'SUPER_ADMIN'}
+      canViewQualitySummaries={canViewQualitySummaries}
     />
   );
 }

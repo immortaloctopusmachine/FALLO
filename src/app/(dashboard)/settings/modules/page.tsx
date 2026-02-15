@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Pencil, Trash2, Upload, X, Plus, Link2 } from 'lucide-react';
+import { Pencil, Trash2, Upload, X, Plus, Link2, RotateCcw, Tag, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,14 +20,26 @@ import type {
   ModuleTaskTemplate,
 } from '@/types';
 import {
-  createLinkedThreeTaskTemplates,
+  createLinkedFourTaskTemplates,
   createSingleModuleTaskTemplate,
   getDefaultModuleTaskTemplates,
   normalizeModuleTaskTemplates,
 } from '@/lib/modules';
 import { STORY_POINT_VALUES } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 const MANUAL_EPIC = '__manual__';
+
+// Cold-to-warm color mapping for story point buttons
+const SP_COLORS: Record<number, { bg: string; bgSelected: string; text: string; border: string }> = {
+  1:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   bgSelected: 'bg-blue-500',   text: 'text-blue-700 dark:text-blue-300',   border: 'border-blue-200 dark:border-blue-800' },
+  2:  { bg: 'bg-cyan-50 dark:bg-cyan-950/30',    bgSelected: 'bg-cyan-500',   text: 'text-cyan-700 dark:text-cyan-300',   border: 'border-cyan-200 dark:border-cyan-800' },
+  3:  { bg: 'bg-green-50 dark:bg-green-950/30',   bgSelected: 'bg-green-500',  text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
+  5:  { bg: 'bg-yellow-50 dark:bg-yellow-950/30', bgSelected: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
+  8:  { bg: 'bg-orange-50 dark:bg-orange-950/30', bgSelected: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
+  13: { bg: 'bg-red-50 dark:bg-red-950/30',       bgSelected: 'bg-red-500',    text: 'text-red-700 dark:text-red-300',     border: 'border-red-200 dark:border-red-800' },
+  21: { bg: 'bg-rose-50 dark:bg-rose-950/30',     bgSelected: 'bg-rose-600',   text: 'text-rose-700 dark:text-rose-300',   border: 'border-rose-200 dark:border-rose-800' },
+};
 type ImageTarget = 'userStory' | string;
 
 interface ModuleFormState {
@@ -58,6 +70,11 @@ function normalizeTagInput(value: string): string {
   return value.trim();
 }
 
+function getEffectiveTitle(task: ModuleTaskTemplate, userStoryDesc: string): string {
+  if (task.titleOverride !== null) return task.titleOverride;
+  return userStoryDesc ? `${userStoryDesc} - ${task.title}` : task.title;
+}
+
 function sortTasksForDisplay(tasks: ModuleTaskTemplate[]): ModuleTaskTemplate[] {
   return [...tasks].sort((a, b) => {
     if (a.chainGroupId && b.chainGroupId) {
@@ -80,6 +97,7 @@ export default function ModulesSettingsPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [form, setForm] = useState<ModuleFormState>(createDefaultForm());
   const [epicSelection, setEpicSelection] = useState<string>(MANUAL_EPIC);
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [uploadTarget, setUploadTarget] = useState<ImageTarget | null>(null);
   const [imageTags, setImageTags] = useState<string[]>(['module']);
   const [selectedPresetTag, setSelectedPresetTag] = useState('');
@@ -137,6 +155,16 @@ export default function ModulesSettingsPage() {
   const resetForm = () => {
     setForm(createDefaultForm());
     setEpicSelection(MANUAL_EPIC);
+    setExpandedTasks(new Set());
+  };
+
+  const toggleTaskExpanded = (taskId: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
   };
 
   const handleEdit = (module: BoardModuleTemplate) => {
@@ -202,7 +230,7 @@ export default function ModulesSettingsPage() {
   const addLinkedTaskGroup = () => {
     setForm((prev) => ({
       ...prev,
-      taskTemplates: [...prev.taskTemplates, ...createLinkedThreeTaskTemplates()],
+      taskTemplates: [...prev.taskTemplates, ...createLinkedFourTaskTemplates()],
     }));
   };
 
@@ -308,10 +336,12 @@ export default function ModulesSettingsPage() {
         taskTemplates: sortTasksForDisplay(form.taskTemplates).map((task) => ({
           id: task.id,
           title: task.title,
+          titleOverride: task.titleOverride || null,
           color: task.color,
           description: task.description || null,
           storyPoints: task.storyPoints,
           featureImage: task.featureImage || null,
+          tags: task.tags,
           destinationMode: task.destinationMode,
           chainGroupId: task.chainGroupId,
           chainOrder: task.chainOrder,
@@ -475,51 +505,55 @@ export default function ModulesSettingsPage() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3 items-start">
-        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3 h-fit">
-          <h3 className="text-body font-semibold">Epic Settings</h3>
-          <Select
-            value={epicSelection}
-            onValueChange={(value) => {
-              setEpicSelection(value);
-              if (value !== MANUAL_EPIC) {
-                setForm((prev) => ({ ...prev, epicName: value }));
-              }
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select preset Epic name" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={MANUAL_EPIC}>Manual Epic name</SelectItem>
-              {epicNames.map((epic) => (
-                <SelectItem key={epic.id} value={epic.name}>
-                  {epic.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Epic name"
-            value={form.epicName}
-            onChange={(e) => setForm((prev) => ({ ...prev, epicName: e.target.value }))}
-          />
-        </div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_2fr] items-start">
+        {/* Left column: Epic + User Story */}
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+            <h3 className="text-body font-semibold">Epic Settings</h3>
+            <Select
+              value={epicSelection}
+              onValueChange={(value) => {
+                setEpicSelection(value);
+                if (value !== MANUAL_EPIC) {
+                  setForm((prev) => ({ ...prev, epicName: value }));
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select preset Epic name" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={MANUAL_EPIC}>Manual Epic name</SelectItem>
+                {epicNames.map((epic) => (
+                  <SelectItem key={epic.id} value={epic.name}>
+                    {epic.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Epic name"
+              value={form.epicName}
+              onChange={(e) => setForm((prev) => ({ ...prev, epicName: e.target.value }))}
+            />
+          </div>
 
-        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3 h-fit">
-          <h3 className="text-body font-semibold">User Story Settings</h3>
-          <Textarea
-            placeholder="User story description (optional)"
-            value={form.userStoryDescription}
-            onChange={(e) => setForm((prev) => ({ ...prev, userStoryDescription: e.target.value }))}
-            rows={3}
-          />
-          <div>
-            <div className="mb-2 text-caption text-text-secondary">User Story Image</div>
-            {renderImageSelector('userStory', form.userStoryFeatureImage || null)}
+          <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+            <h3 className="text-body font-semibold">User Story Settings</h3>
+            <Textarea
+              placeholder="User story description (optional)"
+              value={form.userStoryDescription}
+              onChange={(e) => setForm((prev) => ({ ...prev, userStoryDescription: e.target.value }))}
+              rows={3}
+            />
+            <div>
+              <div className="mb-2 text-caption text-text-secondary">User Story Image</div>
+              {renderImageSelector('userStory', form.userStoryFeatureImage || null)}
+            </div>
           </div>
         </div>
 
+        {/* Right column: Task Settings */}
         <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3 h-fit">
           <div className="flex items-center justify-between">
             <h3 className="text-body font-semibold">Task Settings</h3>
@@ -530,7 +564,7 @@ export default function ModulesSettingsPage() {
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={addLinkedTaskGroup}>
                 <Link2 className="mr-1 h-3.5 w-3.5" />
-                Add 3 Linked
+                Add 4 Linked
               </Button>
             </div>
           </div>
@@ -581,101 +615,297 @@ export default function ModulesSettingsPage() {
             </div>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-2">
           {groupedTaskData.groups.map((group) => (
-            <div key={group.groupId} className="rounded-md border border-border-subtle bg-background p-2 space-y-2">
+            <div key={group.groupId} className="rounded-md border border-border-subtle bg-background p-2 space-y-2 col-span-full">
               <div className="text-caption font-medium text-text-secondary">{group.label}</div>
-              {group.tasks.map((task) => (
-                <div key={task.id} className="rounded-md border p-3 space-y-2" style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={task.title}
-                      onChange={(e) => updateTask(task.id, { title: e.target.value })}
-                      placeholder="Task title"
-                    />
-                    <Button
+              <div className="grid gap-2 md:grid-cols-2">
+              {group.tasks.map((task) => {
+                const effectiveTitle = getEffectiveTitle(task, form.symbol);
+                const hasOverride = task.titleOverride !== null;
+                const isExpanded = expandedTasks.has(task.id);
+                return (
+                  <div key={task.id} className="rounded-md border" style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}>
+                    <button
                       type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteTask(task.id)}
-                      disabled={form.taskTemplates.length <= 1}
-                      title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
+                      className="flex w-full items-center gap-2 p-3"
+                      onClick={() => toggleTaskExpanded(task.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Select
-                    value={task.storyPoints === null ? 'none' : String(task.storyPoints)}
-                    onValueChange={(value) => updateTask(task.id, { storyPoints: value === 'none' ? null : Number(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Story points" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No story points</SelectItem>
-                      {STORY_POINT_VALUES.map((sp) => (
-                        <SelectItem key={sp} value={String(sp)}>{sp}</SelectItem>
+                      {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary" /> : <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />}
+                      <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: task.color }} />
+                      <span className="flex-1 truncate text-left text-body font-medium">{effectiveTitle || task.title}</span>
+                      {task.storyPoints !== null && (
+                        <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{task.storyPoints} SP</span>
+                      )}
+                      {task.tags.map((tag) => (
+                        <span key={tag} className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{tag}</span>
                       ))}
-                    </SelectContent>
-                  </Select>
-                  {renderImageSelector(task.id, task.featureImage || null)}
-                  <Textarea
-                    placeholder="Task description (optional)"
-                    value={task.description || ''}
-                    onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
-                    rows={2}
-                  />
-                </div>
-              ))}
+                    </button>
+                    {isExpanded && (
+                      <div className="space-y-2 border-t px-3 pb-3 pt-2" style={{ borderColor: `${task.color}33` }}>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 space-y-1">
+                            <div className="text-tiny text-text-tertiary">
+                              {hasOverride ? 'Custom title' : `Auto: ${form.symbol || '...'} - suffix`}
+                            </div>
+                            <Input
+                              value={effectiveTitle}
+                              onChange={(e) => updateTask(task.id, { titleOverride: e.target.value })}
+                              placeholder="Task title"
+                            />
+                          </div>
+                          {hasOverride && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateTask(task.id, { titleOverride: null })}
+                              title="Reset to auto-generated title"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteTask(task.id)}
+                            disabled={form.taskTemplates.length <= 1}
+                            title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {!hasOverride && (
+                          <Input
+                            value={task.title}
+                            onChange={(e) => updateTask(task.id, { title: e.target.value })}
+                            placeholder="Suffix (e.g. CONCEPT)"
+                            className="text-caption"
+                          />
+                        )}
+                        <div className="space-y-1">
+                          <div className="text-tiny text-text-tertiary">Story Points</div>
+                          <div className="flex flex-wrap gap-1">
+                            {STORY_POINT_VALUES.map((sp) => {
+                              const isSelected = task.storyPoints === sp;
+                              const colors = SP_COLORS[sp];
+                              return (
+                                <button
+                                  key={sp}
+                                  type="button"
+                                  onClick={() => updateTask(task.id, { storyPoints: isSelected ? null : sp })}
+                                  className={cn(
+                                    'h-7 min-w-[2rem] rounded border px-1.5 text-tiny font-medium transition-colors',
+                                    isSelected
+                                      ? `${colors.bgSelected} text-white border-transparent`
+                                      : `${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`
+                                  )}
+                                >
+                                  {sp}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-tiny text-text-tertiary">
+                            <Tag className="h-3 w-3" />
+                            Tags
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {task.tags.map((tag) => (
+                              <span key={tag} className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-0.5 text-tiny">
+                                {tag}
+                                <button type="button" onClick={() => updateTask(task.id, { tags: task.tags.filter((t) => t !== tag) })}>
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-1">
+                            <Select
+                              value="none"
+                              onValueChange={(value) => {
+                                if (value === 'none') return;
+                                if (!task.tags.includes(value)) {
+                                  updateTask(task.id, { tags: [...task.tags, value] });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-7 flex-1 text-tiny">
+                                <SelectValue placeholder="Add tag" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Add tag...</SelectItem>
+                                {availableTags.filter((t) => !task.tags.includes(t)).map((tag) => (
+                                  <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {renderImageSelector(task.id, task.featureImage || null)}
+                        <Textarea
+                          placeholder="Task description (optional)"
+                          value={task.description || ''}
+                          onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
+                          rows={2}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              </div>
             </div>
           ))}
 
           {groupedTaskData.singles.length > 0 && (
-            <div className="rounded-md border border-border-subtle bg-background p-2 space-y-2">
+            <div className="rounded-md border border-border-subtle bg-background p-2 space-y-2 col-span-full">
               <div className="text-caption font-medium text-text-secondary">Single Tasks</div>
-              {groupedTaskData.singles.map((task) => (
-                <div key={task.id} className="rounded-md border p-3 space-y-2" style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={task.title}
-                      onChange={(e) => updateTask(task.id, { title: e.target.value })}
-                      placeholder="Task title"
-                    />
-                    <Button
+              <div className="grid gap-2 md:grid-cols-2">
+              {groupedTaskData.singles.map((task) => {
+                const effectiveTitle = getEffectiveTitle(task, form.symbol);
+                const hasOverride = task.titleOverride !== null;
+                const isExpanded = expandedTasks.has(task.id);
+                return (
+                  <div key={task.id} className="rounded-md border" style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}>
+                    <button
                       type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteTask(task.id)}
-                      disabled={form.taskTemplates.length <= 1}
-                      title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
+                      className="flex w-full items-center gap-2 p-3"
+                      onClick={() => toggleTaskExpanded(task.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Select
-                    value={task.storyPoints === null ? 'none' : String(task.storyPoints)}
-                    onValueChange={(value) => updateTask(task.id, { storyPoints: value === 'none' ? null : Number(value) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Story points" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No story points</SelectItem>
-                      {STORY_POINT_VALUES.map((sp) => (
-                        <SelectItem key={sp} value={String(sp)}>{sp}</SelectItem>
+                      {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary" /> : <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />}
+                      <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: task.color }} />
+                      <span className="flex-1 truncate text-left text-body font-medium">{effectiveTitle || task.title}</span>
+                      {task.storyPoints !== null && (
+                        <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{task.storyPoints} SP</span>
+                      )}
+                      {task.tags.map((tag) => (
+                        <span key={tag} className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{tag}</span>
                       ))}
-                    </SelectContent>
-                  </Select>
-                  {renderImageSelector(task.id, task.featureImage || null)}
-                  <Textarea
-                    placeholder="Task description (optional)"
-                    value={task.description || ''}
-                    onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
-                    rows={2}
-                  />
-                </div>
-              ))}
+                    </button>
+                    {isExpanded && (
+                      <div className="space-y-2 border-t px-3 pb-3 pt-2" style={{ borderColor: `${task.color}33` }}>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 space-y-1">
+                            <div className="text-tiny text-text-tertiary">
+                              {hasOverride ? 'Custom title' : `Auto: ${form.symbol || '...'} - suffix`}
+                            </div>
+                            <Input
+                              value={effectiveTitle}
+                              onChange={(e) => updateTask(task.id, { titleOverride: e.target.value })}
+                              placeholder="Task title"
+                            />
+                          </div>
+                          {hasOverride && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateTask(task.id, { titleOverride: null })}
+                              title="Reset to auto-generated title"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteTask(task.id)}
+                            disabled={form.taskTemplates.length <= 1}
+                            title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {!hasOverride && (
+                          <Input
+                            value={task.title}
+                            onChange={(e) => updateTask(task.id, { title: e.target.value })}
+                            placeholder="Suffix (e.g. TASK)"
+                            className="text-caption"
+                          />
+                        )}
+                        <div className="space-y-1">
+                          <div className="text-tiny text-text-tertiary">Story Points</div>
+                          <div className="flex flex-wrap gap-1">
+                            {STORY_POINT_VALUES.map((sp) => {
+                              const isSelected = task.storyPoints === sp;
+                              const colors = SP_COLORS[sp];
+                              return (
+                                <button
+                                  key={sp}
+                                  type="button"
+                                  onClick={() => updateTask(task.id, { storyPoints: isSelected ? null : sp })}
+                                  className={cn(
+                                    'h-7 min-w-[2rem] rounded border px-1.5 text-tiny font-medium transition-colors',
+                                    isSelected
+                                      ? `${colors.bgSelected} text-white border-transparent`
+                                      : `${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`
+                                  )}
+                                >
+                                  {sp}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-tiny text-text-tertiary">
+                            <Tag className="h-3 w-3" />
+                            Tags
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {task.tags.map((tag) => (
+                              <span key={tag} className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-0.5 text-tiny">
+                                {tag}
+                                <button type="button" onClick={() => updateTask(task.id, { tags: task.tags.filter((t) => t !== tag) })}>
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-1">
+                            <Select
+                              value="none"
+                              onValueChange={(value) => {
+                                if (value === 'none') return;
+                                if (!task.tags.includes(value)) {
+                                  updateTask(task.id, { tags: [...task.tags, value] });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-7 flex-1 text-tiny">
+                                <SelectValue placeholder="Add tag" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Add tag...</SelectItem>
+                                {availableTags.filter((t) => !task.tags.includes(t)).map((tag) => (
+                                  <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {renderImageSelector(task.id, task.featureImage || null)}
+                        <Textarea
+                          placeholder="Task description (optional)"
+                          value={task.description || ''}
+                          onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
+                          rows={2}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              </div>
             </div>
           )}
+          </div>
         </div>
       </div>
 

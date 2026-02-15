@@ -67,7 +67,7 @@ async function findBlockTypeForList(list: {
 //   ?projects=true&archived=true  - return archived projects
 export async function GET(request: Request) {
   try {
-    const { session, response } = await requireAuth();
+    const { response } = await requireAuth();
     if (response) return response;
 
     const { searchParams } = new URL(request.url);

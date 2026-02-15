@@ -44,8 +44,8 @@ enum UserStoryFlag {
 }
 
 enum ListViewType {
-  TASKS      // Lists for Tasks view (artist view)
-  PLANNING   // Lists for Planning view (Epics & User Stories)
+  TASKS // Lists for Tasks view (artist view)
+  PLANNING // Lists for Planning view (Epics & User Stories)
 }
 
 enum ListPhase {
@@ -57,6 +57,19 @@ enum ListPhase {
   DONE
 }
 
+enum EvaluatorRole {
+  LEAD
+  PO
+  HEAD_OF_ART
+}
+
+enum ReviewScoreValue {
+  LOW
+  MEDIUM
+  HIGH
+  NOT_APPLICABLE
+}
+
 // ============== MODELS ==============
 
 // Organization hierarchy
@@ -64,8 +77,8 @@ model Studio {
   id          String    @id @default(cuid())
   name        String
   description String?
-  image       String?   // Header image URL
-  color       String?   // Brand color
+  image       String? // Header image URL
+  color       String? // Brand color
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
@@ -84,32 +97,33 @@ model Team {
   id          String    @id @default(cuid())
   name        String
   description String?
-  image       String?   // Header image URL
-  color       String    // Team color (required for timeline)
+  image       String? // Header image URL
+  color       String // Team color (required for timeline)
   position    Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
+  settings    Json?     @default("{}") // TeamSettings JSON (Slack, role assignments, etc.)
 
-  studioId    String?   // Optional - some teams may not belong to a studio
-  studio      Studio?   @relation(fields: [studioId], references: [id])
-  members     TeamMember[]
-  boards      Board[]
+  studioId String? // Optional - some teams may not belong to a studio
+  studio   Studio?      @relation(fields: [studioId], references: [id])
+  members  TeamMember[]
+  boards   Board[]
 
   @@index([studioId])
   @@map("teams")
 }
 
 model TeamMember {
-  id        String   @id @default(cuid())
+  id         String         @id @default(cuid())
   permission UserPermission @default(MEMBER) @map("role")
-  title      String?  // Job title: Lead, Artist, Animator, etc.
-  joinedAt  DateTime @default(now())
+  title      String? // Job title: Lead, Artist, Animator, etc.
+  joinedAt   DateTime       @default(now())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([userId, teamId])
   @@map("team_members")
@@ -125,9 +139,9 @@ model Skill {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  studioId    String?  // null = global skill
-  studio      Studio?  @relation(fields: [studioId], references: [id])
-  userSkills  UserSkill[]
+  studioId   String? // null = global skill
+  studio     Studio?     @relation(fields: [studioId], references: [id])
+  userSkills UserSkill[]
 
   @@index([studioId])
   @@map("skills")
@@ -137,10 +151,10 @@ model UserSkill {
   id         String   @id @default(cuid())
   assignedAt DateTime @default(now())
 
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skillId    String
-  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
   @@unique([userId, skillId])
   @@map("user_skills")
@@ -187,9 +201,9 @@ model Tag {
   position    Int      @default(0)
   createdAt   DateTime @default(now())
 
-  studioId    String?  // null = global tag
-  studio      Studio?  @relation(fields: [studioId], references: [id])
-  cardTags    CardTag[]
+  studioId String? // null = global tag
+  studio   Studio?   @relation(fields: [studioId], references: [id])
+  cardTags CardTag[]
 
   @@unique([studioId, name])
   @@index([studioId])
@@ -243,10 +257,10 @@ model CardTag {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
-  cardId    String
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  tagId     String
-  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@unique([cardId, tagId])
   @@map("card_tags")
@@ -255,17 +269,17 @@ model CardTag {
 // Block types for timeline
 model BlockType {
   id          String   @id @default(cuid())
-  name        String   // SPINE_PROTOTYPE, CONCEPT, PRODUCTION, TWEAK, etc.
+  name        String // SPINE_PROTOTYPE, CONCEPT, PRODUCTION, TWEAK, etc.
   color       String
   description String?
-  isDefault   Boolean  @default(false)  // Pre-seeded types
+  isDefault   Boolean  @default(false) // Pre-seeded types
   position    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  studioId    String?
-  studio      Studio?  @relation(fields: [studioId], references: [id])
-  blocks      TimelineBlock[]
+  studioId           String?
+  studio             Studio?                    @relation(fields: [studioId], references: [id])
+  blocks             TimelineBlock[]
   coreTemplateBlocks CoreProjectTemplateBlock[]
 
   @@index([studioId])
@@ -275,18 +289,18 @@ model BlockType {
 // Event types for timeline
 model EventType {
   id          String   @id @default(cuid())
-  name        String   // GSD, Marketing Deadline, Review, etc.
+  name        String // GSD, Marketing Deadline, Review, etc.
   color       String
-  icon        String?  // Optional icon identifier
+  icon        String? // Optional icon identifier
   description String?
   isDefault   Boolean  @default(false)
   position    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  studioId    String?
-  studio      Studio?  @relation(fields: [studioId], references: [id])
-  events      TimelineEvent[]
+  studioId           String?
+  studio             Studio?                    @relation(fields: [studioId], references: [id])
+  events             TimelineEvent[]
   coreTemplateEvents CoreProjectTemplateEvent[]
 
   @@index([studioId])
@@ -294,18 +308,18 @@ model EventType {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  email         String        @unique
-  name          String?
-  image         String?
-  slackUserId   String?       @unique
+  id               String         @id @default(cuid())
+  email            String         @unique
+  name             String?
+  image            String?
+  slackUserId      String?        @unique
   slackDisplayName String?
-  slackAvatarUrl  String?
-  passwordHash  String?       // For credentials auth
-  permission    UserPermission @default(MEMBER) @map("role")
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  deletedAt     DateTime?     // Soft delete - user data preserved on boards
+  slackAvatarUrl   String?
+  passwordHash     String? // For credentials auth
+  permission       UserPermission @default(MEMBER) @map("role")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime? // Soft delete - user data preserved on boards
 
   // Relations
   boardMembers  BoardMember[]
@@ -313,17 +327,18 @@ model User {
   comments      Comment[]
   activities    Activity[]
   attachments   Attachment[]
+  evaluations   Evaluation[]
 
   // Organization relations
-  teamMembers      TeamMember[]
-  userSkills       UserSkill[]
-  userCompanyRoles UserCompanyRole[]
-  timeLogs         TimeLog[]
+  teamMembers        TeamMember[]
+  userSkills         UserSkill[]
+  userCompanyRoles   UserCompanyRole[]
+  timeLogs           TimeLog[]
   weeklyAvailability UserWeeklyAvailability[]
 
   // NextAuth relations
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
   @@map("users")
 }
@@ -385,18 +400,18 @@ model Board {
   archivedAt  DateTime?
 
   // Relations
-  members         BoardMember[]
-  lists           List[]
-  activities      Activity[]
-  weeklyProgress  WeeklyProgress[]
+  members        BoardMember[]
+  lists          List[]
+  activities     Activity[]
+  weeklyProgress WeeklyProgress[]
 
   // Team relation
-  teamId          String?
-  team            Team?    @relation(fields: [teamId], references: [id])
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
 
   // Timeline relations
-  timelineBlocks  TimelineBlock[]
-  timelineEvents  TimelineEvent[]
+  timelineBlocks     TimelineBlock[]
+  timelineEvents     TimelineEvent[]
   weeklyAvailability UserWeeklyAvailability[]
 
   // Spine Tracker
@@ -408,32 +423,32 @@ model Board {
 
 // Core project templates (date-agnostic sequence of timeline blocks/events)
 model CoreProjectTemplate {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
-  isDefault   Boolean  @default(false)
-  position    Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isDefault   Boolean   @default(false)
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
 
-  blocks      CoreProjectTemplateBlock[]
-  events      CoreProjectTemplateEvent[]
+  blocks CoreProjectTemplateBlock[]
+  events CoreProjectTemplateEvent[]
 
   @@index([position])
   @@map("core_project_templates")
 }
 
 model CoreProjectTemplateBlock {
-  id         String   @id @default(cuid())
-  position   Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  templateId String
-  template   CoreProjectTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId  String
+  template    CoreProjectTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   blockTypeId String
-  blockType  BlockType @relation(fields: [blockTypeId], references: [id])
+  blockType   BlockType           @relation(fields: [blockTypeId], references: [id])
 
   @@index([templateId, position])
   @@map("core_project_template_blocks")
@@ -443,23 +458,23 @@ model CoreProjectTemplateEvent {
   id         String   @id @default(cuid())
   position   Int
   unitOffset Int      @default(0) // 0-based business-day unit from template start
-  title      String?  // Optional override; falls back to event type name
+  title      String? // Optional override; falls back to event type name
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  templateId String
-  template   CoreProjectTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId  String
+  template    CoreProjectTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   eventTypeId String
-  eventType  EventType @relation(fields: [eventTypeId], references: [id])
+  eventType   EventType           @relation(fields: [eventTypeId], references: [id])
 
   @@index([templateId, position])
   @@map("core_project_template_events")
 }
 
 model BoardMember {
-  id       String   @id @default(cuid())
+  id         String         @id @default(cuid())
   permission UserPermission @default(MEMBER) @map("role")
-  joinedAt   DateTime @default(now())
+  joinedAt   DateTime       @default(now())
 
   // Relations
   userId  String
@@ -479,13 +494,13 @@ model List {
   updatedAt DateTime @updatedAt
 
   // View-specific fields
-  viewType   ListViewType @default(TASKS)    // Which view this list belongs to
-  phase      ListPhase?                       // For planning lists: phase type
-  color      String?                          // Hex color for list header
-  startDate  DateTime?                        // Start date for planning lists
-  endDate    DateTime?                        // End date for planning lists
-  durationWeeks Int?                          // Default duration in weeks
-  durationDays  Int?                          // Duration in business days (for 5-day blocks)
+  viewType      ListViewType @default(TASKS) // Which view this list belongs to
+  phase         ListPhase? // For planning lists: phase type
+  color         String? // Hex color for list header
+  startDate     DateTime? // Start date for planning lists
+  endDate       DateTime? // End date for planning lists
+  durationWeeks Int? // Default duration in weeks
+  durationDays  Int? // Duration in business days (for 5-day blocks)
 
   // Relations
   boardId String
@@ -493,8 +508,8 @@ model List {
   cards   Card[]
 
   // Timeline sync
-  timelineBlock   TimelineBlock?
-  timeLogs        TimeLog[]
+  timelineBlock TimelineBlock?
+  timeLogs      TimeLog[]
 
   @@index([boardId])
   @@index([viewType])
@@ -502,25 +517,26 @@ model List {
 }
 
 model Card {
-  id           String    @id @default(cuid())
-  type         CardType
-  title        String
-  description  String?
-  position     Int
+  id                   String    @id @default(cuid())
+  type                 CardType
+  title                String
+  description          String?
+  position             Int
   color                String? // Hex color
   featureImage         String? // URL
-  featureImagePosition Int     @default(50) // 0-100 vertical position %
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  archivedAt   DateTime?
+  featureImagePosition Int       @default(50) // 0-100 vertical position %
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  archivedAt           DateTime?
 
   // Relations
-  listId      String
-  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
-  assignees   CardUser[]
-  comments    Comment[]
-  attachments Attachment[]
-  checklists  Checklist[]
+  listId       String
+  list         List          @relation(fields: [listId], references: [id], onDelete: Cascade)
+  assignees    CardUser[]
+  comments     Comment[]
+  attachments  Attachment[]
+  checklists   Checklist[]
+  reviewCycles ReviewCycle[]
 
   // Hierarchy relations
   parentId String?
@@ -534,13 +550,90 @@ model Card {
   utilityData   Json? // UtilityCardData
 
   // Tags and time tracking
-  tags          CardTag[]
-  timeLogs      TimeLog[]
+  tags     CardTag[]
+  timeLogs TimeLog[]
 
   @@index([listId])
   @@index([parentId])
   @@index([type])
   @@map("cards")
+}
+
+model ReviewCycle {
+  id          String    @id @default(cuid())
+  cycleNumber Int
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  isFinal     Boolean   @default(false)
+  lockedAt    DateTime?
+
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  evaluations Evaluation[]
+
+  @@unique([cardId, cycleNumber])
+  @@index([cardId])
+  @@map("review_cycles")
+}
+
+model ReviewDimension {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  position    Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evaluationScores EvaluationScore[]
+  dimensionRoles   DimensionRole[]
+
+  @@index([position])
+  @@map("review_dimensions")
+}
+
+model DimensionRole {
+  id          String          @id @default(cuid())
+  dimensionId String
+  dimension   ReviewDimension @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
+  role        EvaluatorRole
+
+  @@unique([dimensionId, role])
+  @@map("dimension_roles")
+}
+
+model Evaluation {
+  id          String   @id @default(cuid())
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  reviewCycleId String
+  reviewCycle   ReviewCycle @relation(fields: [reviewCycleId], references: [id], onDelete: Cascade)
+
+  reviewerId String
+  reviewer   User   @relation(fields: [reviewerId], references: [id])
+
+  scores EvaluationScore[]
+
+  @@unique([reviewCycleId, reviewerId])
+  @@index([reviewCycleId])
+  @@index([reviewerId])
+  @@map("evaluations")
+}
+
+model EvaluationScore {
+  id    String           @id @default(cuid())
+  score ReviewScoreValue
+
+  evaluationId String
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  dimensionId String
+  dimension   ReviewDimension @relation(fields: [dimensionId], references: [id])
+
+  @@unique([evaluationId, dimensionId])
+  @@map("evaluation_scores")
 }
 
 model CardUser {
@@ -598,11 +691,11 @@ model Attachment {
 }
 
 model Checklist {
-  id        String          @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
   type      String // "todo", "feedback"
   position  Int
-  createdAt DateTime        @default(now())
+  createdAt DateTime @default(now())
 
   // Relations
   cardId String
@@ -650,13 +743,13 @@ model Activity {
 
 // Weekly progress snapshot for burn-up charts
 model WeeklyProgress {
-  id                String   @id @default(cuid())
-  weekStartDate     DateTime // Monday of the week
-  totalStoryPoints  Int      // Total SP in the project
-  completedPoints   Int      // SP completed (tasks in Done list)
-  tasksCompleted    Int      // Number of tasks completed
-  tasksTotal        Int      // Total number of tasks
-  createdAt         DateTime @default(now())
+  id               String   @id @default(cuid())
+  weekStartDate    DateTime // Monday of the week
+  totalStoryPoints Int // Total SP in the project
+  completedPoints  Int // SP completed (tasks in Done list)
+  tasksCompleted   Int // Number of tasks completed
+  tasksTotal       Int // Total number of tasks
+  createdAt        DateTime @default(now())
 
   // Relations
   boardId String
@@ -669,21 +762,21 @@ model WeeklyProgress {
 
 // Timeline blocks (phases)
 model TimelineBlock {
-  id          String   @id @default(cuid())
-  startDate   DateTime
-  endDate     DateTime
-  position    Int      // Sequence number (e.g., "Production 3")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  position  Int // Sequence number (e.g., "Production 3")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   boardId     String
-  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board       Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
   blockTypeId String
   blockType   BlockType @relation(fields: [blockTypeId], references: [id])
 
   // Link to Planning view list for sync
-  listId      String?  @unique
-  list        List?    @relation(fields: [listId], references: [id])
+  listId String? @unique
+  list   List?   @relation(fields: [listId], references: [id])
 
   @@index([boardId])
   @@map("timeline_blocks")
@@ -691,16 +784,16 @@ model TimelineBlock {
 
 // User weekly availability per board (project)
 model UserWeeklyAvailability {
-  id          String   @id @default(cuid())
-  dedication  Int      // 0, 25, 33, 50, 75, 100 (percentage)
-  weekStart   DateTime // Monday of the week (always normalized to Monday)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  dedication Int // 0, 25, 33, 50, 75, 100 (percentage)
+  weekStart  DateTime // Monday of the week (always normalized to Monday)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  boardId     String
-  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([boardId, userId, weekStart]) // One entry per user per week per board
   @@index([boardId])
@@ -720,7 +813,7 @@ model TimelineEvent {
   updatedAt   DateTime @updatedAt
 
   boardId     String
-  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board       Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
   eventTypeId String
   eventType   EventType @relation(fields: [eventTypeId], references: [id])
 
@@ -730,22 +823,22 @@ model TimelineEvent {
 
 // Time tracking
 model TimeLog {
-  id          String    @id @default(cuid())
-  startTime   DateTime
-  endTime     DateTime?  // null = still in progress
-  durationMs  Int?       // Calculated when ended
-  isManual    Boolean   @default(false)  // Admin manual adjustment
-  notes       String?    // For manual adjustments
+  id         String    @id @default(cuid())
+  startTime  DateTime
+  endTime    DateTime? // null = still in progress
+  durationMs Int? // Calculated when ended
+  isManual   Boolean   @default(false) // Admin manual adjustment
+  notes      String? // For manual adjustments
 
-  cardId      String
-  card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listId      String    // Which list it was in (for tracking review time etc.)
-  list        List      @relation(fields: [listId], references: [id])
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listId String // Which list it was in (for tracking review time etc.)
+  list   List   @relation(fields: [listId], references: [id])
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([cardId])
   @@index([userId])
@@ -757,13 +850,13 @@ model TimeLog {
 
 model SpineTrackerData {
   id        String   @id @default(cuid())
-  data      Json     @default("{}")    // Full spine tracker state as JSON
-  version   Int      @default(1)       // Optimistic concurrency version
+  data      Json     @default("{}") // Full spine tracker state as JSON
+  version   Int      @default(1) // Optimistic concurrency version
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  boardId   String   @unique           // One spine tracker per board
-  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId String @unique // One spine tracker per board
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
   @@index([boardId])
   @@map("spine_tracker_data")

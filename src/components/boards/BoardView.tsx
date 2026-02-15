@@ -32,9 +32,10 @@ import type { Board, Card, CardType } from '@/types';
 interface BoardViewProps {
   board: Board;
   currentUserId?: string;
+  canViewQualitySummaries?: boolean;
 }
 
-export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps) {
+export function BoardView({ board: initialBoard, currentUserId, canViewQualitySummaries = false }: BoardViewProps) {
   const [board, setBoard] = useState(initialBoard);
   const mutations = useBoardMutations(initialBoard.id);
   const boardSnapshotRef = useRef<Board | null>(null);
@@ -538,6 +539,7 @@ export function BoardView({ board: initialBoard, currentUserId }: BoardViewProps
         onLinkedCardCreated={handleLinkedCardCreated}
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
+        canViewQualitySummaries={canViewQualitySummaries}
         allCards={allCards}
       />
     </DndContext>
