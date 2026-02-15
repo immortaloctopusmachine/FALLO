@@ -8,6 +8,7 @@ import {
   ApiErrors,
 } from '@/lib/api-utils';
 import { processDueStagedTasks } from '@/lib/task-release';
+import { setBoardArchivedOnlyAt, setProjectArchivedAt } from '@/lib/project-archive';
 
 // GET /api/boards/[boardId] - Get a single board with all details
 export async function GET(
@@ -335,6 +336,7 @@ export async function DELETE(
     const { boardId } = await params;
     const { searchParams } = new URL(request.url);
     const permanent = searchParams.get('permanent') === 'true';
+    const scope = searchParams.get('scope');
 
     if (permanent) {
       // Permanent delete: board admin or super admin required, board must be archived
@@ -392,10 +394,35 @@ export async function DELETE(
     const { response: adminResponse } = await requireBoardAdmin(boardId, session.user.id);
     if (adminResponse) return adminResponse;
 
-    await prisma.board.update({
+    const archiveDate = new Date();
+    const board = await prisma.board.findUnique({
       where: { id: boardId },
-      data: { archivedAt: new Date() },
+      select: {
+        settings: true,
+      },
     });
+
+    if (!board) {
+      return ApiErrors.notFound('Board');
+    }
+
+    if (scope === 'project') {
+      await prisma.board.update({
+        where: { id: boardId },
+        data: {
+          archivedAt: archiveDate,
+          settings: setProjectArchivedAt(board.settings, archiveDate),
+        },
+      });
+    } else {
+      await prisma.board.update({
+        where: { id: boardId },
+        data: {
+          archivedAt: archiveDate,
+          settings: setBoardArchivedOnlyAt(board.settings, archiveDate),
+        },
+      });
+    }
 
     return apiSuccess(null);
   } catch (error) {

@@ -17,7 +17,7 @@ export async function GET(
       prisma.board.findFirst({
         where: {
           id: projectId,
-          archivedAt: null,
+          isTemplate: false,
         },
         include: {
           team: {

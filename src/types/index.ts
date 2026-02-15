@@ -255,6 +255,8 @@ export interface BoardSettings {
   lastDayAnimationTweaks?: string;     // ISO date string
   releaseDate?: string;                // ISO date string
   marketingAssetsDeadline?: string;    // ISO date string
+  projectArchivedAt?: string;          // ISO date string, controls project/timeline archive state
+  boardArchivedOnlyAt?: string;        // ISO date string, marks board-only archive state
   customDates?: { id: string; label: string; date: string }[];
   listTemplate?: ListTemplateType;     // Which list template is used
   coreProjectTemplateId?: string;      // Dynamic core template used to create planning blocks/events

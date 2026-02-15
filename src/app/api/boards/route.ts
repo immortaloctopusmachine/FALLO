@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { BOARD_TEMPLATES, calculateListDates } from '@/lib/list-templates';
 import { addBusinessDays, snapToMonday } from '@/lib/date-utils';
+import { parseBoardArchivedOnlyAt, parseProjectArchivedAt } from '@/lib/project-archive';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
 import { getPhaseFromBlockType } from '@/lib/constants';
@@ -75,11 +76,10 @@ export async function GET(request: Request) {
     const projects = searchParams.get('projects') === 'true';
 
     if (projects) {
-      // All authenticated users can see all non-template boards
-      // ?archived=true returns archived projects, otherwise active ones
+      // Projects are filtered by settings.projectArchivedAt (project-level archive state),
+      // independent from board archivedAt (board-level archive state).
       const boards = await prisma.board.findMany({
         where: {
-          archivedAt: archived ? { not: null } : null,
           isTemplate: false,
         },
         include: {
@@ -102,7 +102,14 @@ export async function GET(request: Request) {
         orderBy: { name: 'asc' },
       });
 
-      return apiSuccess(boards);
+      const filteredBoards = boards.filter((board) => {
+        const isBoardArchivedOnly = Boolean(parseBoardArchivedOnlyAt(board.settings));
+        const isProjectArchived = Boolean(parseProjectArchivedAt(board.settings))
+          || (Boolean(board.archivedAt) && !isBoardArchivedOnly);
+        return archived ? isProjectArchived : !isProjectArchived;
+      });
+
+      return apiSuccess(filteredBoards);
     }
 
     if (archived) {

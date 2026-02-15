@@ -16,6 +16,7 @@
     "cron:release:trigger": "node scripts/trigger-release-cron.mjs",
     "cron:slack:trigger": "node scripts/trigger-slack-summaries-cron.mjs",
     "bench:board-payload": "tsx scripts/benchmark-board-payload.ts",
+    "migrate:mark-board-only-archives": "tsx scripts/mark-board-only-archives.ts",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

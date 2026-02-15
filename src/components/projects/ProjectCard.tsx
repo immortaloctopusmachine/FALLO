@@ -73,7 +73,7 @@ export function ProjectCard({
     }
     setIsArchiving(true);
     try {
-      const response = await fetch(`/api/boards/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/boards/${id}?scope=project`, { method: 'DELETE' });
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ['projects'] });
         queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
@@ -92,7 +92,7 @@ export function ProjectCard({
     e.stopPropagation();
     setIsArchiving(true);
     try {
-      const response = await fetch(`/api/boards/${id}/unarchive`, { method: 'POST' });
+      const response = await fetch(`/api/boards/${id}/unarchive?scope=project`, { method: 'POST' });
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ['projects'] });
         queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });

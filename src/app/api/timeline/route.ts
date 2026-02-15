@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
+import {
+  parseBoardArchivedOnlyAt,
+  parseProjectArchivedAt,
+  setProjectArchivedAt,
+} from '@/lib/project-archive';
 import type {
   TimelineData,
   TimelineArchivedProjectSummary,
@@ -39,16 +44,18 @@ export async function GET() {
     if (response) return response;
 
     const [baseBoards, blockTypes, eventTypes, teams, users] = await Promise.all([
-      // All authenticated users can see all non-archived boards in timeline
+      // Timeline shows all projects (non-template boards), including board-archived ones.
+      // Project-level archive state is controlled by settings.projectArchivedAt.
       prisma.board.findMany({
         where: {
-          archivedAt: null,
+          isTemplate: false,
         },
         select: {
           id: true,
           name: true,
           description: true,
           teamId: true,
+          archivedAt: true,
           settings: true,
           team: {
             select: {
@@ -147,6 +154,11 @@ export async function GET() {
 
     const archivedProjects: TimelineArchivedProjectSummary[] = [];
     const activeBoardIds: string[] = [];
+    const autoArchiveUpdates: Array<{
+      boardId: string;
+      settings: unknown;
+      archiveDate: Date;
+    }> = [];
 
     for (const board of baseBoards) {
       const releaseDate =
@@ -157,29 +169,54 @@ export async function GET() {
         blockEndMap.get(board.id) || null,
         eventEndMap.get(board.id) || null
       );
+      const projectArchivedAt = parseProjectArchivedAt(board.settings);
+      const boardArchivedOnlyAt = parseBoardArchivedOnlyAt(board.settings);
 
       const isOld = releaseDate
         ? releaseDate.getTime() < oldCutoff.getTime()
         : latestTimelineDate
           ? latestTimelineDate.getTime() < oldCutoff.getTime()
           : false;
+      const isLegacyProjectArchived = Boolean(board.archivedAt) && !Boolean(boardArchivedOnlyAt);
+      const isProjectArchived = Boolean(projectArchivedAt) || isLegacyProjectArchived;
 
-      if (isOld) {
+      if (isProjectArchived || isOld) {
         archivedProjects.push({
           id: board.id,
           name: board.name,
           teamId: board.teamId,
           team: board.team,
         });
+
+        if ((isOld && !isProjectArchived) || (isLegacyProjectArchived && !projectArchivedAt)) {
+          autoArchiveUpdates.push({
+            boardId: board.id,
+            settings: board.settings,
+            archiveDate: board.archivedAt || new Date(),
+          });
+        }
       } else {
         activeBoardIds.push(board.id);
       }
     }
 
+    if (autoArchiveUpdates.length > 0) {
+      await prisma.$transaction(
+        autoArchiveUpdates.map((item) =>
+          prisma.board.update({
+            where: { id: item.boardId },
+            data: {
+              archivedAt: item.archiveDate,
+              settings: setProjectArchivedAt(item.settings, item.archiveDate),
+            },
+          })
+        )
+      );
+    }
+
     const boards = activeBoardIds.length
       ? await prisma.board.findMany({
           where: {
-            archivedAt: null,
             id: { in: activeBoardIds },
           },
           include: {

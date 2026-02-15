@@ -1271,9 +1271,10 @@ export function ProjectDetailClient({
     }
     setIsArchiving(true);
     try {
-      const response = await fetch(`/api/boards/${board.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/boards/${board.id}?scope=project`, { method: 'DELETE' });
       if (response.ok) {
         queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
         router.push('/projects');
       } else {
         console.error('Failed to archive project');
@@ -1292,7 +1293,7 @@ export function ProjectDetailClient({
     setIsDeleting(true);
     try {
       // First archive if not already archived
-      const archiveRes = await fetch(`/api/boards/${board.id}`, { method: 'DELETE' });
+      const archiveRes = await fetch(`/api/boards/${board.id}?scope=project`, { method: 'DELETE' });
       if (!archiveRes.ok) {
         console.error('Failed to archive before delete');
         setIsDeleting(false);
@@ -1302,6 +1303,7 @@ export function ProjectDetailClient({
       const deleteRes = await fetch(`/api/boards/${board.id}?permanent=true`, { method: 'DELETE' });
       if (deleteRes.ok) {
         queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
         router.push('/projects');
       } else {
         console.error('Failed to delete project');
