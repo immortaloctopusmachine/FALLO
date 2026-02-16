@@ -21,22 +21,31 @@ function ProjectsSkeleton() {
         <div className="h-6 w-36 animate-pulse rounded bg-surface-hover" />
         <div className="h-8 w-32 animate-pulse rounded bg-surface-hover" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-lg border border-border bg-surface p-4 space-y-3"
+            className="rounded-lg border border-border bg-surface overflow-hidden"
           >
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 animate-pulse rounded-md bg-surface-hover" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-3/4 animate-pulse rounded bg-surface-hover" />
-                <div className="h-3 w-1/2 animate-pulse rounded bg-surface-hover" />
-              </div>
+            {/* Name header skeleton */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="h-5 w-3/4 animate-pulse rounded bg-surface-hover" />
             </div>
-            <div className="flex gap-2">
-              <div className="h-3 w-20 animate-pulse rounded bg-surface-hover" />
-              <div className="h-3 w-20 animate-pulse rounded bg-surface-hover" />
+            {/* Team bar skeleton */}
+            <div className="h-7 animate-pulse bg-surface-hover" />
+            {/* Roles skeleton */}
+            <div className="px-4 py-2 space-y-2">
+              <div className="h-3 w-2/3 animate-pulse rounded bg-surface-hover" />
+              <div className="h-3 w-1/2 animate-pulse rounded bg-surface-hover" />
+            </div>
+            {/* Sparkline skeleton */}
+            <div className="px-4 pb-2">
+              <div className="h-9 animate-pulse rounded bg-surface-hover" />
+            </div>
+            {/* Dates skeleton */}
+            <div className="px-4 pb-3 flex gap-3">
+              <div className="h-3 w-24 animate-pulse rounded bg-surface-hover" />
+              <div className="h-3 w-24 animate-pulse rounded bg-surface-hover" />
             </div>
           </div>
         ))}
@@ -92,7 +101,7 @@ export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: Pro
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {activeProjects.map((project) => (
             <ProjectCard
               key={project.id}
@@ -102,6 +111,7 @@ export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: Pro
               teamColor={project.team?.color || null}
               members={project.members}
               settings={(project.settings as BoardSettings) || null}
+              weeklyProgress={project.weeklyProgress || []}
               isAdmin={isProjectAdmin(project)}
               isSuperAdmin={isSuperAdmin}
             />
@@ -132,7 +142,7 @@ export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: Pro
               <p className="text-caption text-text-tertiary mb-4 ml-6">
                 Archived projects are hidden from the main view. Restore them to make them active again.
               </p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 opacity-75">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 opacity-75">
                 {archivedProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
@@ -142,6 +152,7 @@ export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: Pro
                     teamColor={project.team?.color || null}
                     members={project.members}
                     settings={(project.settings as BoardSettings) || null}
+                    weeklyProgress={project.weeklyProgress || []}
                     isAdmin={isProjectAdmin(project)}
                     isSuperAdmin={isSuperAdmin}
                     isArchived

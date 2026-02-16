@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { Calendar, Users, MoreHorizontal, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,13 +12,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { BoardSettings } from '@/types';
+import { BurnupSparkline } from '@/components/projects/BurnupSparkline';
+import type { BoardSettings, WeeklyProgress } from '@/types';
 import { formatDisplayDate } from '@/lib/date-utils';
-import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
 import { cn } from '@/lib/utils';
 
 interface ProjectMember {
   id: string;
+  userId: string;
   user: {
     id: string;
     name: string | null;
@@ -34,6 +35,7 @@ interface ProjectCardProps {
   teamColor: string | null;
   members: ProjectMember[];
   settings: BoardSettings | null;
+  weeklyProgress: WeeklyProgress[];
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
   isArchived?: boolean;
@@ -47,6 +49,7 @@ export function ProjectCard({
   teamColor,
   members,
   settings,
+  weeklyProgress,
   isAdmin = false,
   isSuperAdmin = false,
   isArchived = false,
@@ -57,13 +60,41 @@ export function ProjectCard({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const startDate = settings?.projectStartDate;
-  const lastTweak = settings?.lastDayAnimationTweaks;
   const releaseDate = settings?.releaseDate;
-  const bgStyle = settings ? getBoardBackgroundStyle(settings) : undefined;
+  const roleAssignments = settings?.projectRoleAssignments;
   const canManage = isAdmin || isSuperAdmin;
 
-  const displayMembers = members.slice(0, 5);
-  const remainingCount = members.length - 5;
+  // Build role→member mapping
+  const roleRows = useMemo(() => {
+    if (!roleAssignments || roleAssignments.length === 0) return null;
+    const memberMap = new Map(members.map((m) => [m.userId, m.user]));
+    return roleAssignments
+      .filter((ra) => ra.userId && memberMap.has(ra.userId))
+      .map((ra) => ({
+        id: ra.id,
+        roleName: ra.roleName,
+        roleColor: ra.roleColor ?? null,
+        user: memberMap.get(ra.userId)!,
+      }));
+  }, [roleAssignments, members]);
+
+  // Progress summary from latest weekly data
+  const progressSummary = useMemo(() => {
+    if (!weeklyProgress || weeklyProgress.length === 0) return null;
+    const sorted = [...weeklyProgress].sort(
+      (a, b) => new Date(b.weekStartDate).getTime() - new Date(a.weekStartDate).getTime(),
+    );
+    const latest = sorted[0];
+    const pct =
+      latest.totalStoryPoints > 0
+        ? Math.round((latest.completedPoints / latest.totalStoryPoints) * 100)
+        : 0;
+    return {
+      completed: latest.completedPoints,
+      total: latest.totalStoryPoints,
+      pct,
+    };
+  }, [weeklyProgress]);
 
   const handleArchive = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -130,15 +161,25 @@ export function ProjectCard({
     }
   };
 
-  const cardContent = (
-    <div className="space-y-3">
-      {/* Project name + team */}
-      <div>
-        <div className="flex items-center gap-2">
-          <h3 className={cn(
-            'text-title font-semibold truncate',
-            isArchived ? 'text-text-tertiary' : 'text-text-primary group-hover:text-primary'
-          )}>
+  const displayMembers = members.slice(0, 5);
+  const remainingCount = members.length - 5;
+
+  return (
+    <div
+      className={cn(
+        'group relative rounded-lg border border-border overflow-hidden transition-colors bg-surface hover:bg-surface-raised',
+        isArchived && 'opacity-75',
+      )}
+    >
+      <Link href={`/projects/${id}`} className="block">
+        {/* Header: Project name */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+          <h3
+            className={cn(
+              'text-title font-semibold truncate flex-1',
+              isArchived ? 'text-text-tertiary' : 'text-text-primary group-hover:text-primary',
+            )}
+          >
             {name}
           </h3>
           {isArchived && (
@@ -147,82 +188,92 @@ export function ProjectCard({
             </span>
           )}
         </div>
+
+        {/* Team color bar */}
         {teamName && (
-          <div className="flex items-center gap-1.5 mt-1">
-            <div
-              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-              style={{ backgroundColor: teamColor || '#71717a' }}
-            />
-            <span className="text-caption text-text-secondary truncate">{teamName}</span>
+          <div
+            className="px-3 py-1.5 text-tiny font-semibold uppercase tracking-wide truncate"
+            style={{
+              backgroundColor: teamColor || '#71717a',
+              color: '#fff',
+            }}
+          >
+            {teamName}
           </div>
         )}
-      </div>
 
-      {/* Member avatars */}
-      <div className="flex items-center gap-2">
-        <div className="flex -space-x-2">
-          {displayMembers.map(({ user }) => (
-            <Avatar key={user.id} className="h-7 w-7 border-2 border-surface">
-              <AvatarImage src={user.image || undefined} />
-              <AvatarFallback className="text-tiny">
-                {(user.name || user.email)[0].toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {remainingCount > 0 && (
-            <div className="h-7 w-7 rounded-full border-2 border-surface bg-surface-active flex items-center justify-center text-tiny font-medium text-text-secondary">
-              +{remainingCount}
+        {/* Roles list OR avatar fallback */}
+        <div className="px-4 py-2">
+          {roleRows && roleRows.length > 0 ? (
+            <div className="space-y-1.5">
+              {roleRows.map((row) => (
+                <div key={row.id} className="flex items-center gap-2">
+                  <span
+                    className="text-[10px] font-semibold uppercase w-10 shrink-0 truncate"
+                    style={{ color: row.roleColor || '#71717a' }}
+                  >
+                    {row.roleName}
+                  </span>
+                  <Avatar className="h-5 w-5 shrink-0">
+                    <AvatarImage src={row.user.image || undefined} />
+                    <AvatarFallback className="text-[8px]">
+                      {(row.user.name || row.user.email)[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-caption text-text-secondary truncate">
+                    {row.user.name || row.user.email}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-1.5">
+                {displayMembers.map(({ user }) => (
+                  <Avatar key={user.id} className="h-6 w-6 border border-surface">
+                    <AvatarImage src={user.image || undefined} />
+                    <AvatarFallback className="text-[8px]">
+                      {(user.name || user.email)[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+                {remainingCount > 0 && (
+                  <div className="h-6 w-6 rounded-full border border-surface bg-surface-raised flex items-center justify-center text-[8px] text-text-tertiary">
+                    +{remainingCount}
+                  </div>
+                )}
+              </div>
+              <span className="text-caption text-text-tertiary">{members.length} members</span>
             </div>
           )}
         </div>
-        <span className="text-caption text-text-tertiary">
-          <Users className="h-3 w-3 inline mr-0.5" />
-          {members.length}
-        </span>
-      </div>
 
-      {/* Dates */}
-      {(startDate || lastTweak || releaseDate) && (
-        <div className="flex flex-wrap gap-2">
-          {startDate && (
-            <div className="flex items-center gap-1 text-caption text-text-tertiary">
-              <Calendar className="h-3 w-3" />
-              <span>Start: {formatDisplayDate(startDate)}</span>
+        {/* Burnup sparkline + progress */}
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <BurnupSparkline data={weeklyProgress} height={36} />
             </div>
-          )}
-          {lastTweak && (
-            <div className="text-caption text-text-tertiary">
-              Tweak: {formatDisplayDate(lastTweak)}
-            </div>
-          )}
-          {releaseDate && (
-            <div className="text-caption text-success font-medium">
-              Release: {formatDisplayDate(releaseDate)}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div
-      className={cn(
-        'group relative rounded-lg border border-border overflow-hidden transition-colors',
-        !bgStyle && 'bg-surface hover:bg-surface-raised'
-      )}
-      style={bgStyle}
-    >
-      <Link
-        href={`/projects/${id}`}
-        className={cn('block', bgStyle ? 'p-2' : 'p-4')}
-      >
-        {bgStyle ? (
-          <div className="w-1/2 rounded-md bg-surface p-3">
-            {cardContent}
+            {progressSummary && (
+              <span className="text-[10px] text-text-tertiary whitespace-nowrap shrink-0">
+                {progressSummary.completed}/{progressSummary.total} SP ({progressSummary.pct}%)
+              </span>
+            )}
           </div>
-        ) : (
-          cardContent
+        </div>
+
+        {/* Dates footer */}
+        {(startDate || releaseDate) && (
+          <div className="px-4 pb-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-text-tertiary">
+            {startDate && (
+              <span>Start: {formatDisplayDate(startDate, { month: 'short', day: 'numeric' })}</span>
+            )}
+            {releaseDate && (
+              <span className="text-success font-medium">
+                Release: {formatDisplayDate(releaseDate, { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
         )}
       </Link>
 
@@ -232,10 +283,7 @@ export function ProjectCard({
           <DropdownMenuTrigger asChild>
             <button
               onClick={(e) => e.preventDefault()}
-              className={cn(
-                'absolute rounded-md p-1.5 opacity-0 transition-opacity hover:bg-surface-hover group-hover:opacity-100 focus:opacity-100',
-                bgStyle ? 'right-3 top-3' : 'right-2 top-2'
-              )}
+              className="absolute right-2 top-2 rounded-md p-1.5 opacity-0 transition-opacity hover:bg-surface-hover group-hover:opacity-100 focus:opacity-100"
               disabled={isArchiving || isDeleting}
             >
               <MoreHorizontal className="h-4 w-4 text-text-secondary" />

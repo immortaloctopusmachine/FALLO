@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
-import type { BoardSettings } from '@/types';
+import type { BoardSettings, WeeklyProgress } from '@/types';
 
 interface ProjectListItem {
   id: string;
@@ -23,6 +23,7 @@ interface ProjectListItem {
       image: string | null;
     };
   }[];
+  weeklyProgress: WeeklyProgress[];
 }
 
 export function useProjects() {

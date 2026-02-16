@@ -277,7 +277,7 @@ export function UserDetailClient({
                       {qualitySummary.progression.slice(-6).map((point) => (
                         <div key={point.cycleId} className="flex items-center justify-between rounded-md border border-border-subtle bg-background px-2 py-2">
                           <div className="text-body text-text-primary">
-                            {point.weekStart} â€¢ Cycle #{point.cycleNumber}
+                            {point.weekStart} - Cycle #{point.cycleNumber}
                           </div>
                           <div className={cn('text-body font-medium', qualityTierClass(point.qualityTier))}>
                             {point.overallAverage !== null ? point.overallAverage.toFixed(2) : 'N/A'}
@@ -303,7 +303,7 @@ export function UserDetailClient({
                             <div className="min-w-0">
                               <div className="truncate text-body font-medium text-text-primary">{task.cardTitle}</div>
                               <div className="text-caption text-text-tertiary">
-                                {task.boardName} â€¢ {formatDisplayDate(task.finalizedAt)}
+                                {task.boardName} - {formatDisplayDate(task.finalizedAt)}
                               </div>
                             </div>
                             <div className={cn('text-body font-medium', qualityTierClass(task.qualityTier))}>

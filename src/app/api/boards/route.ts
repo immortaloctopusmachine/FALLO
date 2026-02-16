@@ -5,6 +5,7 @@ import { parseBoardArchivedOnlyAt, parseProjectArchivedAt } from '@/lib/project-
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
 import { getPhaseFromBlockType } from '@/lib/constants';
+import { ensureWeeklySnapshot } from '@/lib/weekly-progress';
 import type { BoardTemplateType, ListViewType, ListPhase, BoardSettings } from '@/types';
 
 const CORE_TEMPLATE_TASK_LISTS = BOARD_TEMPLATES.STANDARD_SLOT.taskLists;
@@ -98,6 +99,10 @@ export async function GET(request: Request) {
               },
             },
           },
+          weeklyProgress: {
+            orderBy: { weekStartDate: 'desc' },
+            take: 12,
+          },
         },
         orderBy: { name: 'asc' },
       });
@@ -108,6 +113,13 @@ export async function GET(request: Request) {
           || (Boolean(board.archivedAt) && !isBoardArchivedOnly);
         return archived ? isProjectArchived : !isProjectArchived;
       });
+
+      // Populate weekly snapshots for non-archived projects (fire-and-forget).
+      if (!archived) {
+        await Promise.allSettled(
+          filteredBoards.map((b) => ensureWeeklySnapshot(b.id))
+        );
+      }
 
       return apiSuccess(filteredBoards);
     }

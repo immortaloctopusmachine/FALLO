@@ -13,6 +13,7 @@ import {
   Boxes,
   ListOrdered,
   FileQuestion,
+  Images,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ export function SettingsSidebarNav({ isSuperAdmin }: SettingsSidebarNavProps) {
   const settingsNav = isSuperAdmin
     ? [
         ...baseSettingsNav,
+        { name: 'Uploads', href: '/settings/uploads', icon: Images },
         { name: 'Review Questions', href: '/settings/review-questions', icon: FileQuestion },
       ]
     : baseSettingsNav;

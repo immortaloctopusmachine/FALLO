@@ -140,7 +140,7 @@ export function CardModal({
   const [newLinkedStagingPlanningListId, setNewLinkedStagingPlanningListId] = useState<string>('');
   const [newLinkedReleaseTargetListId, setNewLinkedReleaseTargetListId] = useState<string>('');
   const [isCreatingLinkedCardLoading, setIsCreatingLinkedCardLoading] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [_autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [activePanelTab, setActivePanelTab] = useState<'details' | 'quality'>('details');
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);

@@ -20,5 +20,6 @@ export function useTimelineData() {
   return useQuery({
     queryKey: ['timeline'],
     queryFn: () => apiFetch<TimelineResponse>('/api/timeline'),
+    retry: false,
   });
 }

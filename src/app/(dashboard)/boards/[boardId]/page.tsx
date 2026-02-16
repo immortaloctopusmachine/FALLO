@@ -15,7 +15,12 @@ export default async function BoardPage({ params }: BoardPageProps) {
     redirect('/login');
   }
 
-  const canViewQualitySummaries = await getCanViewQualitySummaries(session.user.id);
+  let canViewQualitySummaries = false;
+  try {
+    canViewQualitySummaries = await getCanViewQualitySummaries(session.user.id);
+  } catch (error) {
+    console.error('Failed to determine quality summary access:', error);
+  }
 
   return (
     <BoardDetailClient

@@ -89,6 +89,7 @@ export function useUsersPageData() {
   return useQuery({
     queryKey: ['users', 'page'],
     queryFn: () => apiFetch<UsersPageData>('/api/users?include=metadata'),
+    retry: false,
   });
 }
 
@@ -97,5 +98,6 @@ export function useUserDetail(userId: string) {
     queryKey: ['users', userId, 'detail'],
     queryFn: () => apiFetch<UserDetailPageData>(`/api/users/${userId}?include=metadata`),
     enabled: !!userId,
+    retry: false,
   });
 }

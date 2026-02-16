@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { Plus } from 'lucide-react';
 import { BoardCard } from '@/components/boards/BoardCard';
 import { ArchivedBoardsSection } from '@/components/boards/ArchivedBoardsSection';
 import { BoardsSkeleton } from '@/components/boards/BoardsSkeleton';
@@ -13,7 +11,7 @@ interface BoardsPageClientProps {
   currentUserId: string;
 }
 
-export function BoardsPageClient({ isAdmin, isSuperAdmin = false, currentUserId }: BoardsPageClientProps) {
+export function BoardsPageClient({ isAdmin: _isAdmin, isSuperAdmin = false, currentUserId }: BoardsPageClientProps) {
   const { data: boards, isLoading } = useBoards();
   const { data: archivedBoardsRaw, refetch: refetchArchived } = useArchivedBoards();
 
@@ -46,19 +44,10 @@ export function BoardsPageClient({ isAdmin, isSuperAdmin = false, currentUserId 
   return (
     <main className="p-6 flex-1">
       {/* Regular Boards Section */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6">
         <h2 className="text-title font-medium text-text-secondary">
           Your Boards ({regularBoards.length})
         </h2>
-        {isAdmin && (
-          <Link
-            href="/timeline?create=true"
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-body font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            Create Project
-          </Link>
-        )}
       </div>
 
       {regularBoards.length === 0 ? (

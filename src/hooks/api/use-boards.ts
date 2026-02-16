@@ -72,6 +72,7 @@ export function useBoard(boardId: string, scope: BoardScope = 'light', enabled =
     queryKey: ['boards', boardId, scope],
     queryFn: () => apiFetch<Record<string, unknown>>(`/api/boards/${boardId}?scope=${scope}`),
     enabled: !!boardId && enabled,
+    retry: false,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
