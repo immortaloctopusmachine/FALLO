@@ -2,8 +2,12 @@
 
 // ============== STATUS TYPES ==============
 
-export type SkeletonStatus = 'planned' | 'in_progress' | 'exported' | 'implemented';
-export type AnimationStatus = SkeletonStatus | 'not_as_intended';
+export type SkeletonStatus =
+  | 'planned'
+  | 'ready_to_be_implemented'
+  | 'implemented'
+  | 'not_as_intended';
+export type AnimationStatus = SkeletonStatus;
 export type SoundFxTrigger = 'spine_event' | 'code_trigger' | 'timeline';
 
 // ============== DATA TYPES ==============
@@ -47,11 +51,15 @@ export interface Skeleton {
   status: SkeletonStatus;
   zOrder: number;
   group: string;
+  isGeneric?: boolean;
   description: string;
   placement: SkeletonPlacement;
+  targetBone?: string;
   animations: Animation[];
   skins: Skin[];
   events: SpineEvent[];
+  previewImageDataUrl?: string | null;
+  connectedTasks?: string[];
   generalNotes: string;
   isLayoutTemplate?: boolean;
 }
@@ -110,3 +118,31 @@ export interface ChangelogResult {
 // ============== SAVE STATUS ==============
 
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'conflict' | 'loading';
+
+// ============== DEFAULT MODULES ==============
+
+export interface SpineSkeletonModule {
+  id: string;
+  skeletonName: string;
+  group: string;
+  status: SkeletonStatus;
+  zOrder: number;
+  description: string | null;
+  placementParent: string | null;
+  placementBone: string | null;
+  placementNotes: string | null;
+  generalNotes: string | null;
+  animations: Animation[];
+  skins: Skin[];
+  events: SpineEvent[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpineDiscoveredAsset {
+  name: string;
+  animations: Animation[];
+  skins: Skin[];
+  events: SpineEvent[];
+  previewImageDataUrl: string | null;
+}

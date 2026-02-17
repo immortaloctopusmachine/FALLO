@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Archive } from 'lucide-react';
 import { BoardCard } from './BoardCard';
+import type { BoardSettings } from '@/types';
 
 interface ArchivedBoard {
   id: string;
@@ -13,6 +14,7 @@ interface ArchivedBoard {
   members: { id: string; name: string | null; image: string | null }[];
   isTemplate: boolean;
   isAdmin: boolean;
+  settings?: BoardSettings;
 }
 
 interface ArchivedBoardsSectionProps {
@@ -60,6 +62,7 @@ export function ArchivedBoardsSection({ boards, isSuperAdmin = false, onBoardDel
                 isAdmin={board.isAdmin}
                 isSuperAdmin={isSuperAdmin}
                 isArchived={true}
+                settings={board.settings}
                 onDeleted={onBoardDeleted}
               />
             ))}

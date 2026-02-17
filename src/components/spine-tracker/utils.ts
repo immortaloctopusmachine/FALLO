@@ -43,7 +43,7 @@ export function getGroupForSkeleton(name: string): string {
     upper.includes('FLASH') ||
     upper.includes('SHIELD')
   )
-    return 'effects';
+    return 'other';
   if (
     upper.includes('SCREEN') ||
     upper.includes('LOADING') ||
@@ -66,7 +66,9 @@ export function parsePlacement(placementStr: string | null): SkeletonPlacement {
   if (placementStr === 'dynamic') {
     return { parent: null, bone: null, notes: 'Dynamic placement' };
   }
-  const parts = placementStr.split('→');
+  const parts = placementStr.includes('->')
+    ? placementStr.split('->')
+    : placementStr.split('→');
   if (parts.length === 2) {
     return { parent: parts[0].trim(), bone: parts[1].trim(), notes: '' };
   }
@@ -83,11 +85,15 @@ export function createSkeleton(overrides: Partial<Skeleton> = {}): Skeleton {
     status: 'planned',
     zOrder: 100,
     group: 'other',
+    isGeneric: false,
     description: '',
-    placement: { parent: 'LAYOUT_TEMPLATE', bone: null, notes: '' },
+    placement: { parent: null, bone: null, notes: '' },
+    targetBone: '',
     animations: [{ name: 'idle', status: 'planned', track: 0, notes: '', soundFx: [] }],
     skins: [],
     events: [],
+    previewImageDataUrl: null,
+    connectedTasks: [],
     generalNotes: '',
     ...overrides,
   };
@@ -110,7 +116,7 @@ export function createEmptyState(projectName: string = 'Untitled Project'): Spin
   return {
     skeletons: [],
     customGroups: {},
-    groupOrder: ['symbols', 'ui', 'characters', 'effects', 'screens', 'layout', 'other'],
+    groupOrder: ['symbols', 'ui', 'characters', 'screens', 'layout', 'other'],
     projectName,
     baseline: null,
   };
@@ -231,7 +237,7 @@ export function exportAsMarkdown(state: SpineTrackerState): string {
   const sorted = [...state.skeletons].sort((a, b) => a.zOrder - b.zOrder);
   sorted.forEach((s) => {
     const placement = s.placement.parent
-      ? `${s.placement.parent}→${s.placement.bone || '?'}`
+      ? `${s.placement.parent}->${s.placement.bone || '?'}`
       : 'standalone';
     md += `| ${s.name} | \`${s.status}\` | ${s.zOrder} | ${placement} | ${s.description || '-'} |\n`;
   });
@@ -242,7 +248,7 @@ export function exportAsMarkdown(state: SpineTrackerState): string {
     md += `**Status**: \`${s.status}\`\n**Z-Order**: ${s.zOrder}\n\n`;
     md += `**Description**: ${s.description || '-'}\n\n`;
     md += `**Placement**:\n| Property | Value |\n|----------|-------|\n`;
-    md += `| Parent Skeleton | ${s.placement.parent || 'none (standalone)'} |\n`;
+    md += `| Skeleton | ${s.placement.parent || 'none (standalone)'} |\n`;
     md += `| Target Bone | ${s.placement.bone || 'none'} |\n`;
     md += `| Notes | ${s.placement.notes || '-'} |\n\n`;
 
@@ -348,8 +354,10 @@ export function normalizeImportData(data: SpineTrackerState): SpineTrackerState 
       status: s.status || 'planned',
       zOrder: s.zOrder ?? 100,
       group: s.group || getGroupForSkeleton(s.name || ''),
+      isGeneric: s.isGeneric || false,
       description: s.description || '',
       placement: s.placement || { parent: null, bone: null, notes: '' },
+      targetBone: s.targetBone || '',
       animations: (s.animations || []).map((a) => ({
         name: a.name || 'unnamed',
         status: a.status || 'planned',
@@ -372,19 +380,24 @@ export function normalizeImportData(data: SpineTrackerState): SpineTrackerState 
         animation: e.animation || '',
         notes: e.notes || '',
       })),
+      previewImageDataUrl: s.previewImageDataUrl || null,
+      connectedTasks: Array.isArray(s.connectedTasks)
+        ? s.connectedTasks
+            .map((taskName) => (typeof taskName === 'string' ? taskName.trim() : ''))
+            .filter(Boolean)
+        : [],
       generalNotes: s.generalNotes || '',
       isLayoutTemplate: s.isLayoutTemplate || s.name === 'LAYOUT_TEMPLATE',
     })),
     customGroups: data.customGroups || {},
-    groupOrder: data.groupOrder || [
+    groupOrder: (data.groupOrder || [
       'symbols',
       'ui',
       'characters',
-      'effects',
       'screens',
       'layout',
       'other',
-    ],
+    ]).filter((groupId) => groupId !== 'effects'),
     projectName: data.projectName || 'Untitled Project',
     baseline: data.baseline || null,
   };

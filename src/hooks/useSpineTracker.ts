@@ -7,6 +7,9 @@ import type {
   SoundFx,
   Skin,
   SpineEvent,
+  SkeletonStatus,
+  SpineDiscoveredAsset,
+  SpineSkeletonModule,
   SpineTrackerState,
   SaveStatus,
 } from '@/types/spine-tracker';
@@ -14,6 +17,7 @@ import {
   createEmptyState,
   createSkeleton,
   createAnimation,
+  getGroupForSkeleton,
   generateChangelog,
   exportAsMarkdown,
   exportChangelogAsMarkdown,
@@ -21,8 +25,72 @@ import {
 
 const AUTO_SAVE_DELAY = 1500; // ms
 
+function mapLegacyStatus(value: string | undefined): SkeletonStatus {
+  if (value === 'in_progress' || value === 'exported') {
+    return 'ready_to_be_implemented';
+  }
+  if (value === 'planned' || value === 'ready_to_be_implemented' || value === 'implemented' || value === 'not_as_intended') {
+    return value;
+  }
+  return 'planned';
+}
+
+function normalizeLoadedState(state: SpineTrackerState): SpineTrackerState {
+  const normalizedGroupOrder = Array.from(
+    new Set(
+      [...(state.groupOrder || []), 'symbols', 'ui', 'characters', 'screens', 'layout', 'other']
+    )
+  ).filter((groupId) => groupId !== 'effects');
+
+  const normalizedSkeletons = (state.skeletons || []).map((skeleton) => {
+    const group = skeleton.group === 'effects' ? 'other' : (skeleton.group || 'other');
+    return {
+      ...skeleton,
+      group,
+      status: mapLegacyStatus(skeleton.status),
+      isGeneric: skeleton.isGeneric || false,
+      targetBone: skeleton.targetBone || '',
+      connectedTasks: Array.isArray(skeleton.connectedTasks)
+        ? skeleton.connectedTasks
+            .map((taskName) => (typeof taskName === 'string' ? taskName.trim() : ''))
+            .filter(Boolean)
+        : [],
+      placement: {
+        parent: skeleton.placement?.parent || null,
+        bone: skeleton.placement?.bone || null,
+        notes: skeleton.placement?.notes || '',
+      },
+      animations: (skeleton.animations || []).map((animation) => ({
+        ...animation,
+        status: mapLegacyStatus(animation.status as string),
+      })),
+      skins: (skeleton.skins || []).map((skin) => ({
+        ...skin,
+        status: mapLegacyStatus(skin.status as string),
+      })),
+      events: (skeleton.events || []).map((eventItem) => ({
+        ...eventItem,
+        notes: eventItem.notes || '',
+      })),
+    };
+  });
+
+  return {
+    ...state,
+    skeletons: normalizedSkeletons,
+    customGroups: state.customGroups || {},
+    groupOrder: normalizedGroupOrder,
+  };
+}
+
 interface UseSpineTrackerOptions {
   boardId: string;
+}
+
+interface SpineTaskOption {
+  id: string;
+  title: string;
+  listName: string;
 }
 
 export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
@@ -33,6 +101,11 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
   const [editMode, setEditMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [spineModules, setSpineModules] = useState<SpineSkeletonModule[]>([]);
+  const [availableTaskOptions, setAvailableTaskOptions] = useState<SpineTaskOption[]>([]);
+  const [finalAssetsPath, setFinalAssetsPath] = useState<string | null>(null);
+  const [isUpdatingFinalAssetsPath, setIsUpdatingFinalAssetsPath] = useState(false);
+  const [showGenericSkeletons, setShowGenericSkeletons] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
@@ -44,13 +117,43 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
 
   // ============== API COMMUNICATION ==============
 
+  const fetchSpineMeta = useCallback(async () => {
+    try {
+      const [settingsRes, modulesRes, tasksRes] = await Promise.all([
+        fetch(`/api/me/spine-settings?boardId=${encodeURIComponent(boardId)}`),
+        fetch('/api/settings/spine-modules'),
+        fetch(`/api/boards/${boardId}/spine-tracker/tasks`),
+      ]);
+
+      const [settingsJson, modulesJson, tasksJson] = await Promise.all([
+        settingsRes.json(),
+        modulesRes.json(),
+        tasksRes.json(),
+      ]);
+
+      if (settingsJson.success) {
+        setFinalAssetsPath(settingsJson.data?.finalAssetsPath ?? null);
+      }
+
+      if (modulesJson.success) {
+        setSpineModules(modulesJson.data as SpineSkeletonModule[]);
+      }
+
+      if (tasksJson.success) {
+        setAvailableTaskOptions(tasksJson.data as SpineTaskOption[]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Spine metadata:', error);
+    }
+  }, [boardId]);
+
   const fetchData = useCallback(async () => {
     setSaveStatus('loading');
     try {
       const res = await fetch(`/api/boards/${boardId}/spine-tracker`);
       const json = await res.json();
       if (json.success) {
-        const data = json.data.data as SpineTrackerState;
+        const data = normalizeLoadedState(json.data.data as SpineTrackerState);
         setState(data);
         setVersion(json.data.version);
         setSaveStatus('saved');
@@ -103,10 +206,11 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
   // Load data on mount
   useEffect(() => {
     fetchData();
+    fetchSpineMeta();
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [fetchData]);
+  }, [fetchData, fetchSpineMeta]);
 
   // ============== STATE UPDATERS ==============
 
@@ -402,16 +506,101 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
     [updateState]
   );
 
-  const deleteGroup = useCallback(
-    (groupId: string) => {
+  const addCustomGroup = useCallback(
+    (label: string) => {
+      const trimmedLabel = label.trim();
+      if (!trimmedLabel) return null;
+
+      const baseId = trimmedLabel
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'group';
+
+      let createdGroupId: string | null = null;
+
+      updateState((prev) => {
+        const existingIds = new Set(prev.groupOrder);
+        let nextId = baseId;
+        let suffix = 2;
+        while (existingIds.has(nextId)) {
+          nextId = `${baseId}_${suffix}`;
+          suffix += 1;
+        }
+
+        createdGroupId = nextId;
+
+        return {
+          ...prev,
+          groupOrder: [...prev.groupOrder, nextId],
+          customGroups: {
+            ...prev.customGroups,
+            [nextId]: trimmedLabel,
+          },
+        };
+      });
+
+      if (createdGroupId) {
+        setCollapsedGroups((prev) => {
+          const next = new Set(prev);
+          next.delete(createdGroupId!);
+          return next;
+        });
+      }
+
+      return createdGroupId;
+    },
+    [updateState]
+  );
+
+  const moveSkeletonToGroup = useCallback(
+    (skeletonId: string, groupId: string) => {
       updateState((prev) => ({
         ...prev,
-        skeletons: prev.skeletons.map((s) => (s.group === groupId ? { ...s, group: 'other' } : s)),
-        groupOrder: prev.groupOrder.filter((id) => id !== groupId),
-        customGroups: Object.fromEntries(
-          Object.entries(prev.customGroups).filter(([key]) => key !== groupId)
+        skeletons: prev.skeletons.map((skeleton) =>
+          skeleton.id === skeletonId ? { ...skeleton, group: groupId } : skeleton
         ),
       }));
+    },
+    [updateState]
+  );
+
+  const deleteGroup = useCallback(
+    (groupId: string) => {
+      if (groupId === 'other') return;
+
+      let movedCount = 0;
+      let didDelete = false;
+
+      updateState((prev) => {
+        if (!prev.customGroups[groupId]) {
+          return prev;
+        }
+
+        const nextSkeletons = prev.skeletons.map((skeleton) => {
+          if (skeleton.group !== groupId) return skeleton;
+          movedCount += 1;
+          return { ...skeleton, group: 'other' };
+        });
+
+        didDelete = true;
+
+        return {
+          ...prev,
+          skeletons: nextSkeletons,
+          groupOrder: prev.groupOrder.filter((id) => id !== groupId),
+          customGroups: Object.fromEntries(
+            Object.entries(prev.customGroups).filter(([key]) => key !== groupId)
+          ),
+        };
+      });
+
+      if (didDelete && movedCount > 0) {
+        setCollapsedGroups((prev) => {
+          const next = new Set(prev);
+          next.delete('other');
+          return next;
+        });
+      }
     },
     [updateState]
   );
@@ -448,6 +637,234 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
   );
 
   const selectedSkeleton = state.skeletons.find((s) => s.id === selectedSkeletonId) || null;
+
+  const buildSkeletonFromModule = useCallback(
+    (asset: SpineDiscoveredAsset, module?: SpineSkeletonModule): Skeleton => {
+      const name = asset.name;
+      if (!module) {
+        const overrides: Partial<Skeleton> = {
+          name,
+          group: getGroupForSkeleton(name),
+          skins: asset.skins,
+          events: asset.events,
+          previewImageDataUrl: asset.previewImageDataUrl,
+        };
+
+        if (asset.animations.length > 0) {
+          overrides.animations = asset.animations;
+        }
+
+        return createSkeleton(overrides);
+      }
+
+      const fallback = createSkeleton({
+        name,
+        group: module.group || getGroupForSkeleton(name),
+      });
+
+      return {
+        ...fallback,
+        status: module.status,
+        zOrder: module.zOrder,
+        description: module.description || '',
+        placement: {
+          parent: module.placementParent,
+          bone: module.placementBone,
+          notes: module.placementNotes || '',
+        },
+        animations:
+          asset.animations.length > 0
+            ? asset.animations
+            : module.animations.length > 0
+              ? module.animations
+              : fallback.animations,
+        skins: asset.skins.length > 0 ? asset.skins : module.skins,
+        events: asset.events.length > 0 ? asset.events : module.events,
+        previewImageDataUrl: asset.previewImageDataUrl,
+        generalNotes: module.generalNotes || '',
+      };
+    },
+    []
+  );
+
+  const mergeAnimationsForExistingSkeleton = useCallback(
+    (existingAnimations: Animation[], discoveredAnimations: Animation[]) => {
+      const discoveredMap = new Map(
+        discoveredAnimations.map((animation) => [animation.name.toUpperCase(), animation])
+      );
+
+      const mergedExisting = existingAnimations.map((animation) => {
+        const discovered = discoveredMap.get(animation.name.toUpperCase());
+        if (!discovered) return animation;
+        return {
+          ...animation,
+          track: discovered.track,
+        };
+      });
+
+      const existingNames = new Set(mergedExisting.map((animation) => animation.name.toUpperCase()));
+      const appended = discoveredAnimations.filter(
+        (animation) => !existingNames.has(animation.name.toUpperCase())
+      );
+
+      return [...mergedExisting, ...appended];
+    },
+    []
+  );
+
+  const mergeSkinsForExistingSkeleton = useCallback(
+    (existingSkins: Skin[], discoveredSkins: Skin[]) => {
+      const existingMap = new Map(
+        existingSkins.map((skin) => [skin.name.toUpperCase(), skin])
+      );
+      const discoveredNames = new Set(discoveredSkins.map((skin) => skin.name.toUpperCase()));
+
+      const merged = discoveredSkins.map((skin) => {
+        const existing = existingMap.get(skin.name.toUpperCase());
+        if (!existing) return skin;
+        return {
+          ...skin,
+          status: existing.status,
+          notes: existing.notes,
+        };
+      });
+
+      const extras = existingSkins.filter((skin) => !discoveredNames.has(skin.name.toUpperCase()));
+      return [...merged, ...extras];
+    },
+    []
+  );
+
+  const mergeEventsForExistingSkeleton = useCallback(
+    (existingEvents: SpineEvent[], discoveredEvents: SpineEvent[]) => {
+      const existingMap = new Map(
+        existingEvents.map((eventItem) => [
+          `${eventItem.animation.toUpperCase()}::${eventItem.name.toUpperCase()}`,
+          eventItem,
+        ])
+      );
+
+      const discoveredKeys = new Set<string>();
+      const merged = discoveredEvents.map((eventItem) => {
+        const key = `${eventItem.animation.toUpperCase()}::${eventItem.name.toUpperCase()}`;
+        discoveredKeys.add(key);
+        const existing = existingMap.get(key);
+        if (!existing) return eventItem;
+        return {
+          ...eventItem,
+          notes: existing.notes || eventItem.notes,
+        };
+      });
+
+      const extras = existingEvents.filter((eventItem) => {
+        const key = `${eventItem.animation.toUpperCase()}::${eventItem.name.toUpperCase()}`;
+        return !discoveredKeys.has(key);
+      });
+
+      return [...merged, ...extras];
+    },
+    []
+  );
+
+  const mergeExistingSkeletonWithDiscoveredAsset = useCallback(
+    (existingSkeleton: Skeleton, asset: SpineDiscoveredAsset): Skeleton => {
+      const mergedAnimations = mergeAnimationsForExistingSkeleton(
+        existingSkeleton.animations,
+        asset.animations
+      );
+      const mergedSkins = mergeSkinsForExistingSkeleton(existingSkeleton.skins, asset.skins);
+      const mergedEvents = mergeEventsForExistingSkeleton(existingSkeleton.events, asset.events);
+
+      return {
+        ...existingSkeleton,
+        animations: mergedAnimations,
+        skins: mergedSkins,
+        events: mergedEvents,
+        previewImageDataUrl: asset.previewImageDataUrl || existingSkeleton.previewImageDataUrl || null,
+      };
+    },
+    [mergeAnimationsForExistingSkeleton, mergeEventsForExistingSkeleton, mergeSkinsForExistingSkeleton]
+  );
+
+  const addSkeletonsFromDiscoveredAssets = useCallback(
+    (assets: SpineDiscoveredAsset[]) => {
+      const normalizedAssets: SpineDiscoveredAsset[] = [];
+      const seenNames = new Set<string>();
+
+      for (const asset of assets) {
+        const normalizedName = asset.name
+          .trim()
+          .replace(/\.(json|png)$/i, '')
+          .toUpperCase();
+        if (!normalizedName || seenNames.has(normalizedName)) continue;
+        seenNames.add(normalizedName);
+        normalizedAssets.push({
+          ...asset,
+          name: normalizedName,
+        });
+      }
+
+      const moduleMap = new Map(
+        spineModules.map((module) => [module.skeletonName.toUpperCase(), module])
+      );
+
+      let firstAddedSkeletonId: string | null = null;
+      let addedCount = 0;
+      let updatedCount = 0;
+      let conflictCount = 0;
+      let hasChanges = false;
+
+      updateState((prev) => {
+        const nextSkeletons = [...prev.skeletons];
+        const skeletonIndexByName = new Map(
+          nextSkeletons.map((skeleton, index) => [skeleton.name.toUpperCase(), index])
+        );
+
+        for (const asset of normalizedAssets) {
+          const name = asset.name;
+          const existingIndex = skeletonIndexByName.get(name);
+
+          if (existingIndex !== undefined) {
+            conflictCount += 1;
+            const existingSkeleton = nextSkeletons[existingIndex];
+            nextSkeletons[existingIndex] = mergeExistingSkeletonWithDiscoveredAsset(
+              existingSkeleton,
+              asset
+            );
+            updatedCount += 1;
+            hasChanges = true;
+            continue;
+          }
+
+          const matchedModule = moduleMap.get(name);
+          const newSkeleton = buildSkeletonFromModule(asset, matchedModule);
+          nextSkeletons.push(newSkeleton);
+          skeletonIndexByName.set(name, nextSkeletons.length - 1);
+          if (!firstAddedSkeletonId) firstAddedSkeletonId = newSkeleton.id;
+          addedCount += 1;
+          hasChanges = true;
+        }
+
+        if (!hasChanges) return prev;
+
+        return {
+          ...prev,
+          skeletons: nextSkeletons,
+        };
+      });
+
+      if (firstAddedSkeletonId) {
+        setSelectedSkeletonId(firstAddedSkeletonId);
+      }
+
+      return {
+        addedCount,
+        updatedCount,
+        conflictCount,
+      };
+    },
+    [buildSkeletonFromModule, mergeExistingSkeletonWithDiscoveredAsset, spineModules, updateState]
+  );
 
   // ============== IMPORT / EXPORT ==============
 
@@ -539,6 +956,38 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
     [updateState]
   );
 
+  const updateFinalAssetsPath = useCallback(async (path: string | null) => {
+    setIsUpdatingFinalAssetsPath(true);
+    try {
+      const response = await fetch(`/api/me/spine-settings?boardId=${encodeURIComponent(boardId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ finalAssetsPath: path }),
+      });
+      const payload = await response.json();
+
+      if (!payload.success) {
+        return {
+          success: false as const,
+          error: payload.error?.message || 'Failed to update Final Assets path',
+        };
+      }
+
+      setFinalAssetsPath(payload.data?.finalAssetsPath ?? null);
+      return {
+        success: true as const,
+      };
+    } catch (error) {
+      console.error('Failed to update Final Assets path:', error);
+      return {
+        success: false as const,
+        error: 'Failed to update Final Assets path',
+      };
+    } finally {
+      setIsUpdatingFinalAssetsPath(false);
+    }
+  }, [boardId]);
+
   return {
     // State
     state,
@@ -550,11 +999,18 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
     searchQuery,
     collapsedGroups,
     changelog,
+    spineModules,
+    availableTaskOptions,
+    finalAssetsPath,
+    isUpdatingFinalAssetsPath,
+    showGenericSkeletons,
 
     // Setters
     setEditMode,
     setSearchQuery,
     setProjectName,
+    updateFinalAssetsPath,
+    setShowGenericSkeletons,
 
     // Skeleton ops
     addSkeleton,
@@ -562,6 +1018,7 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
     deleteSkeleton,
     duplicateSkeleton,
     selectSkeleton,
+    addSkeletonsFromDiscoveredAssets,
 
     // Animation ops
     addAnimation,
@@ -586,6 +1043,8 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
     // Group ops
     toggleGroupCollapse,
     setGroupOrder,
+    addCustomGroup,
+    moveSkeletonToGroup,
     deleteGroup,
 
     // Baseline / changelog

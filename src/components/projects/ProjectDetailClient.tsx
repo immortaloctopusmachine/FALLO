@@ -56,8 +56,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
+import { getProjectDisplayName } from '@/lib/project-utils';
 import type { BoardSettings } from '@/types';
 import type { LucideIcon } from 'lucide-react';
 
@@ -261,6 +268,8 @@ interface IterationDistributionMetrics {
 
 const DEFAULT_ROLE_NAMES = ['MATH', 'PO', 'LEAD', 'DEV', 'ARTIST', 'ANIMATOR', 'QA'];
 const DEFAULT_EVENT_ORDER = ['Release', 'Client', 'Server', 'GSD'];
+const LS_KEY_DISMISS_ROLES_INFO = 'fallo:dismiss-roles-info';
+const LS_KEY_DISMISS_DATES_INFO = 'fallo:dismiss-dates-info';
 
 // ---------------------------------------------------------------------------
 // Small sub-components
@@ -456,6 +465,15 @@ export function ProjectDetailClient({
   // ---- Optimistic events (shown instantly before API response) ----
   const [optimisticEvents, setOptimisticEvents] = useState<TimelineEventData[]>([]);
 
+  // ---- Production title inline-edit state ----
+  const [isEditingProductionTitle, setIsEditingProductionTitle] = useState(false);
+  const [productionTitleDraft, setProductionTitleDraft] = useState(board.settings.productionTitle || '');
+  const [isSavingProductionTitle, setIsSavingProductionTitle] = useState(false);
+
+  // ---- Dismissible info boxes (localStorage-backed) ----
+  const [rolesInfoDismissed, setRolesInfoDismissed] = useState(true);
+  const [datesInfoDismissed, setDatesInfoDismissed] = useState(true);
+
   // ---- Archive / Delete state ----
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -476,6 +494,17 @@ export function ProjectDetailClient({
     for (const m of members) map[m.user.id] = m.user;
     return map;
   }, [members]);
+
+  // Build userId → role name(s) lookup from project role assignments
+  const userRoleMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const a of board.settings.projectRoleAssignments || []) {
+      if (a.userId && a.roleName) {
+        map[a.userId] = map[a.userId] ? `${map[a.userId]}, ${a.roleName}` : a.roleName;
+      }
+    }
+    return map;
+  }, [board.settings.projectRoleAssignments]);
 
   // ---- Stats ----
   const stats = useMemo(() => {
@@ -831,6 +860,12 @@ export function ProjectDetailClient({
     if (isAdmin) fetchUsers();
   }, [isAdmin]);
 
+  // Read info box dismiss state from localStorage
+  useEffect(() => {
+    setRolesInfoDismissed(localStorage.getItem(LS_KEY_DISMISS_ROLES_INFO) === 'true');
+    setDatesInfoDismissed(localStorage.getItem(LS_KEY_DISMISS_DATES_INFO) === 'true');
+  }, []);
+
   useEffect(() => {
     if (!isAdmin) return;
     let cancelled = false;
@@ -1099,6 +1134,32 @@ export function ProjectDetailClient({
     }
   };
 
+  const handleSaveProductionTitle = async () => {
+    setIsSavingProductionTitle(true);
+    try {
+      const updatedSettings: BoardSettings = {
+        ...board.settings,
+        productionTitle: productionTitleDraft.trim() || undefined,
+      };
+      const response = await fetch(`/api/boards/${board.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: updatedSettings }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setIsEditingProductionTitle(false);
+        queryClient.invalidateQueries({ queryKey: ['boards', board.id, 'project'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        router.refresh();
+      }
+    } catch (err) {
+      console.error('Failed to save production title:', err);
+    } finally {
+      setIsSavingProductionTitle(false);
+    }
+  };
+
   // ---- Project role handlers ----
 
   const handleRoleRowChange = (
@@ -1333,7 +1394,7 @@ export function ProjectDetailClient({
         <div className="absolute inset-0 bg-black/20" />
         <div className="relative z-10 flex items-end justify-between h-full p-6">
           <h1 className="text-2xl font-bold text-white drop-shadow-md">
-            {board.name}
+            {getProjectDisplayName(board.name, board.settings)}
           </h1>
           <div className="flex items-center gap-2">
             <Link href={`/boards/${board.id}`}>
@@ -1382,6 +1443,78 @@ export function ProjectDetailClient({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ================================================================= */}
+      {/* SECTION 1b — Title Sub-header                                     */}
+      {/* ================================================================= */}
+      <div className="border-b border-border bg-surface px-6 py-2">
+        <div className="flex items-center gap-6 max-w-6xl text-body">
+          <div className="flex items-center gap-2">
+            <span className="text-text-tertiary text-caption">Working Title:</span>
+            <span className="text-text-primary font-medium">{board.name}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-text-tertiary text-caption">Production Title:</span>
+            {isEditingProductionTitle ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={productionTitleDraft}
+                  onChange={(e) => setProductionTitleDraft(e.target.value)}
+                  className="h-7 w-48 rounded-md border border-input bg-background px-2 text-body shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Enter production title..."
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveProductionTitle();
+                    if (e.key === 'Escape') {
+                      setIsEditingProductionTitle(false);
+                      setProductionTitleDraft(board.settings.productionTitle || '');
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={handleSaveProductionTitle}
+                  disabled={isSavingProductionTitle}
+                >
+                  {isSavingProductionTitle ? '...' : <Check className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => {
+                    setIsEditingProductionTitle(false);
+                    setProductionTitleDraft(board.settings.productionTitle || '');
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : board.settings.productionTitle ? (
+              <span
+                className={cn(
+                  'text-text-primary font-medium',
+                  isAdmin && 'cursor-pointer hover:underline'
+                )}
+                onClick={() => isAdmin && setIsEditingProductionTitle(true)}
+              >
+                {board.settings.productionTitle}
+              </span>
+            ) : isAdmin ? (
+              <button
+                onClick={() => setIsEditingProductionTitle(true)}
+                className="text-text-tertiary text-caption hover:text-text-secondary hover:underline transition-colors"
+              >
+                Not set (click to add)
+              </button>
+            ) : (
+              <span className="text-text-tertiary italic">Not set</span>
             )}
           </div>
         </div>
@@ -1503,34 +1636,46 @@ export function ProjectDetailClient({
 
           {/* Member avatars + add */}
           <div className="flex items-center gap-1.5 relative">
-            <div className="flex -space-x-1.5">
-              {members.slice(0, 10).map(member => (
-                <Avatar
-                  key={member.id}
-                  className="h-7 w-7 border-2 border-surface cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow"
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMemberContextMenu({
-                      memberId: member.id,
-                      userId: member.user.id,
-                      userName: member.user.name || member.user.email,
-                      x: e.clientX,
-                      y: e.clientY,
-                    });
-                  }}
-                >
-                  <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback className="text-tiny">
-                    {(member.user.name || member.user.email)[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-              {members.length > 10 && (
-                <div className="h-7 w-7 rounded-full border-2 border-surface bg-surface-active flex items-center justify-center text-tiny font-medium text-text-secondary">
-                  +{members.length - 10}
-                </div>
-              )}
-            </div>
+            <TooltipProvider delayDuration={200}>
+              <div className="flex -space-x-1.5">
+                {members.slice(0, 10).map(member => {
+                  const roleName = userRoleMap[member.user.id];
+                  const tooltipLabel = `${member.user.name || member.user.email}${roleName ? ` — ${roleName}` : ' — Observer'}`;
+                  return (
+                    <Tooltip key={member.id}>
+                      <TooltipTrigger asChild>
+                        <Avatar
+                          className="h-7 w-7 border-2 border-surface cursor-pointer hover:ring-2 hover:ring-primary/30 transition-shadow"
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setMemberContextMenu({
+                              memberId: member.id,
+                              userId: member.user.id,
+                              userName: member.user.name || member.user.email,
+                              x: e.clientX,
+                              y: e.clientY,
+                            });
+                          }}
+                        >
+                          <AvatarImage src={member.user.image || undefined} />
+                          <AvatarFallback className="text-tiny">
+                            {(member.user.name || member.user.email)[0].toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {tooltipLabel}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+                {members.length > 10 && (
+                  <div className="h-7 w-7 rounded-full border-2 border-surface bg-surface-active flex items-center justify-center text-tiny font-medium text-text-secondary">
+                    +{members.length - 10}
+                  </div>
+                )}
+              </div>
+            </TooltipProvider>
 
             {/* Member context menu */}
             {memberContextMenu && (
@@ -1620,6 +1765,23 @@ export function ProjectDetailClient({
                 <Users className="h-4 w-4 text-text-secondary" />
                 <h2 className="text-title font-medium text-text-secondary">Project Roles</h2>
               </div>
+
+              {isAdmin && !rolesInfoDismissed && (
+                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 px-3 py-2">
+                  <span className="text-caption text-blue-700 dark:text-blue-300 flex-1">
+                    Not all members need a project role. Members without a role are considered <strong>observers</strong> by default and can still view the board.
+                  </span>
+                  <button
+                    onClick={() => {
+                      setRolesInfoDismissed(true);
+                      localStorage.setItem(LS_KEY_DISMISS_ROLES_INFO, 'true');
+                    }}
+                    className="p-0.5 rounded text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 flex-shrink-0"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
 
               <div className="rounded-lg border border-border overflow-hidden">
                 <table className="w-full text-sm">
@@ -1899,6 +2061,23 @@ export function ProjectDetailClient({
                 <Calendar className="h-4 w-4 text-text-secondary" />
                 <h2 className="text-title font-medium text-text-secondary">Dates</h2>
               </div>
+
+              {isAdmin && !datesInfoDismissed && (
+                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 px-3 py-2">
+                  <span className="text-caption text-blue-700 dark:text-blue-300 flex-1">
+                    Project dates can be set here or managed from the <strong>Timeline</strong> view. Changes sync automatically.
+                  </span>
+                  <button
+                    onClick={() => {
+                      setDatesInfoDismissed(true);
+                      localStorage.setItem(LS_KEY_DISMISS_DATES_INFO, 'true');
+                    }}
+                    className="p-0.5 rounded text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 flex-shrink-0"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
 
               <div className="rounded-lg border border-border p-4 space-y-3">
                 {/* Auto-calculated dates from TWEAK blocks */}

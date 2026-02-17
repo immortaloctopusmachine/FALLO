@@ -242,6 +242,9 @@ export async function GET(
       board: {
         id: board.id,
         name: board.name,
+        productionTitle: typeof settings.productionTitle === 'string'
+          ? settings.productionTitle
+          : null,
         description: board.description,
         teamId: board.teamId,
         team: board.team,

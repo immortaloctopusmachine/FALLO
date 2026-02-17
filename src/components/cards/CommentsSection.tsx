@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CommentContent } from './CommentContent';
+import { ReviewSubmissionComment } from './ReviewSubmissionComment';
 import type { Comment, Attachment, User as UserType } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -364,6 +365,9 @@ export function CommentsSection({
       {comments.length > 0 && (
         <div className="space-y-3">
           {comments.map((comment) => (
+            comment.type === 'review_submission' ? (
+              <ReviewSubmissionComment key={comment.id} comment={comment} />
+            ) : (
             <div key={comment.id} className="flex gap-3">
               <Avatar className="h-8 w-8 shrink-0">
                 <AvatarImage src={comment.author.image || undefined} />
@@ -451,6 +455,7 @@ export function CommentsSection({
                 )}
               </div>
             </div>
+            )
           ))}
         </div>
       )}

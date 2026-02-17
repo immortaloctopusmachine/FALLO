@@ -69,15 +69,18 @@ export async function POST(
     if (memberResponse) return memberResponse;
 
     const body = await request.json();
-    const { content, attachmentId } = body;
+    const { content, attachmentId, type } = body;
 
     if (!content?.trim()) {
       return ApiErrors.validation('Comment content is required');
     }
 
+    const commentType = type === 'review_submission' ? 'review_submission' : 'standard';
+
     const comment = await prisma.comment.create({
       data: {
         content: content.trim(),
+        type: commentType,
         authorId: session.user.id,
         cardId,
         ...(attachmentId && { attachmentId }),

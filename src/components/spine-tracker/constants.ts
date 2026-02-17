@@ -2,33 +2,41 @@ import type { SkeletonGroup } from '@/types/spine-tracker';
 
 // ============== STATUS OPTIONS ==============
 
-export const SKELETON_STATUSES = ['planned', 'in_progress', 'exported', 'implemented'] as const;
-export const ANIMATION_STATUSES = ['planned', 'in_progress', 'exported', 'implemented', 'not_as_intended'] as const;
+export const SKELETON_STATUSES = [
+  'planned',
+  'ready_to_be_implemented',
+  'implemented',
+  'not_as_intended',
+] as const;
+export const ANIMATION_STATUSES = [
+  'planned',
+  'ready_to_be_implemented',
+  'implemented',
+  'not_as_intended',
+] as const;
 export const SOUND_FX_TRIGGERS = ['spine_event', 'code_trigger', 'timeline'] as const;
 
 // ============== STATUS COLORS ==============
 
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  planned: { bg: 'bg-slate-600', text: 'text-slate-200' },
-  in_progress: { bg: 'bg-amber-600', text: 'text-amber-100' },
-  exported: { bg: 'bg-blue-600', text: 'text-blue-100' },
+  planned: { bg: 'bg-slate-700', text: 'text-slate-100' },
+  ready_to_be_implemented: { bg: 'bg-yellow-600', text: 'text-yellow-100' },
   implemented: { bg: 'bg-emerald-600', text: 'text-emerald-100' },
-  not_as_intended: { bg: 'bg-rose-600', text: 'text-rose-100' },
+  not_as_intended: { bg: 'bg-red-600', text: 'text-red-100' },
 };
 
 // ============== SKELETON GROUPS ==============
 
 export const DEFAULT_SKELETON_GROUPS: SkeletonGroup[] = [
-  { id: 'symbols', label: 'Symbols', icon: '🎰' },
-  { id: 'ui', label: 'UI Elements', icon: '🖥️' },
-  { id: 'characters', label: 'Characters', icon: '🧑' },
-  { id: 'effects', label: 'Effects', icon: '✨' },
-  { id: 'screens', label: 'Screens', icon: '📱' },
-  { id: 'layout', label: 'Layout', icon: '📐' },
-  { id: 'other', label: 'Other', icon: '📦' },
+  { id: 'symbols', label: 'Symbols', icon: 'S' },
+  { id: 'ui', label: 'UI Elements', icon: 'UI' },
+  { id: 'characters', label: 'Characters', icon: 'C' },
+  { id: 'screens', label: 'Screens', icon: 'SC' },
+  { id: 'layout', label: 'Layout', icon: 'L' },
+  { id: 'other', label: 'Other', icon: 'O' },
 ];
 
-export const PROTECTED_GROUPS = ['layout', 'other'];
+export const PROTECTED_GROUPS = ['other'];
 
 // ============== LAYOUT TEMPLATE BONES ==============
 
@@ -49,7 +57,7 @@ export const LAYOUT_TEMPLATE_BONES = [
   { bone: 'MENU_LOGO', purpose: 'Logo in menu popup' },
   { bone: 'PARTICLE_COIN_EMITTER', purpose: 'Big win coin particles' },
   { bone: 'PARTICLE_COIN_EMITTER_LOW_WIN', purpose: 'Small/medium win particles' },
-  { bone: 'REEL', purpose: 'Reel background & frame (top-left)' },
+  { bone: 'REEL', purpose: 'Reel background and frame (top-left)' },
   { bone: 'SPIN_BUTTON', purpose: 'Main spin button' },
   { bone: 'SPIN_BUTTON/AUTOPLAY_BUTTON', purpose: 'Autoplay button' },
   { bone: 'SPIN_BUTTON/BET_BUTTON', purpose: 'Bet button' },
@@ -60,13 +68,13 @@ export const LAYOUT_TEMPLATE_BONES = [
 // ============== Z-ORDER RANGES ==============
 
 export const Z_ORDER_RANGES = [
-  { range: '0-99', layer: 'Background', examples: 'LAYOUT_TEMPLATE, backgrounds' },
-  { range: '100-199', layer: 'Reels & Symbols', examples: 'Reel frame, symbols' },
+  { range: '0-99', layer: 'Background', examples: 'Layout template, backgrounds' },
+  { range: '100-199', layer: 'Reels and Symbols', examples: 'Reel frame, symbols' },
   { range: '200-299', layer: 'Characters', examples: 'Main character, aliens' },
   { range: '300-399', layer: 'UI - Bottom', examples: 'HUD bottom, bet controls' },
   { range: '400-499', layer: 'UI - Top', examples: 'HUD top, balance display' },
   { range: '500-599', layer: 'Overlays', examples: 'Win displays, multipliers' },
-  { range: '600-699', layer: 'Effects', examples: 'Particles, celebrations' },
+  { range: '600-699', layer: 'Particles', examples: 'Particles, celebrations' },
   { range: '700-799', layer: 'Popups', examples: 'Menus, dialogs' },
   { range: '800-899', layer: 'Transitions', examples: 'Screen wipes, fades' },
   { range: '900-999', layer: 'System', examples: 'Loading, critical alerts' },

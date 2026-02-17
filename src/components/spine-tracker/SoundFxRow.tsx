@@ -30,7 +30,11 @@ export function SoundFxRow({ sfx, editMode, onUpdate, onDelete }: SoundFxRowProp
         <td className="py-1 px-2 text-caption font-mono text-text-secondary">{sfx.file}</td>
         <td className="py-1 px-2 text-caption text-text-secondary">{sfx.trigger}</td>
         <td className="py-1 px-2 text-caption text-text-secondary">{sfx.volume}</td>
-        <td className="py-1 px-2 text-caption text-text-tertiary">{sfx.notes || '-'}</td>
+        <td className="py-1 px-2 text-caption text-text-tertiary">
+          <span className="rounded border border-orange-500/30 bg-orange-500/10 px-2 py-0.5">
+            {sfx.notes || '-'}
+          </span>
+        </td>
       </tr>
     );
   }
@@ -76,7 +80,7 @@ export function SoundFxRow({ sfx, editMode, onUpdate, onDelete }: SoundFxRowProp
           <Input
             value={sfx.notes}
             onChange={(e) => onUpdate({ notes: e.target.value })}
-            className="h-7 text-caption"
+            className="h-7 text-caption border-orange-500/30 bg-orange-500/10"
             placeholder="Notes"
           />
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-300" onClick={onDelete}>

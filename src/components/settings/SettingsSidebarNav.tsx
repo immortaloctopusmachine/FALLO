@@ -14,6 +14,7 @@ import {
   ListOrdered,
   FileQuestion,
   Images,
+  Bone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,18 +32,22 @@ const baseSettingsNav = [
 
 interface SettingsSidebarNavProps {
   isSuperAdmin: boolean;
+  isAdmin: boolean;
 }
 
-export function SettingsSidebarNav({ isSuperAdmin }: SettingsSidebarNavProps) {
+export function SettingsSidebarNav({ isSuperAdmin, isAdmin }: SettingsSidebarNavProps) {
   const pathname = usePathname();
 
-  const settingsNav = isSuperAdmin
-    ? [
-        ...baseSettingsNav,
-        { name: 'Uploads', href: '/settings/uploads', icon: Images },
-        { name: 'Review Questions', href: '/settings/review-questions', icon: FileQuestion },
-      ]
-    : baseSettingsNav;
+  const settingsNav = [
+    ...baseSettingsNav,
+    ...(isAdmin ? [{ name: 'Spine Modules', href: '/settings/spine-modules', icon: Bone }] : []),
+    ...(isSuperAdmin
+      ? [
+          { name: 'Uploads', href: '/settings/uploads', icon: Images },
+          { name: 'Review Questions', href: '/settings/review-questions', icon: FileQuestion },
+        ]
+      : []),
+  ];
 
   return (
     <nav className="w-64 border-r border-border bg-surface p-4">

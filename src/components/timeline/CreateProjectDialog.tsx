@@ -91,6 +91,8 @@ export function CreateProjectDialog({
   const [isLoadingCoreTemplates, setIsLoadingCoreTemplates] = useState(false);
   const [selectedProjectTemplate, setSelectedProjectTemplate] = useState<string | null>(null);
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
+  const [productionTitle, setProductionTitle] = useState('');
+  const [memberRoleAssignments, setMemberRoleAssignments] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +120,8 @@ export function CreateProjectDialog({
       } else {
         setStartDate('');
       }
+      setProductionTitle('');
+      setMemberRoleAssignments({});
       setSelectedTeamId('');
       setSelectedCoreTemplateId(coreTemplates[0]?.id || '');
       setSelectedProjectTemplate(null);
@@ -282,6 +286,33 @@ export function CreateProjectDialog({
         ? selectedMembers.map(m => m.id)
         : undefined;
 
+      // Build initial settings from dialog fields
+      const initialSettings: Record<string, unknown> = {};
+      if (productionTitle.trim()) {
+        initialSettings.productionTitle = productionTitle.trim();
+      }
+      // Build projectRoleAssignments from per-member role selections
+      const roleAssignments = Object.entries(memberRoleAssignments)
+        .filter(([, roleId]) => roleId)
+        .map(([userId, roleId]) => {
+          const member = selectedMembers.find(m => m.id === userId);
+          const role = member?.companyRoles.find(r => r.id === roleId);
+          return {
+            id: `${userId}-${roleId}`,
+            roleId,
+            roleName: role?.name || '',
+            roleColor: role?.color || null,
+            userId,
+          };
+        });
+      if (roleAssignments.length > 0) {
+        initialSettings.projectRoleAssignments = roleAssignments;
+      }
+
+      const settingsPayload = Object.keys(initialSettings).length > 0
+        ? initialSettings
+        : undefined;
+
       if (selectedProjectTemplate) {
         // Clone from project template
         response = await fetch(`/api/boards/${selectedProjectTemplate}/clone`, {
@@ -293,6 +324,7 @@ export function CreateProjectDialog({
             startDate: startDate || undefined,
             teamId: selectedTeamId || undefined,
             memberIds,
+            settings: settingsPayload,
           }),
         });
       } else {
@@ -306,6 +338,7 @@ export function CreateProjectDialog({
             startDate: startDate || undefined,
             teamId: selectedTeamId || undefined,
             memberIds,
+            settings: settingsPayload,
           }),
         });
       }
@@ -328,7 +361,7 @@ export function CreateProjectDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
           <DialogDescription>
@@ -337,16 +370,30 @@ export function CreateProjectDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* Project Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name">Project Name</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter project name..."
-              autoFocus
-            />
+          {/* Working Title + Production Title (side by side) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Working Title <span className="text-error">*</span></Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Internal project name..."
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="productionTitle">Production Title</Label>
+              <Input
+                id="productionTitle"
+                value={productionTitle}
+                onChange={(e) => setProductionTitle(e.target.value)}
+                placeholder="Set later when approved"
+              />
+              <p className="text-caption text-text-tertiary">
+                Optional. Set when the final game name is approved.
+              </p>
+            </div>
           </div>
 
           {/* Start Date */}
@@ -380,117 +427,142 @@ export function CreateProjectDialog({
             </p>
           </div>
 
-          {/* Team Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="team">Team (optional)</Label>
-            <select
-              id="team"
-              value={selectedTeamId}
-              onChange={(e) => handleTeamChange(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-body shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">No team</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
+          {/* Team + Members (side by side) */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Team Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="team">Team (optional)</Label>
+              <select
+                id="team"
+                value={selectedTeamId}
+                onChange={(e) => handleTeamChange(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-body shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">No team</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Team Members */}
+            <div className="space-y-2">
+              <Label>Members</Label>
+
+              {/* Add user */}
+              <Popover open={addUserOpen} onOpenChange={setAddUserOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="w-full justify-start">
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    <span className="text-text-tertiary">Add user...</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search users..." />
+                    <CommandList>
+                      <CommandEmpty>No users available.</CommandEmpty>
+                      <CommandGroup>
+                        {availableUsers.map(user => (
+                          <CommandItem
+                            key={user.id}
+                            value={user.name || user.email}
+                            onSelect={() => handleAddUser(user)}
+                          >
+                            <Avatar className="h-6 w-6 mr-2">
+                              <AvatarImage src={user.image || undefined} />
+                              <AvatarFallback className="text-tiny">
+                                {(user.name || user.email)[0].toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span>{user.name || 'Unnamed'}</span>
+                              <span className="text-tiny text-text-tertiary">{user.email}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {selectedMembers.length === 0 && (
+                <p className="text-caption text-text-tertiary">
+                  Select a team to auto-populate, or add manually.
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Team Members */}
-          <div className="space-y-2">
-            <Label>Team Members</Label>
-
-            {/* Add user */}
-            <Popover open={addUserOpen} onOpenChange={setAddUserOpen}>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="w-full justify-start">
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  <span className="text-text-tertiary">Add user...</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search users..." />
-                  <CommandList>
-                    <CommandEmpty>No users available.</CommandEmpty>
-                    <CommandGroup>
-                      {availableUsers.map(user => (
-                        <CommandItem
-                          key={user.id}
-                          value={user.name || user.email}
-                          onSelect={() => handleAddUser(user)}
+          {/* Selected members list (full width, with role selector) */}
+          {selectedMembers.length > 0 && (
+            <div className="rounded-lg border border-border overflow-hidden max-h-48 overflow-y-auto">
+              <div className="divide-y divide-border">
+                {selectedMembers.map(member => (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between px-3 py-2 hover:bg-surface-hover"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar className="h-6 w-6 flex-shrink-0">
+                        <AvatarImage src={member.image || undefined} />
+                        <AvatarFallback className="text-tiny">
+                          {(member.name || member.email)[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-body truncate">
+                        {member.name || member.email}
+                      </span>
+                      {member.companyRoles.map(role => (
+                        <span
+                          key={role.id}
+                          className="px-1.5 py-0.5 rounded-full text-tiny font-medium flex-shrink-0"
+                          style={{
+                            backgroundColor: `${role.color || '#71717a'}20`,
+                            color: role.color || '#71717a',
+                          }}
                         >
-                          <Avatar className="h-6 w-6 mr-2">
-                            <AvatarImage src={user.image || undefined} />
-                            <AvatarFallback className="text-tiny">
-                              {(user.name || user.email)[0].toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                            <span>{user.name || 'Unnamed'}</span>
-                            <span className="text-tiny text-text-tertiary">{user.email}</span>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            {/* Selected members list */}
-            {selectedMembers.length > 0 && (
-              <div className="rounded-lg border border-border overflow-hidden max-h-48 overflow-y-auto">
-                <div className="divide-y divide-border">
-                  {selectedMembers.map(member => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between px-3 py-2 hover:bg-surface-hover"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Avatar className="h-6 w-6 flex-shrink-0">
-                          <AvatarImage src={member.image || undefined} />
-                          <AvatarFallback className="text-tiny">
-                            {(member.name || member.email)[0].toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-body truncate">
-                          {member.name || member.email}
+                          {role.name}
                         </span>
-                        {member.companyRoles.map(role => (
-                          <span
-                            key={role.id}
-                            className="px-1.5 py-0.5 rounded-full text-tiny font-medium flex-shrink-0"
-                            style={{
-                              backgroundColor: `${role.color || '#71717a'}20`,
-                              color: role.color || '#71717a',
-                            }}
-                          >
-                            {role.name}
-                          </span>
-                        ))}
-                      </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Per-member project role selector */}
+                      {member.companyRoles.length > 0 && (
+                        <select
+                          value={memberRoleAssignments[member.id] || ''}
+                          onChange={(e) =>
+                            setMemberRoleAssignments(prev => ({
+                              ...prev,
+                              [member.id]: e.target.value,
+                            }))
+                          }
+                          className="h-7 rounded-md border border-input bg-background px-2 text-caption shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">No project role</option>
+                          {member.companyRoles.map(role => (
+                            <option key={role.id} value={role.id}>
+                              {role.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleRemoveUser(member.id)}
-                        className="p-1 rounded-md text-text-tertiary hover:text-red-500 hover:bg-red-500/10 flex-shrink-0"
+                        className="p-1 rounded-md text-text-tertiary hover:text-red-500 hover:bg-red-500/10"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            )}
-
-            {selectedMembers.length === 0 && (
-              <p className="text-caption text-text-tertiary">
-                Select a team to auto-populate members, or add users manually.
-              </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Template Selection */}
           <div className="space-y-2">

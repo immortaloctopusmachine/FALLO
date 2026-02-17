@@ -210,6 +210,7 @@ export async function POST(request: Request) {
       teamId,
       startDate,
       memberIds,
+      settings: initialSettings,
     } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -337,7 +338,10 @@ export async function POST(request: Request) {
 
     // Store which template was used in settings (for non-BLANK templates)
     // Using Partial<BoardSettings> to allow incremental building, cast for Prisma JSON field
-    const settings: Partial<BoardSettings> = {};
+    // Merge any initial settings from create dialog (e.g. productionTitle, projectRoleAssignments)
+    const settings: Partial<BoardSettings> = {
+      ...(initialSettings && typeof initialSettings === 'object' ? initialSettings : {}),
+    };
     if (coreTemplate) {
       settings.coreProjectTemplateId = coreTemplate.id;
     } else if (templateType !== 'BLANK') {

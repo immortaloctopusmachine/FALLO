@@ -39,6 +39,7 @@ export function BoardsPageClient({ isAdmin: _isAdmin, isSuperAdmin = false, curr
     members: board.members.map(m => ({ id: m.user.id, name: m.user.name, image: m.user.image })),
     isTemplate: board.isTemplate,
     isAdmin: isAdminForBoard(board),
+    settings: board.settings,
   }));
 
   return (

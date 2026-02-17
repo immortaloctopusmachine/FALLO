@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { BoardSettings } from '@/types';
 import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
+import { getProjectDisplayName } from '@/lib/project-utils';
 import { cn } from '@/lib/utils';
 
 interface BoardMemberInfo {
@@ -188,7 +189,7 @@ export function BoardCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className={`truncate text-title font-semibold ${isArchived ? 'text-text-tertiary' : 'text-text-primary'} ${hoverColor}`}>
-            {name}
+            {getProjectDisplayName(name, settings)}
           </h3>
           {isArchived && (
             <span className="shrink-0 rounded bg-text-tertiary/10 px-1.5 py-0.5 text-tiny font-medium text-text-tertiary">

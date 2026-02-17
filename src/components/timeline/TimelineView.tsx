@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { apiFetch } from '@/lib/api-client';
+import { getProjectDisplayName } from '@/lib/project-utils';
 import type {
   TimelineData,
   TimelineArchivedProjectSummary,
@@ -809,7 +810,12 @@ export function TimelineView({
           return prev;
         }
         return [...prev, loadedProject].sort((a, b) =>
-          a.board.name.localeCompare(b.board.name, undefined, { sensitivity: 'base' })
+          getProjectDisplayName(a.board.name, { productionTitle: a.board.productionTitle ?? undefined })
+            .localeCompare(
+              getProjectDisplayName(b.board.name, { productionTitle: b.board.productionTitle ?? undefined }),
+              undefined,
+              { sensitivity: 'base' }
+            )
         );
       });
 
@@ -1567,7 +1573,7 @@ export function TimelineView({
                   ) : null}
                   <div className="flex-1 min-w-0">
                     <div className="text-body font-medium text-text-primary truncate">
-                      {item.project.board.name}
+                      {getProjectDisplayName(item.project.board.name, { productionTitle: item.project.board.productionTitle ?? undefined })}
                     </div>
                     {item.project.board.team?.name ? (
                       <div className="text-tiny text-text-tertiary truncate">
@@ -1637,8 +1643,8 @@ export function TimelineView({
                 style={{ height: ROW_HEIGHT }}
                 onContextMenu={(e) => handleArchivedProjectContextMenu(e, project.id)}
               >
-                <span className="text-caption text-text-secondary truncate" title={project.name}>
-                  {project.name}
+                <span className="text-caption text-text-secondary truncate" title={getProjectDisplayName(project.name, { productionTitle: project.productionTitle ?? undefined })}>
+                  {getProjectDisplayName(project.name, { productionTitle: project.productionTitle ?? undefined })}
                 </span>
               </div>
             ))}

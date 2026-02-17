@@ -24,23 +24,34 @@ export function SkeletonPlacement({ placement, editMode, allSkeletons, onUpdate 
     .map((s) => s.name);
 
   const showBoneDropdown = placement.parent === 'LAYOUT_TEMPLATE';
+  const hasPlacementData = Boolean(
+    placement.parent ||
+    placement.bone ||
+    (placement.notes && placement.notes.trim().length > 0)
+  );
 
   if (!editMode) {
+    if (!hasPlacementData) {
+      return null;
+    }
+
     return (
       <div className="space-y-2">
         <h3 className="text-caption font-semibold text-text-primary">Placement</h3>
         <div className="grid grid-cols-3 gap-3 rounded border border-border p-3 bg-surface-hover/30">
           <div>
-            <span className="text-xs text-text-tertiary">Parent</span>
-            <p className="text-caption text-text-primary font-mono">{placement.parent || 'standalone'}</p>
+            <span className="text-xs text-text-tertiary">Skeleton</span>
+            <p className="text-caption text-text-primary font-mono">{placement.parent || '-'}</p>
           </div>
           <div>
             <span className="text-xs text-text-tertiary">Bone</span>
-            <p className="text-caption text-text-primary font-mono">{placement.bone || 'none'}</p>
+            <p className="text-caption text-text-primary font-mono">{placement.bone || '-'}</p>
           </div>
           <div>
             <span className="text-xs text-text-tertiary">Notes</span>
-            <p className="text-caption text-text-tertiary">{placement.notes || '-'}</p>
+            <p className="text-caption text-text-tertiary rounded border border-orange-500/30 bg-orange-500/10 px-2 py-1">
+              {placement.notes || '-'}
+            </p>
           </div>
         </div>
       </div>
@@ -52,7 +63,7 @@ export function SkeletonPlacement({ placement, editMode, allSkeletons, onUpdate 
       <h3 className="text-caption font-semibold text-text-primary">Placement</h3>
       <div className="grid grid-cols-3 gap-3 rounded border border-border p-3">
         <div className="space-y-1">
-          <label className="text-xs text-text-tertiary">Parent Skeleton</label>
+          <label className="text-xs text-text-tertiary">Skeleton</label>
           <Select
             value={placement.parent || '__standalone__'}
             onValueChange={(v) => onUpdate({ parent: v === '__standalone__' ? null : v })}
@@ -103,7 +114,7 @@ export function SkeletonPlacement({ placement, editMode, allSkeletons, onUpdate 
           <Input
             value={placement.notes}
             onChange={(e) => onUpdate({ notes: e.target.value })}
-            className="h-8 text-caption"
+            className="h-8 text-caption border-orange-500/30 bg-orange-500/10"
             placeholder="Placement notes"
           />
         </div>

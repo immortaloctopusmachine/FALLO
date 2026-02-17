@@ -87,6 +87,7 @@ export function BoardViewWrapper({
     <div className={cn("flex h-screen flex-col", !bgStyle && "bg-background")} style={bgStyle}>
       <BoardHeader
         name={board.name}
+        settings={board.settings}
         memberCount={board.members.length}
         members={board.members.map((member) => ({
           id: member.user.id,

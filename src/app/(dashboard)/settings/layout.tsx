@@ -21,6 +21,7 @@ export default async function SettingsLayout({
   });
 
   const isSuperAdmin = user?.permission === 'SUPER_ADMIN';
+  const isAdmin = user?.permission === 'ADMIN' || isSuperAdmin;
 
   return (
     <div className="min-h-screen bg-background">
@@ -39,7 +40,7 @@ export default async function SettingsLayout({
       </header>
 
       <div className="flex">
-        <SettingsSidebarNav isSuperAdmin={isSuperAdmin} />
+        <SettingsSidebarNav isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} />
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>

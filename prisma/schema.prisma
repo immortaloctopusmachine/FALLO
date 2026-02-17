@@ -340,6 +340,7 @@ model User {
   // NextAuth relations
   accounts Account[]
   sessions Session[]
+  spineSettings UserSpineSettings?
 
   @@map("users")
 }
@@ -654,6 +655,7 @@ model CardUser {
 model Comment {
   id        String   @id @default(cuid())
   content   String
+  type      String   @default("standard") // "standard" | "review_submission"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -861,4 +863,37 @@ model SpineTrackerData {
 
   @@index([boardId])
   @@map("spine_tracker_data")
+}
+
+model UserSpineSettings {
+  id              String   @id @default(cuid())
+  finalAssetsPath String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_spine_settings")
+}
+
+model SpineSkeletonModule {
+  id              String   @id @default(cuid())
+  skeletonName    String   @unique
+  group           String   @default("other")
+  status          String   @default("planned")
+  zOrder          Int      @default(100)
+  description     String?
+  placementParent String?
+  placementBone   String?
+  placementNotes  String?
+  generalNotes    String?
+  animations      Json     @default("[]")
+  skins           Json     @default("[]")
+  events          Json     @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([skeletonName])
+  @@map("spine_skeleton_modules")
 }

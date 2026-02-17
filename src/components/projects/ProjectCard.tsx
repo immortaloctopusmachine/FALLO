@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BurnupSparkline } from '@/components/projects/BurnupSparkline';
 import type { BoardSettings, WeeklyProgress } from '@/types';
 import { formatDisplayDate } from '@/lib/date-utils';
+import { getProjectDisplayName } from '@/lib/project-utils';
 import { cn } from '@/lib/utils';
 
 interface ProjectMember {
@@ -180,7 +181,7 @@ export function ProjectCard({
               isArchived ? 'text-text-tertiary' : 'text-text-primary group-hover:text-primary',
             )}
           >
-            {name}
+            {getProjectDisplayName(name, settings)}
           </h3>
           {isArchived && (
             <span className="shrink-0 rounded bg-text-tertiary/10 px-1.5 py-0.5 text-tiny font-medium text-text-tertiary">

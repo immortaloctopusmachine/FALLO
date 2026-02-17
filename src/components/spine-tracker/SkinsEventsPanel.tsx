@@ -14,10 +14,12 @@ import type { Skin, SpineEvent, Animation } from '@/types/spine-tracker';
 import { ANIMATION_STATUSES, STATUS_COLORS } from './constants';
 
 interface SkinsEventsPanelProps {
+  targetBone: string;
   skins: Skin[];
   events: SpineEvent[];
   animations: Animation[];
   editMode: boolean;
+  onUpdateTargetBone: (targetBone: string) => void;
   onAddSkin: () => void;
   onUpdateSkin: (index: number, updates: Partial<Skin>) => void;
   onDeleteSkin: (index: number) => void;
@@ -27,10 +29,12 @@ interface SkinsEventsPanelProps {
 }
 
 export function SkinsEventsPanel({
+  targetBone,
   skins,
   events,
   animations,
   editMode,
+  onUpdateTargetBone,
   onAddSkin,
   onUpdateSkin,
   onDeleteSkin,
@@ -38,45 +42,46 @@ export function SkinsEventsPanel({
   onUpdateEvent,
   onDeleteEvent,
 }: SkinsEventsPanelProps) {
+  const notesTintClass = 'border-orange-500/30 bg-orange-500/10';
+
   return (
     <div className="grid grid-cols-2 gap-4">
-      {/* Skins */}
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex items-center justify-between">
           <h3 className="text-caption font-semibold text-text-primary">
             Skins ({skins.length})
           </h3>
-          {editMode && (
+          {editMode ? (
             <Button variant="ghost" size="sm" className="h-7 gap-1 text-caption" onClick={onAddSkin}>
               <Plus className="h-3 w-3" /> Add
             </Button>
-          )}
+          ) : null}
         </div>
         <div className="space-y-1">
-          {skins.map((skin, i) => (
+          {skins.map((skin, index) => (
             <div
-              key={i}
-              className="flex items-center gap-2 rounded border border-border/50 p-2 bg-surface-hover/20"
+              key={index}
+              className="flex items-center gap-2 rounded border border-border/50 bg-surface-hover/20 p-2"
             >
               {editMode ? (
                 <>
                   <Input
                     value={skin.name}
-                    onChange={(e) => onUpdateSkin(i, { name: e.target.value })}
-                    className="h-7 text-caption font-mono flex-1"
+                    onChange={(e) => onUpdateSkin(index, { name: e.target.value })}
+                    className="h-7 flex-1 text-caption font-mono"
                     placeholder="skin_name"
                   />
                   <Select
                     value={skin.status}
-                    onValueChange={(v) => onUpdateSkin(i, { status: v as Skin['status'] })}
+                    onValueChange={(value) => onUpdateSkin(index, { status: value as Skin['status'] })}
                   >
-                    <SelectTrigger className="h-7 text-caption w-32">
+                    <SelectTrigger className="h-7 w-40 text-caption">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {ANIMATION_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
+                      {ANIMATION_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -85,16 +90,16 @@ export function SkinsEventsPanel({
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-                    onClick={() => onDeleteSkin(i)}
+                    onClick={() => onDeleteSkin(index)}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </>
               ) : (
                 <>
-                  <span className="font-mono text-caption text-text-primary flex-1">{skin.name}</span>
+                  <span className="flex-1 font-mono text-caption text-text-primary">{skin.name}</span>
                   <span
-                    className={`px-2 py-0.5 rounded text-xs font-mono ${STATUS_COLORS[skin.status]?.bg || ''} ${STATUS_COLORS[skin.status]?.text || ''}`}
+                    className={`rounded px-2 py-0.5 text-xs font-mono ${STATUS_COLORS[skin.status]?.bg || ''} ${STATUS_COLORS[skin.status]?.text || ''}`}
                   >
                     {skin.status}
                   </span>
@@ -102,76 +107,103 @@ export function SkinsEventsPanel({
               )}
             </div>
           ))}
-          {skins.length === 0 && (
-            <p className="text-caption text-text-tertiary text-center py-3">No skins</p>
-          )}
+          {skins.length === 0 ? (
+            <p className="py-3 text-center text-caption text-text-tertiary">No skins</p>
+          ) : null}
         </div>
       </div>
 
-      {/* Events */}
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 space-y-2">
+          <h3 className="text-caption font-semibold text-text-primary">
+            Target Bone
+          </h3>
+          {editMode ? (
+            <Input
+              value={targetBone}
+              onChange={(e) => onUpdateTargetBone(e.target.value)}
+              className="h-8 text-caption font-mono"
+              placeholder="bone_name"
+            />
+          ) : (
+            <p className={`rounded border px-2 py-1.5 text-caption text-text-secondary ${notesTintClass}`}>
+              {targetBone || '-'}
+            </p>
+          )}
+        </div>
+
+        <div className="mb-2 flex items-center justify-between">
           <h3 className="text-caption font-semibold text-text-primary">
             Events ({events.length})
           </h3>
-          {editMode && (
+          {editMode ? (
             <Button variant="ghost" size="sm" className="h-7 gap-1 text-caption" onClick={onAddEvent}>
               <Plus className="h-3 w-3" /> Add
             </Button>
-          )}
+          ) : null}
         </div>
+
         <div className="space-y-1">
-          {events.map((evt, i) => (
+          {events.map((eventItem, index) => (
             <div
-              key={i}
-              className="flex items-center gap-2 rounded border border-border/50 p-2 bg-surface-hover/20"
+              key={index}
+              className="flex items-center gap-2 rounded border border-border/50 bg-surface-hover/20 p-2"
             >
               {editMode ? (
                 <>
                   <Input
-                    value={evt.name}
-                    onChange={(e) => onUpdateEvent(i, { name: e.target.value })}
-                    className="h-7 text-caption font-mono flex-1"
+                    value={eventItem.name}
+                    onChange={(e) => onUpdateEvent(index, { name: e.target.value })}
+                    className="h-7 flex-1 text-caption font-mono"
                     placeholder="event_name"
                   />
                   <Select
-                    value={evt.animation || '__none__'}
-                    onValueChange={(v) => onUpdateEvent(i, { animation: v === '__none__' ? '' : v })}
+                    value={eventItem.animation || '__none__'}
+                    onValueChange={(value) =>
+                      onUpdateEvent(index, { animation: value === '__none__' ? '' : value })
+                    }
                   >
-                    <SelectTrigger className="h-7 text-caption w-32">
+                    <SelectTrigger className="h-7 w-40 text-caption">
                       <SelectValue placeholder="Animation" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">None</SelectItem>
-                      {animations.map((a) => (
-                        <SelectItem key={a.name} value={a.name}>
-                          {a.name}
+                      {animations.map((animation) => (
+                        <SelectItem key={animation.name} value={animation.name}>
+                          {animation.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <Input
+                    value={eventItem.notes}
+                    onChange={(e) => onUpdateEvent(index, { notes: e.target.value })}
+                    className={`h-7 w-44 text-caption ${notesTintClass}`}
+                    placeholder="Comment"
+                  />
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
-                    onClick={() => onDeleteEvent(i)}
+                    onClick={() => onDeleteEvent(index)}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </>
               ) : (
                 <>
-                  <span className="font-mono text-caption text-text-primary flex-1">{evt.name}</span>
-                  <span className="text-caption text-text-tertiary">
-                    {evt.animation || '-'}
+                  <span className="flex-1 font-mono text-caption text-text-primary">{eventItem.name}</span>
+                  <span className="text-caption text-text-tertiary">{eventItem.animation || '-'}</span>
+                  <span className={`rounded px-2 py-0.5 text-caption text-text-tertiary ${notesTintClass}`}>
+                    {eventItem.notes || '-'}
                   </span>
                 </>
               )}
             </div>
           ))}
-          {events.length === 0 && (
-            <p className="text-caption text-text-tertiary text-center py-3">No events</p>
-          )}
+          {events.length === 0 ? (
+            <p className="py-3 text-center text-caption text-text-tertiary">No events</p>
+          ) : null}
         </div>
       </div>
     </div>

@@ -188,7 +188,8 @@ export function CreateLinkedTasksModal({
       onClose();
     } catch (error) {
       console.error('Failed to create linked tasks:', error);
-      toast.error('Failed to create some tasks');
+      const message = error instanceof Error ? error.message : 'Failed to create some tasks';
+      toast.error(message);
       // Still notify about any that were created
       if (createdCards.length > 0) {
         onTasksCreated(createdCards);

@@ -181,9 +181,13 @@ export async function GET() {
       const isProjectArchived = Boolean(projectArchivedAt) || isLegacyProjectArchived;
 
       if (isProjectArchived || isOld) {
+        const archivedSettings = (board.settings as Record<string, unknown>) || {};
         archivedProjects.push({
           id: board.id,
           name: board.name,
+          productionTitle: typeof archivedSettings.productionTitle === 'string'
+            ? archivedSettings.productionTitle
+            : null,
           teamId: board.teamId,
           team: board.team,
         });
@@ -425,6 +429,9 @@ export async function GET() {
         board: {
           id: board.id,
           name: board.name,
+          productionTitle: typeof settings.productionTitle === 'string'
+            ? settings.productionTitle
+            : null,
           description: board.description,
           teamId: board.teamId,
           team: board.team,

@@ -53,10 +53,11 @@ export const STANDARD_SLOT_TEMPLATE: ListTemplate = {
   description: 'Full production cycle with 5-day blocks starting on Mondays',
   taskLists: [
     { name: 'Backlog', viewType: 'TASKS', phase: 'BACKLOG', color: PHASE_COLORS.BACKLOG, durationWeeks: 0, position: 0 },
-    { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 1 },
-    { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 2 },
-    { name: 'Review', viewType: 'TASKS', color: '#8B5CF6', durationWeeks: 0, position: 3 },
-    { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: PHASE_COLORS.DONE, durationWeeks: 0, position: 4 },
+    { name: 'To Do Animation', viewType: 'TASKS', color: '#800020', durationWeeks: 0, position: 1 },
+    { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 2 },
+    { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 3 },
+    { name: 'Review', viewType: 'TASKS', color: '#8B5CF6', durationWeeks: 0, position: 4 },
+    { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: PHASE_COLORS.DONE, durationWeeks: 0, position: 5 },
   ],
   planningLists: [
     { name: 'Spine/Prototype 1', viewType: 'PLANNING', phase: 'SPINE_PROTOTYPE', color: PHASE_COLORS.SPINE_PROTOTYPE, durationWeeks: 0, durationDays: 5, position: 0 },
@@ -83,10 +84,11 @@ export const BRANDED_GAME_TEMPLATE: ListTemplate = {
   description: 'Shorter production cycle with 5-day blocks',
   taskLists: [
     { name: 'Backlog', viewType: 'TASKS', phase: 'BACKLOG', color: PHASE_COLORS.BACKLOG, durationWeeks: 0, position: 0 },
-    { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 1 },
-    { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 2 },
-    { name: 'Review', viewType: 'TASKS', color: '#8B5CF6', durationWeeks: 0, position: 3 },
-    { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: PHASE_COLORS.DONE, durationWeeks: 0, position: 4 },
+    { name: 'To Do Animation', viewType: 'TASKS', color: '#800020', durationWeeks: 0, position: 1 },
+    { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 2 },
+    { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 3 },
+    { name: 'Review', viewType: 'TASKS', color: '#8B5CF6', durationWeeks: 0, position: 4 },
+    { name: 'Done', viewType: 'TASKS', phase: 'DONE', color: PHASE_COLORS.DONE, durationWeeks: 0, position: 5 },
   ],
   planningLists: [
     { name: 'Concept 1', viewType: 'PLANNING', phase: 'CONCEPT', color: PHASE_COLORS.CONCEPT, durationWeeks: 0, durationDays: 5, position: 0 },

@@ -1,9 +1,12 @@
 'use client';
 
-import { Edit2, X } from 'lucide-react';
+import Image from 'next/image';
+import { useEffect, useMemo, useState } from 'react';
+import { Edit2, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -17,9 +20,18 @@ import { AnimationTable } from './AnimationTable';
 import { SkeletonPlacement } from './SkeletonPlacement';
 import { SkinsEventsPanel } from './SkinsEventsPanel';
 
+interface SpineTaskOption {
+  id: string;
+  title: string;
+  listName: string;
+}
+
 interface SkeletonEditorProps {
   skeleton: Skeleton;
   allSkeletons: Skeleton[];
+  groupOrder: string[];
+  customGroups: Record<string, string>;
+  availableTaskOptions: SpineTaskOption[];
   editMode: boolean;
   onSetEditMode: (v: boolean) => void;
   onUpdate: (updates: Partial<Skeleton>) => void;
@@ -40,6 +52,9 @@ interface SkeletonEditorProps {
 export function SkeletonEditor({
   skeleton,
   allSkeletons,
+  groupOrder,
+  customGroups,
+  availableTaskOptions,
   editMode,
   onSetEditMode,
   onUpdate,
@@ -58,25 +73,81 @@ export function SkeletonEditor({
 }: SkeletonEditorProps) {
   const statusColor = STATUS_COLORS[skeleton.status];
   const zColor = getZOrderColor(skeleton.zOrder);
+  const [manualTaskInput, setManualTaskInput] = useState('');
+  const [selectedTaskOptionId, setSelectedTaskOptionId] = useState('__none__');
+  const notesTintClass = 'border-orange-500/30 bg-orange-500/10';
+
+  useEffect(() => {
+    setManualTaskInput('');
+    setSelectedTaskOptionId('__none__');
+  }, [skeleton.id]);
+
+  const groupLabelMap = useMemo(() => {
+    const map = new Map<string, { label: string; icon: string }>();
+    DEFAULT_SKELETON_GROUPS.forEach((group) => map.set(group.id, { label: group.label, icon: group.icon }));
+    Object.entries(customGroups).forEach(([groupId, label]) => {
+      map.set(groupId, { label, icon: '#' });
+    });
+    return map;
+  }, [customGroups]);
+
+  const groupOptions = useMemo(() => {
+    return groupOrder.map((groupId) => {
+      const entry = groupLabelMap.get(groupId);
+      return {
+        id: groupId,
+        label: entry?.label || groupId,
+        icon: entry?.icon || '#',
+      };
+    });
+  }, [groupLabelMap, groupOrder]);
+
+  const taskOptionsById = useMemo(() => {
+    return new Map(availableTaskOptions.map((task) => [task.id, task]));
+  }, [availableTaskOptions]);
+
+  const connectedTasks = skeleton.connectedTasks || [];
+
+  const addConnectedTask = (rawTaskName: string) => {
+    const taskName = rawTaskName.trim();
+    if (!taskName) return;
+
+    const existing = new Set(connectedTasks.map((task) => task.toLowerCase()));
+    if (existing.has(taskName.toLowerCase())) return;
+
+    onUpdate({
+      connectedTasks: [...connectedTasks, taskName],
+    });
+  };
+
+  const removeConnectedTask = (taskName: string) => {
+    onUpdate({
+      connectedTasks: connectedTasks.filter((task) => task !== taskName),
+    });
+  };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* Header bar */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-2 bg-surface shrink-0">
-        <div className="flex items-center gap-2">
-          {skeleton.isLayoutTemplate && (
-            <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-600 text-amber-100">
-              MASTER
+    <div className="flex h-full flex-col overflow-y-auto">
+      <div className="shrink-0 border-b border-border bg-surface px-4 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {skeleton.isLayoutTemplate ? (
+              <span className="rounded bg-amber-600 px-2 py-0.5 text-xs font-bold text-amber-100">
+                MASTER
+              </span>
+            ) : null}
+            <span className={`rounded px-2 py-0.5 text-xs font-mono text-white ${zColor}`}>
+              z:{skeleton.zOrder}
             </span>
-          )}
-          <span className={`px-2 py-0.5 rounded text-xs font-mono text-white ${zColor}`}>
-            z:{skeleton.zOrder}
-          </span>
-          <span className={`px-2 py-0.5 rounded text-xs font-mono ${statusColor?.bg || ''} ${statusColor?.text || ''}`}>
-            {skeleton.status}
-          </span>
-        </div>
-        <div>
+            <span className={`rounded px-2 py-0.5 text-xs font-mono ${statusColor?.bg || ''} ${statusColor?.text || ''}`}>
+              {skeleton.status}
+            </span>
+            {skeleton.isGeneric ? (
+              <span className="rounded bg-slate-700 px-2 py-0.5 text-xs font-mono text-slate-100">
+                generic
+              </span>
+            ) : null}
+          </div>
           {editMode ? (
             <Button
               variant="ghost"
@@ -99,9 +170,23 @@ export function SkeletonEditor({
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {/* Name + Description + Group + Z-Order + Status */}
+      <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        {skeleton.previewImageDataUrl ? (
+          <div className="rounded border border-border bg-surface p-2">
+            <p className="mb-2 text-xs text-text-tertiary">Preview</p>
+            <div className="flex justify-center rounded border border-border/50 bg-black/20 p-2">
+              <Image
+                src={skeleton.previewImageDataUrl}
+                alt={`${skeleton.name} preview`}
+                width={320}
+                height={176}
+                className="max-h-44 w-auto max-w-full object-contain"
+                unoptimized
+              />
+            </div>
+          </div>
+        ) : null}
+
         <div className="space-y-3">
           {editMode ? (
             <>
@@ -120,12 +205,12 @@ export function SkeletonEditor({
                   <Input
                     value={skeleton.description}
                     onChange={(e) => onUpdate({ description: e.target.value })}
-                    className="h-8 text-caption"
+                    className={`h-8 text-caption ${notesTintClass}`}
                     placeholder="Brief description"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs text-text-tertiary">Group</label>
                   <Select value={skeleton.group} onValueChange={(v) => onUpdate({ group: v })}>
@@ -133,9 +218,9 @@ export function SkeletonEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {DEFAULT_SKELETON_GROUPS.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.icon} {g.label}
+                      {groupOptions.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.icon} {group.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -148,7 +233,7 @@ export function SkeletonEditor({
                     min={0}
                     max={999}
                     value={skeleton.zOrder}
-                    onChange={(e) => onUpdate({ zOrder: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => onUpdate({ zOrder: parseInt(e.target.value, 10) || 0 })}
                     className="h-8 text-caption"
                   />
                 </div>
@@ -162,27 +247,40 @@ export function SkeletonEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {SKELETON_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
+                      {SKELETON_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-text-tertiary">Generic</label>
+                  <div className="flex h-8 items-center gap-2 rounded border border-border px-2">
+                    <Switch
+                      checked={Boolean(skeleton.isGeneric)}
+                      onCheckedChange={(checked) => onUpdate({ isGeneric: checked })}
+                    />
+                    <span className="text-xs text-text-secondary">
+                      {skeleton.isGeneric ? 'Yes' : 'No'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </>
           ) : (
             <>
               <h2 className="text-lg font-bold font-mono text-text-primary">{skeleton.name}</h2>
-              {skeleton.description && (
-                <p className="text-caption text-text-secondary">{skeleton.description}</p>
-              )}
+              {skeleton.description ? (
+                <p className={`rounded border px-3 py-2 text-caption text-text-secondary ${notesTintClass}`}>
+                  {skeleton.description}
+                </p>
+              ) : null}
             </>
           )}
         </div>
 
-        {/* Placement */}
         <SkeletonPlacement
           placement={skeleton.placement}
           editMode={editMode}
@@ -192,9 +290,9 @@ export function SkeletonEditor({
           }
         />
 
-        {/* Animations */}
         <AnimationTable
           animations={skeleton.animations}
+          events={skeleton.events}
           editMode={editMode}
           onAdd={onAddAnimation}
           onUpdate={onUpdateAnimation}
@@ -204,12 +302,13 @@ export function SkeletonEditor({
           onDeleteSoundFx={onDeleteSoundFx}
         />
 
-        {/* Skins + Events */}
         <SkinsEventsPanel
+          targetBone={skeleton.targetBone || ''}
           skins={skeleton.skins}
           events={skeleton.events}
           animations={skeleton.animations}
           editMode={editMode}
+          onUpdateTargetBone={(targetBone) => onUpdate({ targetBone })}
           onAddSkin={onAddSkin}
           onUpdateSkin={onUpdateSkin}
           onDeleteSkin={onDeleteSkin}
@@ -218,18 +317,116 @@ export function SkeletonEditor({
           onDeleteEvent={onDeleteEvent}
         />
 
-        {/* General Notes */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-caption font-semibold text-text-primary">
+              Connected Tasks ({connectedTasks.length})
+            </h3>
+          </div>
+
+          {editMode ? (
+            <div className="space-y-2 rounded border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={manualTaskInput}
+                  onChange={(e) => setManualTaskInput(e.target.value)}
+                  className="h-8 text-caption"
+                  placeholder="Add task manually"
+                />
+                <Button
+                  variant="outline"
+                  className="h-8 gap-1 text-caption"
+                  onClick={() => {
+                    addConnectedTask(manualTaskInput);
+                    setManualTaskInput('');
+                  }}
+                >
+                  <Plus className="h-3 w-3" /> Add
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Select value={selectedTaskOptionId} onValueChange={setSelectedTaskOptionId}>
+                  <SelectTrigger className="h-8 text-caption">
+                    <SelectValue placeholder="Select task from board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select task from board</SelectItem>
+                    {availableTaskOptions.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.title} ({task.listName})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  className="h-8 gap-1 text-caption"
+                  onClick={() => {
+                    if (selectedTaskOptionId === '__none__') return;
+                    const selected = taskOptionsById.get(selectedTaskOptionId);
+                    if (!selected) return;
+                    addConnectedTask(selected.title);
+                    setSelectedTaskOptionId('__none__');
+                  }}
+                >
+                  <Plus className="h-3 w-3" /> Add
+                </Button>
+              </div>
+
+              {connectedTasks.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {connectedTasks.map((taskName) => (
+                    <span
+                      key={taskName}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-surface-hover px-2 py-1 text-xs text-text-secondary"
+                    >
+                      {taskName}
+                      <button
+                        className="rounded p-0.5 text-text-tertiary hover:bg-surface-hover hover:text-red-400"
+                        onClick={() => removeConnectedTask(taskName)}
+                        title={`Remove ${taskName}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-caption text-text-tertiary">No connected tasks</p>
+              )}
+            </div>
+          ) : (
+            <div className="rounded border border-border/50 bg-surface-hover/20 p-3">
+              {connectedTasks.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {connectedTasks.map((taskName) => (
+                    <span
+                      key={taskName}
+                      className="rounded border border-border px-2 py-1 text-xs text-text-secondary"
+                    >
+                      {taskName}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-caption text-text-tertiary">No connected tasks</p>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="space-y-2">
           <h3 className="text-caption font-semibold text-text-primary">General Notes</h3>
           {editMode ? (
             <Textarea
               value={skeleton.generalNotes}
               onChange={(e) => onUpdate({ generalNotes: e.target.value })}
-              className="text-caption min-h-[80px]"
+              className={`min-h-[80px] text-caption ${notesTintClass}`}
               placeholder="Additional notes about this skeleton..."
             />
           ) : (
-            <p className="text-caption text-text-tertiary rounded border border-border/50 p-3 bg-surface-hover/20 min-h-[40px]">
+            <p className={`min-h-[40px] rounded border p-3 text-caption text-text-tertiary ${notesTintClass}`}>
               {skeleton.generalNotes || 'No notes'}
             </p>
           )}

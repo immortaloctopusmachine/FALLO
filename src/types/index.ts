@@ -159,9 +159,18 @@ export interface Attachment {
   uploader?: User | null;
 }
 
+export type CommentType = 'standard' | 'review_submission';
+
+export interface ReviewSubmissionData {
+  reviewText: string;
+  visibleInEngine: boolean | null;
+  notes: string;
+}
+
 export interface Comment {
   id: string;
   content: string;
+  type: CommentType;
   authorId: string;
   author: User;
   attachmentId: string | null;
@@ -248,6 +257,9 @@ export interface BoardSettings {
   // LLM settings
   llmEnabled?: boolean;
   llmProvider?: 'anthropic';
+
+  // Project naming
+  productionTitle?: string;            // Approved final game name; when set, overrides board.name as display name
 
   // Project settings
   projectStartDate?: string;           // ISO date string
@@ -534,6 +546,7 @@ export interface TimelineData {
   board: {
     id: string;
     name: string;
+    productionTitle?: string | null;
     description: string | null;
     teamId: string | null;
     team: Team | null;
@@ -556,6 +569,7 @@ export interface TimelineData {
 export interface TimelineArchivedProjectSummary {
   id: string;
   name: string;
+  productionTitle?: string | null;
   teamId: string | null;
   team: Team | null;
 }

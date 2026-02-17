@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { ArrowLeft, Settings, CheckSquare, Layers, Bone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { BoardViewMode } from '@/types';
+import type { BoardViewMode, BoardSettings } from '@/types';
+import { getProjectDisplayName } from '@/lib/project-utils';
 import { cn } from '@/lib/utils';
 
 interface BoardHeaderMember {
@@ -16,6 +17,7 @@ interface BoardHeaderMember {
 
 interface BoardHeaderProps {
   name: string;
+  settings?: BoardSettings;
   memberCount: number;
   members: BoardHeaderMember[];
   viewMode?: BoardViewMode;
@@ -27,6 +29,7 @@ interface BoardHeaderProps {
 
 export function BoardHeader({
   name,
+  settings,
   memberCount,
   members,
   viewMode = 'tasks',
@@ -46,7 +49,7 @@ export function BoardHeader({
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-title font-semibold">{name}</h1>
+        <h1 className="text-title font-semibold">{getProjectDisplayName(name, settings)}</h1>
       </div>
 
       {/* View Toggle */}

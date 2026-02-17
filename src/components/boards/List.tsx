@@ -87,6 +87,11 @@ function getListTintStyle(listName: string): React.CSSProperties | undefined {
     return { backgroundImage: 'linear-gradient(rgba(168,85,247,0.05), rgba(168,85,247,0.03))' };
   }
 
+  // To Do Animation - subtle maroon
+  if (name.includes('animation')) {
+    return { backgroundImage: 'linear-gradient(rgba(128,0,32,0.06), rgba(128,0,32,0.03))' };
+  }
+
   // In Progress/Doing - subtle orange
   if (name.includes('progress') || name.includes('doing') || name.includes('working')) {
     return { backgroundImage: 'linear-gradient(rgba(249,115,22,0.05), rgba(249,115,22,0.03))' };

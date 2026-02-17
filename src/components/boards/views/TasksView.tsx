@@ -19,7 +19,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { Plus, ChevronRight, ChevronLeft, ExternalLink, Calendar, Link as LinkIcon, BarChart3, Filter, User } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, ExternalLink, Calendar, Link as LinkIcon, BarChart3, Filter, User, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoardMutations } from '@/hooks/api/use-board-mutations';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,8 @@ import { List } from '../List';
 import { CardCompact } from '@/components/cards/CardCompact';
 import { CardModal } from '@/components/cards/CardModal';
 import { BurnUpChart } from './BurnUpChart';
+import { ReviewSubmissionDialog } from '@/components/cards/ReviewSubmissionDialog';
+import { ReviewModeOverlay } from '@/components/boards/ReviewModeOverlay';
 import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatDisplayDate, getBusinessDaysBetween } from '@/lib/date-utils';
@@ -92,6 +94,13 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   const [isMounted, setIsMounted] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [chartExpanded, setChartExpanded] = useState(false);
+  const [pendingReviewMove, setPendingReviewMove] = useState<{
+    card: Card;
+    sourceListId: string;
+    destinationListId: string;
+    newPosition: number;
+  } | null>(null);
+  const [reviewModeListId, setReviewModeListId] = useState<string | null>(null);
   // Default to "My Tasks" for non-admin members
   const defaultFilterType = useMemo(() => {
     const member = initialBoard.members?.find(m => m.userId === currentUserId);
@@ -393,6 +402,24 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       return;
     }
 
+    // Check if moving to a review list (and not already from a review list)
+    const destList = board.lists.find(l => l.id === destinationListId);
+    const srcList = board.lists.find(l => l.id === sourceListId);
+    const isMovingToReview = destList && destList.name.toLowerCase().includes('review');
+    const isFromReview = srcList && srcList.name.toLowerCase().includes('review');
+
+    if (isMovingToReview && !isFromReview) {
+      setPendingReviewMove({
+        card: activeCard,
+        sourceListId,
+        destinationListId,
+        newPosition,
+      });
+      setActiveCard(null);
+      setActiveCardListId(null);
+      return;
+    }
+
     try {
       await mutations.reorderCard({
         cardId: activeCard.id,
@@ -411,6 +438,70 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     boardSnapshotRef.current = null;
     setActiveCard(null);
     setActiveCardListId(null);
+  };
+
+  // Review submission dialog callbacks
+  const handleReviewSubmitted = async () => {
+    if (!pendingReviewMove) return;
+    try {
+      await mutations.reorderCard({
+        cardId: pendingReviewMove.card.id,
+        sourceListId: pendingReviewMove.sourceListId,
+        destinationListId: pendingReviewMove.destinationListId,
+        newPosition: pendingReviewMove.newPosition,
+      });
+    } catch (error) {
+      console.error('Failed to move card:', error);
+      if (boardSnapshotRef.current) {
+        setBoard(boardSnapshotRef.current);
+      }
+      toast.error('Failed to move card');
+    }
+    boardSnapshotRef.current = null;
+    setPendingReviewMove(null);
+  };
+
+  const handleReviewCancelled = () => {
+    if (boardSnapshotRef.current) {
+      setBoard(boardSnapshotRef.current);
+    }
+    boardSnapshotRef.current = null;
+    setPendingReviewMove(null);
+  };
+
+  // Review mode card moved handler
+  const handleReviewModeCardMoved = async (cardId: string, targetListId: string) => {
+    if (!reviewModeListId) return;
+
+    setBoard((prev) => {
+      const newLists = prev.lists.map((list) => {
+        if (list.id === reviewModeListId) {
+          return { ...list, cards: list.cards.filter((c) => c.id !== cardId) };
+        }
+        if (list.id === targetListId) {
+          const movedCard = prev.lists
+            .find((l) => l.id === reviewModeListId)
+            ?.cards.find((c) => c.id === cardId);
+          if (movedCard) {
+            return { ...list, cards: [{ ...movedCard, listId: targetListId }, ...list.cards] };
+          }
+        }
+        return list;
+      });
+      return { ...prev, lists: newLists };
+    });
+
+    try {
+      await mutations.reorderCard({
+        cardId,
+        sourceListId: reviewModeListId,
+        destinationListId: targetListId,
+        newPosition: 0,
+      });
+    } catch (error) {
+      console.error('Failed to move card:', error);
+      toast.error('Failed to move card');
+    }
   };
 
   const collisionDetection = useCallback((args: Parameters<typeof pointerWithin>[0]) => {
@@ -795,7 +886,9 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           onDragEnd={handleDragEnd}
         >
           <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
-          {filteredLists.map((list) => (
+          {filteredLists.map((list) => {
+            const isReviewList = list.name.toLowerCase().includes('review');
+            return (
             <SortableContext
               key={list.id}
               items={list.cards.map((c) => c.id)}
@@ -812,9 +905,21 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 cardTypeFilter="TASK"
                 listColor={list.color}
                 chainMap={chainMap}
+                extraHeaderActions={isReviewList ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-text-tertiary hover:text-purple-500"
+                    onClick={() => setReviewModeListId(list.id)}
+                    title="Review Mode"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                ) : undefined}
               />
             </SortableContext>
-          ))}
+            );
+          })}
 
           {/* Add List */}
           <div className="w-[280px] shrink-0">
@@ -895,6 +1000,31 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         planningLists={planningLists}
         allCards={allCards}
       />
+
+      {/* Review Submission Dialog */}
+      {pendingReviewMove && (
+        <ReviewSubmissionDialog
+          isOpen={!!pendingReviewMove}
+          card={pendingReviewMove.card}
+          boardId={board.id}
+          onSubmit={handleReviewSubmitted}
+          onCancel={handleReviewCancelled}
+        />
+      )}
+
+      {/* Review Mode Overlay */}
+      {reviewModeListId && (
+        <ReviewModeOverlay
+          isOpen={!!reviewModeListId}
+          onClose={() => setReviewModeListId(null)}
+          reviewListId={reviewModeListId}
+          reviewListName={board.lists.find(l => l.id === reviewModeListId)?.name || 'Review'}
+          cards={board.lists.find(l => l.id === reviewModeListId)?.cards || []}
+          boardId={board.id}
+          allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
+          onCardMoved={handleReviewModeCardMoved}
+        />
+      )}
     </div>
   );
 }
