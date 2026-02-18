@@ -637,40 +637,44 @@ export function SpineTrackerHeader({
   const canSearchSpineFiles = looksLikeFinalAssetsPath(finalAssetsPath);
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-4 py-2 shrink-0">
-      <div className="flex items-center gap-3 min-w-0">
-        <h2 className="text-caption font-semibold text-text-primary">
-          Spine Tracker {projectName && `- ${projectName}`}
-        </h2>
-        <span className={`text-xs ${status.className}`}>{status.label}</span>
+    <div className="shrink-0">
+      {/* Stats bar */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-4 py-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-caption font-semibold text-text-primary whitespace-nowrap">
+            Spine Tracker {projectName && `- ${projectName}`}
+          </h2>
+          <span className={`text-xs whitespace-nowrap ${status.className}`}>{status.label}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            {skeletonCount} skeletons
+          </span>
+          <span className="rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            {animationStats.total} anim total
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            <span className="h-2 w-2 rounded-full bg-slate-400" />
+            {animationStats.byStatus.planned}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            <span className="h-2 w-2 rounded-full bg-yellow-400" />
+            {animationStats.byStatus.ready_to_be_implemented}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            {animationStats.byStatus.implemented}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-text-secondary">
+            <span className="h-2 w-2 rounded-full bg-red-400" />
+            {animationStats.byStatus.not_as_intended}
+          </span>
+        </div>
+        <div />
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-        <span className="rounded-full bg-surface-hover px-2 py-1 text-text-secondary">
-          {skeletonCount} skeletons
-        </span>
-        <span className="rounded-full bg-surface-hover px-2 py-1 text-text-secondary">
-          {animationStats.total} anim total
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-1 text-text-secondary">
-          <span className="h-2 w-2 rounded-full bg-slate-400" />
-          {animationStats.byStatus.planned}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-1 text-text-secondary">
-          <span className="h-2 w-2 rounded-full bg-yellow-400" />
-          {animationStats.byStatus.ready_to_be_implemented}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-1 text-text-secondary">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          {animationStats.byStatus.implemented}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-1 text-text-secondary">
-          <span className="h-2 w-2 rounded-full bg-red-400" />
-          {animationStats.byStatus.not_as_intended}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-end gap-1 min-w-0">
+      {/* Action bar */}
+      <div className="flex items-center justify-end gap-1 border-b border-border bg-surface px-4 py-1 min-w-0">
         <span
           className={`text-xs ${isConnected ? 'text-emerald-400' : 'text-amber-400'}`}
           title={finalAssetsPath || 'No Final Assets path configured for this project'}

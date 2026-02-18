@@ -23,6 +23,7 @@ export interface Animation {
   name: string;
   status: AnimationStatus;
   track: number;
+  targetBone?: string;
   notes: string;
   soundFx: SoundFx[];
 }

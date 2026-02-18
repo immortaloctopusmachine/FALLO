@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Animation, SoundFx, SpineEvent } from '@/types/spine-tracker';
-import { ANIMATION_STATUSES } from './constants';
+import { ANIMATION_STATUSES, STATUS_COLORS } from './constants';
 import { SoundFxRow } from './SoundFxRow';
 
 interface AnimationTableProps {
@@ -60,6 +60,7 @@ export function AnimationTable({
               <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Name</th>
               <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Status</th>
               <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Track</th>
+              <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Target Bone</th>
               <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Events</th>
               <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Event Comment</th>
               <th className="px-3 py-1.5 text-left text-caption font-medium text-text-tertiary">Notes</th>
@@ -98,13 +99,16 @@ export function AnimationTable({
                         value={animation.status}
                         onValueChange={(value) => onUpdate(index, { status: value as Animation['status'] })}
                       >
-                        <SelectTrigger className="h-7 min-w-[210px] text-caption">
+                        <SelectTrigger className={`h-6 text-[11px] font-mono border-0 rounded px-2 py-0.5 ${STATUS_COLORS[animation.status]?.bg || ''} ${STATUS_COLORS[animation.status]?.text || ''}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {ANIMATION_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
+                          {ANIMATION_STATUSES.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              <span className="flex items-center gap-1.5">
+                                <span className={`inline-block h-2 w-2 rounded-full ${STATUS_COLORS[s]?.bg || ''}`} />
+                                {s}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -122,6 +126,18 @@ export function AnimationTable({
                         />
                       ) : (
                         <span className="text-text-secondary">{animation.track}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {editMode ? (
+                        <Input
+                          value={animation.targetBone || ''}
+                          onChange={(e) => onUpdate(index, { targetBone: e.target.value })}
+                          className="h-7 text-caption font-mono"
+                          placeholder="bone_name"
+                        />
+                      ) : (
+                        <span className="font-mono text-text-secondary">{animation.targetBone || '-'}</span>
                       )}
                     </td>
                     <td className="px-3 py-1.5">
@@ -184,7 +200,7 @@ export function AnimationTable({
             })}
             {animations.length === 0 ? (
               <tr>
-                <td colSpan={editMode ? 7 : 6} className="py-4 text-center text-caption text-text-tertiary">
+                <td colSpan={editMode ? 8 : 7} className="py-4 text-center text-caption text-text-tertiary">
                   No animations
                 </td>
               </tr>

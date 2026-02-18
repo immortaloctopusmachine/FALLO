@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Skeleton, Animation, SoundFx, Skin, SpineEvent } from '@/types/spine-tracker';
-import { SKELETON_STATUSES, STATUS_COLORS, DEFAULT_SKELETON_GROUPS, getZOrderColor } from './constants';
+import { SKELETON_STATUSES, STATUS_COLORS, DEFAULT_SKELETON_GROUPS } from './constants';
 import { AnimationTable } from './AnimationTable';
 import { SkeletonPlacement } from './SkeletonPlacement';
 import { SkinsEventsPanel } from './SkinsEventsPanel';
@@ -71,8 +71,6 @@ export function SkeletonEditor({
   onUpdateEvent,
   onDeleteEvent,
 }: SkeletonEditorProps) {
-  const statusColor = STATUS_COLORS[skeleton.status];
-  const zColor = getZOrderColor(skeleton.zOrder);
   const [manualTaskInput, setManualTaskInput] = useState('');
   const [selectedTaskOptionId, setSelectedTaskOptionId] = useState('__none__');
   const notesTintClass = 'border-orange-500/30 bg-orange-500/10';
@@ -136,12 +134,6 @@ export function SkeletonEditor({
                 MASTER
               </span>
             ) : null}
-            <span className={`rounded px-2 py-0.5 text-xs font-mono text-white ${zColor}`}>
-              z:{skeleton.zOrder}
-            </span>
-            <span className={`rounded px-2 py-0.5 text-xs font-mono ${statusColor?.bg || ''} ${statusColor?.text || ''}`}>
-              {skeleton.status}
-            </span>
             {skeleton.isGeneric ? (
               <span className="rounded bg-slate-700 px-2 py-0.5 text-xs font-mono text-slate-100">
                 generic
@@ -220,7 +212,7 @@ export function SkeletonEditor({
                     <SelectContent>
                       {groupOptions.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
-                          {group.icon} {group.label}
+                          {group.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -243,13 +235,16 @@ export function SkeletonEditor({
                     value={skeleton.status}
                     onValueChange={(v) => onUpdate({ status: v as Skeleton['status'] })}
                   >
-                    <SelectTrigger className="h-8 text-caption">
+                    <SelectTrigger className={`h-7 text-[11px] font-mono border-0 rounded px-2 py-0.5 ${STATUS_COLORS[skeleton.status]?.bg || ''} ${STATUS_COLORS[skeleton.status]?.text || ''}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {SKELETON_STATUSES.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status}
+                      {SKELETON_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          <span className="flex items-center gap-1.5">
+                            <span className={`inline-block h-2 w-2 rounded-full ${STATUS_COLORS[s]?.bg || ''}`} />
+                            {s}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -303,18 +298,11 @@ export function SkeletonEditor({
         />
 
         <SkinsEventsPanel
-          targetBone={skeleton.targetBone || ''}
           skins={skeleton.skins}
-          events={skeleton.events}
-          animations={skeleton.animations}
           editMode={editMode}
-          onUpdateTargetBone={(targetBone) => onUpdate({ targetBone })}
           onAddSkin={onAddSkin}
           onUpdateSkin={onUpdateSkin}
           onDeleteSkin={onDeleteSkin}
-          onAddEvent={onAddEvent}
-          onUpdateEvent={onUpdateEvent}
-          onDeleteEvent={onDeleteEvent}
         />
 
         <div className="space-y-2">

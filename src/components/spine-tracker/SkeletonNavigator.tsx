@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { Skeleton } from '@/types/spine-tracker';
-import { DEFAULT_SKELETON_GROUPS, PROTECTED_GROUPS, STATUS_COLORS, getZOrderColor } from './constants';
+import { DEFAULT_SKELETON_GROUPS, PROTECTED_GROUPS } from './constants';
+import type { SkeletonStatus } from '@/types/spine-tracker';
 
 interface SkeletonNavigatorProps {
   skeletons: Skeleton[];
@@ -68,6 +69,11 @@ export function SkeletonNavigator({
     [skeletons]
   );
 
+  const genericSkeletonCount = useMemo(
+    () => skeletons.filter((s) => s.isGeneric).length,
+    [skeletons]
+  );
+
   const filteredSkeletons = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return skeletons.filter((skeleton) => {
@@ -126,7 +132,7 @@ export function SkeletonNavigator({
             <p className="text-caption font-semibold text-text-primary">
               Skeletons ({filteredSkeletons.length})
             </p>
-            <p className="text-[11px] text-text-tertiary">Generic Skeletons</p>
+            <p className="text-[11px] text-text-tertiary">Generic Skeletons ({genericSkeletonCount})</p>
             <div className="mt-1 flex items-center gap-2">
               <Switch
                 checked={showGenericSkeletons}
@@ -164,7 +170,6 @@ export function SkeletonNavigator({
         {groupOrder.map((groupId) => {
           const group = groupMap.get(groupId);
           const groupLabel = group?.label || groupId;
-          const groupIcon = group?.icon || '#';
           const items = groupedSkeletons[groupId] || [];
           const isCollapsed = collapsedGroups.has(groupId);
           const canDeleteGroup = Boolean(customGroups[groupId]) && !PROTECTED_GROUPS.includes(groupId);
@@ -198,7 +203,6 @@ export function SkeletonNavigator({
                   ) : (
                     <ChevronDown className="mr-1.5 h-3.5 w-3.5 shrink-0 text-text-tertiary" />
                   )}
-                  <span className="mr-1.5">{groupIcon}</span>
                   <span className="flex-1 truncate text-caption font-medium text-text-secondary">
                     {groupLabel}
                   </span>
@@ -216,11 +220,20 @@ export function SkeletonNavigator({
               </div>
 
               {!isCollapsed ? (
-                <div className="pb-1">
+                <div className="space-y-1 pb-1 pt-0.5">
                   {items.map((skeleton) => {
                     const isSelected = skeleton.id === selectedSkeletonId;
-                    const statusColor = STATUS_COLORS[skeleton.status];
-                    const zColor = getZOrderColor(skeleton.zOrder);
+                    const animStatusCounts: Record<SkeletonStatus, number> = {
+                      planned: 0,
+                      ready_to_be_implemented: 0,
+                      implemented: 0,
+                      not_as_intended: 0,
+                    };
+                    for (const anim of skeleton.animations) {
+                      if (anim.status in animStatusCounts) {
+                        animStatusCounts[anim.status as SkeletonStatus] += 1;
+                      }
+                    }
 
                     return (
                       <div
@@ -235,10 +248,10 @@ export function SkeletonNavigator({
                           setDraggingSkeletonId(null);
                           setDragOverGroupId(null);
                         }}
-                        className={`group mx-1 ml-2 flex cursor-pointer items-center rounded border px-3 py-1 transition-colors ${
+                        className={`group mx-1.5 flex cursor-pointer items-center rounded-md border px-2.5 py-1.5 transition-colors ${
                           isSelected
-                            ? 'border-blue-500/30 bg-blue-600/20'
-                            : 'border-transparent hover:bg-surface-hover/50'
+                            ? 'border-blue-500/40 bg-blue-600/15 shadow-sm shadow-blue-500/10'
+                            : 'border-border/40 bg-surface-hover/20 hover:border-border/60 hover:bg-surface-hover/40'
                         }`}
                         onClick={() => onSelectSkeleton(skeleton.id)}
                       >
@@ -254,18 +267,34 @@ export function SkeletonNavigator({
                               </span>
                             ) : null}
                           </div>
-                          <div className="mt-0.5 flex items-center gap-1">
-                            <span className={`rounded px-1 py-0 text-[10px] font-mono text-white ${zColor}`}>
-                              z:{skeleton.zOrder}
-                            </span>
-                            <span
-                              className={`rounded px-1 py-0 text-[10px] font-mono ${statusColor?.bg || ''} ${statusColor?.text || ''}`}
-                            >
-                              {skeleton.status}
-                            </span>
-                            <span className="text-[10px] text-text-tertiary">
-                              {skeleton.animations.length} anim
-                            </span>
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            {animStatusCounts.planned > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-text-tertiary">
+                                <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                                {animStatusCounts.planned}
+                              </span>
+                            )}
+                            {animStatusCounts.ready_to_be_implemented > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-text-tertiary">
+                                <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                                {animStatusCounts.ready_to_be_implemented}
+                              </span>
+                            )}
+                            {animStatusCounts.implemented > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-text-tertiary">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                {animStatusCounts.implemented}
+                              </span>
+                            )}
+                            {animStatusCounts.not_as_intended > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-text-tertiary">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                {animStatusCounts.not_as_intended}
+                              </span>
+                            )}
+                            {skeleton.animations.length === 0 && (
+                              <span className="text-[10px] text-text-tertiary">0 anim</span>
+                            )}
                           </div>
                         </div>
 

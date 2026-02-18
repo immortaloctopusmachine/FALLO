@@ -89,7 +89,7 @@ export function createSkeleton(overrides: Partial<Skeleton> = {}): Skeleton {
     description: '',
     placement: { parent: null, bone: null, notes: '' },
     targetBone: '',
-    animations: [{ name: 'idle', status: 'planned', track: 0, notes: '', soundFx: [] }],
+    animations: [{ name: 'idle', status: 'planned', track: 0, targetBone: '', notes: '', soundFx: [] }],
     skins: [],
     events: [],
     previewImageDataUrl: null,
