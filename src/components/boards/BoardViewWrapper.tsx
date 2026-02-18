@@ -26,6 +26,7 @@ interface BoardViewWrapperProps {
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
   isAdmin?: boolean;
+  canEditSpine?: boolean;
   canViewQualitySummaries?: boolean;
   hasFullData?: boolean;
   isLoadingFullData?: boolean;
@@ -37,6 +38,7 @@ export function BoardViewWrapper({
   currentUserId,
   weeklyProgress = [],
   isAdmin = false,
+  canEditSpine = true,
   canViewQualitySummaries = false,
   hasFullData = true,
   isLoadingFullData = false,
@@ -124,7 +126,7 @@ export function BoardViewWrapper({
             />
           )
         ) : viewMode === 'spine' ? (
-          <SpineTrackerView boardId={board.id} />
+          <SpineTrackerView boardId={board.id} canEdit={canEditSpine} />
         ) : (
           // Fallback to original BoardView for legacy
           <BoardView board={board} currentUserId={currentUserId} canViewQualitySummaries={canViewQualitySummaries} />

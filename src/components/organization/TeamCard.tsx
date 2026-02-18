@@ -15,14 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-interface TeamMember {
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-    image: string | null;
-  };
-}
+import type { TeamMember } from '@/types';
 
 interface TeamCardProps {
   id: string;
@@ -32,7 +25,7 @@ interface TeamCardProps {
   color: string;
   memberCount: number;
   boardCount: number;
-  members?: TeamMember[];
+  members?: Pick<TeamMember, 'user'>[];
   showDelete?: boolean;
 }
 

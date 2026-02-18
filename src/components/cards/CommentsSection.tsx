@@ -14,13 +14,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { CommentContent } from './CommentContent';
 import { ReviewSubmissionComment } from './ReviewSubmissionComment';
-import type { Comment, Attachment, User as UserType } from '@/types';
+import type { Comment, Attachment, BoardMember } from '@/types';
 import { cn } from '@/lib/utils';
-
-interface BoardMember {
-  id: string;
-  user: UserType;
-}
 
 interface MentionSuggestion {
   type: 'attachment' | 'user';

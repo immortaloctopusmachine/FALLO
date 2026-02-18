@@ -246,6 +246,26 @@ export function formatDateInput(date: Date): string {
 }
 
 /**
+ * Format a date as "Month Day" (e.g., "July 8").
+ * Handles YYYY-MM-DD strings by appending T00:00:00 to prevent timezone offset issues.
+ *
+ * @param date - The date to format (Date or string)
+ * @returns Formatted string like "July 8"
+ */
+export function formatMonthDay(date: Date | string): string {
+  let parsedDate: Date;
+  if (typeof date === 'string') {
+    parsedDate = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00');
+  } else {
+    parsedDate = date;
+  }
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/**
  * Format a local date key (YYYY-MM-DD) without UTC conversion.
  * Use this for UI grouping/comparison where timezone shifts are undesirable.
  */

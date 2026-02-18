@@ -1,13 +1,22 @@
 'use client';
 
+import { useState } from 'react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import type { Skeleton, SkeletonPlacement as SkeletonPlacementType } from '@/types/spine-tracker';
 import { LAYOUT_TEMPLATE_BONES } from './constants';
 
@@ -19,6 +28,9 @@ interface SkeletonPlacementProps {
 }
 
 export function SkeletonPlacement({ placement, editMode, allSkeletons, onUpdate }: SkeletonPlacementProps) {
+  const [parentOpen, setParentOpen] = useState(false);
+  const [boneOpen, setBoneOpen] = useState(false);
+
   const parentOptions = allSkeletons
     .filter((s) => s.name !== 'NEW_SKELETON')
     .map((s) => s.name);
@@ -64,42 +76,108 @@ export function SkeletonPlacement({ placement, editMode, allSkeletons, onUpdate 
       <div className="grid grid-cols-3 gap-3 rounded border border-border p-3">
         <div className="space-y-1">
           <label className="text-xs text-text-tertiary">Skeleton</label>
-          <Select
-            value={placement.parent || '__standalone__'}
-            onValueChange={(v) => onUpdate({ parent: v === '__standalone__' ? null : v })}
-          >
-            <SelectTrigger className="h-8 text-caption">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__standalone__">Standalone</SelectItem>
-              {parentOptions.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={parentOpen} onOpenChange={setParentOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  'flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-caption',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  !placement.parent && 'text-muted-foreground'
+                )}
+              >
+                <span className="truncate font-mono">
+                  {placement.parent || 'Standalone'}
+                </span>
+                <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search skeletons..." />
+                <CommandList>
+                  <CommandEmpty>No skeletons found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="Standalone"
+                      onSelect={() => {
+                        onUpdate({ parent: null });
+                        setParentOpen(false);
+                      }}
+                    >
+                      <Check className={cn('mr-2 h-3.5 w-3.5', !placement.parent ? 'opacity-100' : 'opacity-0')} />
+                      Standalone
+                    </CommandItem>
+                    {parentOptions.map((name) => (
+                      <CommandItem
+                        key={name}
+                        value={name}
+                        onSelect={() => {
+                          onUpdate({ parent: name });
+                          setParentOpen(false);
+                        }}
+                      >
+                        <Check className={cn('mr-2 h-3.5 w-3.5', placement.parent === name ? 'opacity-100' : 'opacity-0')} />
+                        <span className="font-mono">{name}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="space-y-1">
           <label className="text-xs text-text-tertiary">Target Bone</label>
           {showBoneDropdown ? (
-            <Select
-              value={placement.bone || '__none__'}
-              onValueChange={(v) => onUpdate({ bone: v === '__none__' ? null : v })}
-            >
-              <SelectTrigger className="h-8 text-caption">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {LAYOUT_TEMPLATE_BONES.map((b) => (
-                  <SelectItem key={b.bone} value={b.bone}>
-                    {b.bone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={boneOpen} onOpenChange={setBoneOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    'flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-caption',
+                    'hover:bg-accent hover:text-accent-foreground',
+                    !placement.bone && 'text-muted-foreground'
+                  )}
+                >
+                  <span className="truncate font-mono">
+                    {placement.bone || 'None'}
+                  </span>
+                  <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search bones..." />
+                  <CommandList>
+                    <CommandEmpty>No bones found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="None"
+                        onSelect={() => {
+                          onUpdate({ bone: null });
+                          setBoneOpen(false);
+                        }}
+                      >
+                        <Check className={cn('mr-2 h-3.5 w-3.5', !placement.bone ? 'opacity-100' : 'opacity-0')} />
+                        None
+                      </CommandItem>
+                      {LAYOUT_TEMPLATE_BONES.map((b) => (
+                        <CommandItem
+                          key={b.bone}
+                          value={b.bone}
+                          onSelect={() => {
+                            onUpdate({ bone: b.bone });
+                            setBoneOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 h-3.5 w-3.5', placement.bone === b.bone ? 'opacity-100' : 'opacity-0')} />
+                          <span className="font-mono">{b.bone}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           ) : (
             <Input
               value={placement.bone || ''}

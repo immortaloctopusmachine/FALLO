@@ -4,9 +4,11 @@ import { createEmptyState } from '@/components/spine-tracker/utils';
 import {
   requireAuth,
   requireBoardMember,
+  hasPermission,
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import type { PermissionLevel } from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/spine-tracker — Fetch spine tracker data
 export async function GET(
@@ -70,6 +72,10 @@ export async function PUT(
 
     const membershipResult = await requireBoardMember(boardId, session.user.id);
     if (membershipResult.response) return membershipResult.response;
+
+    if (!hasPermission(membershipResult.membership.permission as PermissionLevel, 'MEMBER')) {
+      return ApiErrors.forbidden('Viewers cannot edit spine tracker data');
+    }
 
     const body = await request.json();
     const { data, version } = body;

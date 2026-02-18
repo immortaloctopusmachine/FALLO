@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import type { Team as BaseTeam, User as BaseUser } from '@/types';
+import type { TeamDetail, TeamMember, Studio, User } from '@/types';
 
 const TEAM_COLORS = [
   '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
@@ -48,30 +48,8 @@ const TEAM_COLORS = [
   '#f43f5e', '#ef4444', '#f97316',
 ];
 
-interface Studio {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-type TeamMemberUser = Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
-
-interface TeamMember {
-  id: string;
-  permission: string;
-  title: string | null;
-  user: TeamMemberUser;
-}
-
-type TeamSettingsTeam = Pick<BaseTeam, 'id' | 'name' | 'color'> & {
-  description: string | null;
-  image: string | null;
-  studio: Studio | null;
-  members: TeamMember[];
-};
-
 interface TeamSettingsModalProps {
-  team: TeamSettingsTeam;
+  team: TeamDetail;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -88,7 +66,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const [studios, setStudios] = useState<Studio[]>([]);
-  const [users, setUsers] = useState<TeamMemberUser[]>([]);
+  const [users, setUsers] = useState<Pick<User, 'id' | 'name' | 'email' | 'image'>[]>([]);
   const [members, setMembers] = useState<TeamMember[]>(team.members);
   const [studioOpen, setStudioOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);

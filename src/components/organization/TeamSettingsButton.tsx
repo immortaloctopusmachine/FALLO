@@ -3,32 +3,10 @@
 import { useState } from 'react';
 import { Settings } from 'lucide-react';
 import { TeamSettingsModal } from './TeamSettingsModal';
-import type { Team as BaseTeam, User as BaseUser } from '@/types';
-
-interface Studio {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-type TeamMemberUser = Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
-
-interface TeamMember {
-  id: string;
-  permission: string;
-  title: string | null;
-  user: TeamMemberUser;
-}
-
-type TeamSettingsTeam = Pick<BaseTeam, 'id' | 'name' | 'color'> & {
-  description: string | null;
-  image: string | null;
-  studio: Studio | null;
-  members: TeamMember[];
-};
+import type { TeamDetail } from '@/types';
 
 interface TeamSettingsButtonProps {
-  team: TeamSettingsTeam;
+  team: TeamDetail;
 }
 
 export function TeamSettingsButton({ team }: TeamSettingsButtonProps) {

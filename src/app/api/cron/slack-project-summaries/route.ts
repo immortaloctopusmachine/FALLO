@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isSlackConfigured, postSlackMessage } from '@/lib/slack';
+import { apiError, ApiErrors, apiSuccess } from '@/lib/api-utils';
 
 export const runtime = 'nodejs';
 
@@ -28,36 +28,15 @@ function isTaskComplete(task: {
 
 async function handleCronRequest(request: Request) {
   if (!process.env.CRON_SECRET) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'CRON_SECRET_MISSING',
-          message: 'CRON_SECRET environment variable is not configured',
-        },
-      },
-      { status: 500 }
-    );
+    return ApiErrors.internal('CRON_SECRET environment variable is not configured');
   }
 
   if (!isAuthorized(request)) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid cron secret',
-        },
-      },
-      { status: 401 }
-    );
+    return apiError('UNAUTHORIZED', 'Invalid cron secret', 401);
   }
 
   if (!isSlackConfigured()) {
-    return NextResponse.json({
-      success: true,
-      data: { sent: 0, skipped: 0, reason: 'SLACK_BOT_TOKEN not configured' },
-    });
+    return apiSuccess({ sent: 0, skipped: 0, reason: 'SLACK_BOT_TOKEN not configured' });
   }
 
   try {
@@ -156,22 +135,10 @@ async function handleCronRequest(request: Request) {
       sent += 1;
     }
 
-    return NextResponse.json({
-      success: true,
-      data: { sent, skipped },
-    });
+    return apiSuccess({ sent, skipped });
   } catch (error) {
     console.error('Slack project summaries cron failed:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to send Slack project summaries',
-        },
-      },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to send Slack project summaries');
   }
 }
 

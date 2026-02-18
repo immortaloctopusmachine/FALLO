@@ -3,9 +3,11 @@ import { validateImportData, normalizeImportData } from '@/components/spine-trac
 import {
   requireAuth,
   requireBoardMember,
+  hasPermission,
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import type { PermissionLevel } from '@/lib/api-utils';
 
 // POST /api/boards/[boardId]/spine-tracker/import — Import JSON from standalone app
 export async function POST(
@@ -20,6 +22,10 @@ export async function POST(
 
     const membershipResult = await requireBoardMember(boardId, session.user.id);
     if (membershipResult.response) return membershipResult.response;
+
+    if (!hasPermission(membershipResult.membership.permission as PermissionLevel, 'MEMBER')) {
+      return ApiErrors.forbidden('Viewers cannot import spine tracker data');
+    }
 
     const body = await request.json();
     const importData = body.data || body;

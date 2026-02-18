@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import { processDueStagedTasks } from '@/lib/task-release';
+import { apiError, ApiErrors, apiSuccess } from '@/lib/api-utils';
 
 export const runtime = 'nodejs';
 
@@ -18,49 +18,19 @@ function isAuthorized(request: Request): boolean {
 
 async function handleCronRequest(request: Request) {
   if (!process.env.CRON_SECRET) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'CRON_SECRET_MISSING',
-          message: 'CRON_SECRET environment variable is not configured',
-        },
-      },
-      { status: 500 }
-    );
+    return ApiErrors.internal('CRON_SECRET environment variable is not configured');
   }
 
   if (!isAuthorized(request)) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid cron secret',
-        },
-      },
-      { status: 401 }
-    );
+    return apiError('UNAUTHORIZED', 'Invalid cron secret', 401);
   }
 
   try {
     const result = await processDueStagedTasks();
-    return NextResponse.json({
-      success: true,
-      data: result,
-    });
+    return apiSuccess(result);
   } catch (error) {
     console.error('Cron staged-task release failed:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to process staged task releases',
-        },
-      },
-      { status: 500 }
-    );
+    return ApiErrors.internal('Failed to process staged task releases');
   }
 }
 

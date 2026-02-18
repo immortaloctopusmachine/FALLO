@@ -40,6 +40,7 @@ interface SpineTrackerHeaderProps {
     byStatus: Record<SkeletonStatus, number>;
   };
   saveStatus: SaveStatus;
+  canEdit?: boolean;
   hasBaseline: boolean;
   finalAssetsPath: string | null;
   isUpdatingFinalAssetsPath: boolean;
@@ -508,6 +509,7 @@ export function SpineTrackerHeader({
   skeletonCount,
   animationStats,
   saveStatus,
+  canEdit = true,
   hasBaseline,
   finalAssetsPath,
   isUpdatingFinalAssetsPath,
@@ -682,17 +684,19 @@ export function SpineTrackerHeader({
           Final Assets: {isConnected ? 'Connected' : 'Not connected'}
         </span>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 text-caption"
-          onClick={() => setIsPathDialogOpen(true)}
-        >
-          <Folder className="h-3 w-3" />
-          {isConnected ? 'Edit Path' : 'Set Path'}
-        </Button>
+        {canEdit ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-caption"
+            onClick={() => setIsPathDialogOpen(true)}
+          >
+            <Folder className="h-3 w-3" />
+            {isConnected ? 'Edit Path' : 'Set Path'}
+          </Button>
+        ) : null}
 
-        {canSearchSpineFiles ? (
+        {canEdit && canSearchSpineFiles ? (
           <Button
             variant="ghost"
             size="sm"
@@ -705,7 +709,7 @@ export function SpineTrackerHeader({
           </Button>
         ) : null}
 
-        {saveStatus === 'conflict' && (
+        {canEdit && saveStatus === 'conflict' && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="sm" className="h-7 gap-1 text-caption text-red-400">
@@ -732,16 +736,18 @@ export function SpineTrackerHeader({
           </AlertDialog>
         )}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 text-caption"
-          onClick={onSetBaseline}
-          title="Set baseline for change tracking"
-        >
-          <Milestone className="h-3 w-3" />
-          {hasBaseline ? 'Reset Baseline' : 'Set Baseline'}
-        </Button>
+        {canEdit ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-caption"
+            onClick={onSetBaseline}
+            title="Set baseline for change tracking"
+          >
+            <Milestone className="h-3 w-3" />
+            {hasBaseline ? 'Reset Baseline' : 'Set Baseline'}
+          </Button>
+        ) : null}
 
         <Button
           variant="ghost"
@@ -777,15 +783,17 @@ export function SpineTrackerHeader({
           <FileJson className="h-3 w-3" /> JSON
         </Button>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1 text-caption"
-          onClick={handleImportClick}
-          title="Import JSON"
-        >
-          <Upload className="h-3 w-3" /> Import
-        </Button>
+        {canEdit ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-caption"
+            onClick={handleImportClick}
+            title="Import JSON"
+          >
+            <Upload className="h-3 w-3" /> Import
+          </Button>
+        ) : null}
 
         <input
           ref={jsonInputRef}
@@ -804,7 +812,7 @@ export function SpineTrackerHeader({
           {...directoryInputProps}
         />
 
-        {saveStatus === 'unsaved' && (
+        {canEdit && saveStatus === 'unsaved' && (
           <Button
             variant="ghost"
             size="sm"

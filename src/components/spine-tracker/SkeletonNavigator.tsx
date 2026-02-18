@@ -17,6 +17,7 @@ interface SkeletonNavigatorProps {
   collapsedGroups: Set<string>;
   searchQuery: string;
   showGenericSkeletons: boolean;
+  canEdit?: boolean;
   onSearchChange: (query: string) => void;
   onToggleShowGenericSkeletons: (show: boolean) => void;
   onSelectSkeleton: (id: string) => void;
@@ -37,6 +38,7 @@ export function SkeletonNavigator({
   collapsedGroups,
   searchQuery,
   showGenericSkeletons,
+  canEdit = true,
   onSearchChange,
   onToggleShowGenericSkeletons,
   onSelectSkeleton,
@@ -143,14 +145,16 @@ export function SkeletonNavigator({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleAddGroup} title="Add group">
-              <FolderPlus className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onAddSkeleton} title="Add skeleton">
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          {canEdit ? (
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleAddGroup} title="Add group">
+                <FolderPlus className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onAddSkeleton} title="Add skeleton">
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -208,7 +212,7 @@ export function SkeletonNavigator({
                   </span>
                   <span className="text-xs text-text-tertiary">{items.length}</span>
                 </button>
-                {canDeleteGroup ? (
+                {canEdit && canDeleteGroup ? (
                   <button
                     className="ml-1 hidden rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-red-400 group-hover:block"
                     onClick={() => onDeleteGroup(groupId)}
@@ -238,12 +242,12 @@ export function SkeletonNavigator({
                     return (
                       <div
                         key={skeleton.id}
-                        draggable
-                        onDragStart={(event) => {
+                        draggable={canEdit}
+                        onDragStart={canEdit ? (event) => {
                           event.dataTransfer.effectAllowed = 'move';
                           event.dataTransfer.setData('text/plain', skeleton.id);
                           setDraggingSkeletonId(skeleton.id);
-                        }}
+                        } : undefined}
                         onDragEnd={() => {
                           setDraggingSkeletonId(null);
                           setDragOverGroupId(null);
@@ -298,30 +302,32 @@ export function SkeletonNavigator({
                           </div>
                         </div>
 
-                        <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-                          <button
-                            className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-secondary"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onDuplicateSkeleton(skeleton.id);
-                            }}
-                            title="Duplicate"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                          {!skeleton.isLayoutTemplate ? (
+                        {canEdit ? (
+                          <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
                             <button
-                              className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-red-400"
+                              className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-secondary"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                onDeleteSkeleton(skeleton.id);
+                                onDuplicateSkeleton(skeleton.id);
                               }}
-                              title="Delete"
+                              title="Duplicate"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Copy className="h-3 w-3" />
                             </button>
-                          ) : null}
-                        </div>
+                            {!skeleton.isLayoutTemplate ? (
+                              <button
+                                className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-red-400"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onDeleteSkeleton(skeleton.id);
+                                }}
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}

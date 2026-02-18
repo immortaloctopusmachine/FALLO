@@ -65,6 +65,7 @@ import {
 import { cn } from '@/lib/utils';
 import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
 import { getProjectDisplayName } from '@/lib/project-utils';
+import { formatLocalDateKey, formatMonthDay } from '@/lib/date-utils';
 import type { BoardSettings } from '@/types';
 import type { LucideIcon } from 'lucide-react';
 
@@ -387,7 +388,7 @@ function getCalculatedDates(blocks: TimelineBlockData[]) {
 
   const lastTweakBlock = tweakBlocks[tweakBlocks.length - 1];
   // Last Tweak = block endDate (already a Friday since blocks end on Friday)
-  const lastTweak = parseApiDate(lastTweakBlock.endDate);
+  const lastTweak = formatLocalDateKey(new Date(lastTweakBlock.endDate));
 
   // Last Static Assets = endDate minus 2 days (Wednesday)
   const [year, month, day] = lastTweak.split('-').map(Number);
@@ -2243,7 +2244,7 @@ function CalculatedDateRow({
   return (
     <div className="flex items-center gap-2">
       <span className="text-caption font-medium text-text-secondary flex-1">{label}</span>
-      <span className="text-body text-text-primary">{formatDate(displayDate)}</span>
+      <span className="text-body text-text-primary">{formatMonthDay(displayDate)}</span>
       {!isOverridden && (
         <span className="text-[10px] text-text-tertiary flex items-center gap-0.5" title="Auto-calculated from TWEAK blocks">
           <Calculator className="h-3 w-3" />
@@ -2295,7 +2296,7 @@ function EventDateRow({
   const color = event?.eventType.color || eventType?.color || '#71717a';
 
   if (event) {
-    const dateStr = parseApiDate(event.startDate);
+    const dateStr = formatLocalDateKey(new Date(event.startDate));
 
     // Editing mode — show date input
     if (isEditing && isAdmin) {
@@ -2342,7 +2343,7 @@ function EventDateRow({
           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
           <span className="text-caption font-medium text-text-secondary truncate">{label}</span>
         </div>
-        <span className="text-body text-text-primary">{formatDate(dateStr)}</span>
+        <span className="text-body text-text-primary">{formatMonthDay(dateStr)}</span>
         {isAdmin && (
           <>
             <button
@@ -2468,24 +2469,3 @@ function EditableLinkRow({
   );
 }
 
-/** Convert an API ISO date string (UTC) to a local YYYY-MM-DD string. */
-function parseApiDate(isoStr: string): string {
-  const date = new Date(isoStr);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/** Format a YYYY-MM-DD string as "Month Day" (e.g., "July 8"). */
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-}

@@ -479,6 +479,26 @@ export interface Team {
   color: string;
 }
 
+export interface Studio {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+export interface TeamMember {
+  id: string;
+  permission: string;
+  title: string | null;
+  user: Pick<User, 'id' | 'name' | 'email' | 'image'>;
+}
+
+export type TeamDetail = Pick<Team, 'id' | 'name' | 'color'> & {
+  description: string | null;
+  image: string | null;
+  studio: Studio | null;
+  members: TeamMember[];
+};
+
 export interface EpicNamePreset {
   id: string;
   name: string;

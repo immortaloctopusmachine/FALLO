@@ -12,16 +12,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { BoardSettings } from '@/types';
+import type { BoardSettings, User } from '@/types';
 import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
 import { getProjectDisplayName } from '@/lib/project-utils';
 import { cn } from '@/lib/utils';
 
-interface BoardMemberInfo {
-  id: string;
-  name: string | null;
-  image: string | null;
-}
+type BoardMemberInfo = Pick<User, 'id' | 'name' | 'image'>;
 
 interface BoardCardProps {
   id: string;

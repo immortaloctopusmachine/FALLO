@@ -35,9 +35,10 @@ interface SpineDiscoveryFile {
 
 interface SpineTrackerViewProps {
   boardId: string;
+  canEdit?: boolean;
 }
 
-export function SpineTrackerView({ boardId }: SpineTrackerViewProps) {
+export function SpineTrackerView({ boardId, canEdit = true }: SpineTrackerViewProps) {
   const tracker = useSpineTracker({ boardId });
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isDiscoveryDialogOpen, setIsDiscoveryDialogOpen] = useState(false);
@@ -232,6 +233,7 @@ export function SpineTrackerView({ boardId }: SpineTrackerViewProps) {
         skeletonCount={tracker.state.skeletons.length}
         animationStats={animationStats}
         saveStatus={tracker.saveStatus}
+        canEdit={canEdit}
         hasBaseline={!!tracker.state.baseline}
         onSetBaseline={tracker.setBaseline}
         onExportJSON={tracker.exportJSON}
@@ -258,6 +260,7 @@ export function SpineTrackerView({ boardId }: SpineTrackerViewProps) {
             collapsedGroups={tracker.collapsedGroups}
             searchQuery={tracker.searchQuery}
             showGenericSkeletons={tracker.showGenericSkeletons}
+            canEdit={canEdit}
             onSearchChange={tracker.setSearchQuery}
             onToggleShowGenericSkeletons={tracker.setShowGenericSkeletons}
             onSelectSkeleton={tracker.selectSkeleton}
@@ -277,8 +280,9 @@ export function SpineTrackerView({ boardId }: SpineTrackerViewProps) {
             <SkeletonEditor
               skeleton={tracker.selectedSkeleton}
               allSkeletons={tracker.state.skeletons}
-              editMode={tracker.editMode}
-              onSetEditMode={tracker.setEditMode}
+              editMode={canEdit && tracker.editMode}
+              canEdit={canEdit}
+              onSetEditMode={canEdit ? tracker.setEditMode : () => {}}
               onUpdate={(updates) => tracker.updateSkeleton(tracker.selectedSkeletonId!, updates)}
               groupOrder={tracker.state.groupOrder}
               customGroups={tracker.state.customGroups}

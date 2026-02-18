@@ -33,6 +33,7 @@ interface SkeletonEditorProps {
   customGroups: Record<string, string>;
   availableTaskOptions: SpineTaskOption[];
   editMode: boolean;
+  canEdit?: boolean;
   onSetEditMode: (v: boolean) => void;
   onUpdate: (updates: Partial<Skeleton>) => void;
   onAddAnimation: () => void;
@@ -56,6 +57,7 @@ export function SkeletonEditor({
   customGroups,
   availableTaskOptions,
   editMode,
+  canEdit = true,
   onSetEditMode,
   onUpdate,
   onAddAnimation,
@@ -140,25 +142,27 @@ export function SkeletonEditor({
               </span>
             ) : null}
           </div>
-          {editMode ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 text-caption"
-              onClick={() => onSetEditMode(false)}
-            >
-              <X className="h-3 w-3" /> Done
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 text-caption"
-              onClick={() => onSetEditMode(true)}
-            >
-              <Edit2 className="h-3 w-3" /> Edit
-            </Button>
-          )}
+          {canEdit ? (
+            editMode ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-caption"
+                onClick={() => onSetEditMode(false)}
+              >
+                <X className="h-3 w-3" /> Done
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-caption"
+                onClick={() => onSetEditMode(true)}
+              >
+                <Edit2 className="h-3 w-3" /> Edit
+              </Button>
+            )
+          ) : null}
         </div>
       </div>
 

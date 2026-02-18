@@ -137,6 +137,7 @@ export function BoardDetailClient({
   const currentMember = board.members.find((m) => m.userId === currentUserId);
   const isBoardAdmin = currentMember?.permission === 'ADMIN' || currentMember?.permission === 'SUPER_ADMIN';
   const canEdit = isSuperAdmin || isBoardAdmin;
+  const isViewer = !isSuperAdmin && currentMember?.permission === 'VIEWER';
 
   return (
     <BoardViewWrapper
@@ -144,6 +145,7 @@ export function BoardDetailClient({
       currentUserId={currentUserId}
       weeklyProgress={weeklyProgress}
       isAdmin={canEdit}
+      canEditSpine={!isViewer}
       canViewQualitySummaries={canViewQualitySummaries}
       hasFullData={hasFullData}
       isLoadingFullData={isFetchingFullData}
