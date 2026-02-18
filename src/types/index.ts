@@ -43,6 +43,9 @@ export interface TaskCardData {
   scheduledReleaseDate?: string | null;
   releaseTargetListId?: string | null;
   releasedAt?: string | null;
+  // PO / Lead approval
+  approvedByPo?: { userId: string; userName: string; at: string } | null;
+  approvedByLead?: { userId: string; userName: string; at: string } | null;
 }
 
 export interface TaskCard extends BaseCard {
@@ -592,4 +595,85 @@ export interface TimelineArchivedProjectSummary {
   productionTitle?: string | null;
   teamId: string | null;
   team: Team | null;
+}
+
+export interface GameSheetMetricEntry {
+  label: string;
+  value: string;
+}
+
+export interface GameSheetFeatureCard {
+  title: string;
+  description: string;
+  value: string;
+  imageUrl: string;
+}
+
+export interface GameSheetFeaturePage {
+  title: string;
+  subtitle: string;
+  leadText: string;
+  cards: GameSheetFeatureCard[];
+}
+
+export interface GameSheetSymbolEntry {
+  name: string;
+  value: string;
+  description: string;
+  imageUrl: string;
+}
+
+export interface GameSheetAssets {
+  logoImageUrl: string;
+  companyLogoImageUrl: string;
+  introBackgroundImageUrl: string;
+  mathBackgroundImageUrl: string;
+  featureBackgroundImageUrl: string;
+  symbolsBackgroundImageUrl: string;
+}
+
+export interface GameSheetData {
+  assets: GameSheetAssets;
+  introPage: {
+    title: string;
+    subtitle: string;
+    paragraphs: string[];
+    closingLine: string;
+    showcaseImageUrl: string;
+  };
+  mathPage: {
+    gameId: string;
+    columnsRows: string;
+    payoutMechanic: string;
+    rtp: string;
+    volatility: string;
+    maxWin: string;
+    hitFrequency: string;
+    bonusSpins: GameSheetMetricEntry[];
+    buyFeatureCosts: GameSheetMetricEntry[];
+    defaultBet: string;
+    minBet: string;
+  };
+  featurePages: GameSheetFeaturePage[];
+  symbolsPage: {
+    specialSymbols: GameSheetSymbolEntry[];
+    normalSymbols: GameSheetSymbolEntry[];
+    jackpotSymbols: GameSheetSymbolEntry[];
+  };
+}
+
+export interface GameSheetDocument {
+  id: string;
+  name: string;
+  data: GameSheetData;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+}
+
+export interface GameSheetDocumentSummary {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
 }

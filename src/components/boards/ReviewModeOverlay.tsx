@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, CheckSquare, BookOpen, Layers, FileText, ArrowLeft, Check, ListTodo, Clapperboard, Paperclip, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { Card, TaskCard, Checklist, Attachment } from '@/types';
+import { SimpleChecklist } from '@/components/cards/SimpleChecklist';
+import { ShieldCheck } from 'lucide-react';
+import type { Card, TaskCard, TaskCardData, Checklist, Attachment, BoardSettings } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface ReviewModeOverlayProps {
@@ -16,6 +18,7 @@ interface ReviewModeOverlayProps {
   boardId: string;
   allLists: { id: string; name: string }[];
   onCardMoved: (cardId: string, targetListId: string) => void;
+  boardSettings?: BoardSettings;
 }
 
 interface CardDetail {
@@ -40,11 +43,13 @@ export function ReviewModeOverlay({
   boardId,
   allLists,
   onCardMoved,
+  boardSettings = {},
 }: ReviewModeOverlayProps) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [cardDetail, setCardDetail] = useState<CardDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [movingCardId, setMovingCardId] = useState<string | null>(null);
+  const [editableChecklists, setEditableChecklists] = useState<Checklist[]>([]);
 
   // Target lists
   const todoList = allLists.find(l => l.name === 'To Do');
@@ -90,11 +95,13 @@ export function ReviewModeOverlay({
         ]);
 
         if (cardData.success) {
+          const checklists = checkData.success ? checkData.data : [];
           setCardDetail({
             card: cardData.data,
             attachments: attachData.success ? attachData.data : [],
-            checklists: checkData.success ? checkData.data : [],
+            checklists,
           });
+          setEditableChecklists(checklists);
         }
       } catch (error) {
         console.error('Failed to fetch card detail:', error);
@@ -116,8 +123,6 @@ export function ReviewModeOverlay({
   }, [onCardMoved]);
 
   if (!isOpen) return null;
-
-  const feedbackChecklists = cardDetail?.checklists.filter(c => c.type === 'feedback') || [];
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
@@ -363,99 +368,86 @@ export function ReviewModeOverlay({
                     </h4>
                   </div>
 
-                  {feedbackChecklists.length === 0 ? (
-                    <p className="text-caption text-text-tertiary py-4 text-center">
-                      No feedback checklists
-                    </p>
-                  ) : (
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                      {feedbackChecklists.map((checklist) => {
-                        const completed = checklist.items.filter(i => i.isComplete).length;
-                        const total = checklist.items.length;
-                        return (
-                          <div key={checklist.id} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <h5 className="text-caption font-medium text-text-primary">
-                                {checklist.name}
-                              </h5>
-                              <span className="text-tiny text-text-tertiary">
-                                {completed}/{total}
-                              </span>
-                            </div>
-                            {/* Progress bar */}
-                            <div className="h-1 rounded-full bg-surface-hover">
-                              <div
-                                className={cn(
-                                  'h-1 rounded-full transition-all',
-                                  completed === total ? 'bg-green-500' : 'bg-purple-500'
-                                )}
-                                style={{ width: total > 0 ? `${(completed / total) * 100}%` : '0%' }}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              {checklist.items.map((item) => (
-                                <div key={item.id} className="flex items-start gap-2">
-                                  <div className={cn(
-                                    'mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0',
-                                    item.isComplete
-                                      ? 'bg-green-500 border-green-500'
-                                      : 'border-border'
-                                  )}>
-                                    {item.isComplete && <Check className="h-3 w-3 text-white" />}
-                                  </div>
-                                  <span className={cn(
-                                    'text-caption',
-                                    item.isComplete ? 'text-text-tertiary line-through' : 'text-text-secondary'
-                                  )}>
-                                    {item.content}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <SimpleChecklist
+                    checklists={editableChecklists}
+                    boardId={boardId}
+                    cardId={cardDetail.card.id}
+                    type="feedback"
+                    onUpdate={(updated) => setEditableChecklists(updated)}
+                  />
                 </div>
 
                 {/* Section 4: Actions */}
                 <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
                   <h4 className="text-body font-semibold text-text-primary">Actions</h4>
 
-                  <div className="space-y-2">
-                    {doneList && (
-                      <Button
-                        className="w-full justify-start bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleMoveCard(cardDetail.card.id, doneList.id)}
-                      >
-                        <Check className="h-4 w-4 mr-2" />
-                        Move to Done
-                      </Button>
-                    )}
+                  {/* Check if card is fully approved by both PO and Lead */}
+                  {(() => {
+                    const td = cardDetail.card.type === 'TASK'
+                      ? (cardDetail.card as TaskCard).taskData as TaskCardData
+                      : null;
+                    const fullyApproved = td?.approvedByPo && td?.approvedByLead;
 
-                    {todoList && (
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => handleMoveCard(cardDetail.card.id, todoList.id)}
-                      >
-                        <ListTodo className="h-4 w-4 mr-2" />
-                        Move to To Do
-                      </Button>
-                    )}
+                    if (fullyApproved) {
+                      return (
+                        <div className="rounded-md border border-green-500/30 bg-green-500/10 p-3 space-y-1.5">
+                          <div className="flex items-center gap-2 text-green-400 font-medium text-caption">
+                            <ShieldCheck className="h-4 w-4" />
+                            Fully Approved
+                          </div>
+                          <p className="text-tiny text-text-secondary">
+                            Both PO and Lead have approved this task. It will be auto-moved to Done.
+                          </p>
+                          {doneList && (
+                            <Button
+                              size="sm"
+                              className="w-full justify-start bg-green-600 hover:bg-green-700 text-white mt-2"
+                              onClick={() => handleMoveCard(cardDetail.card.id, doneList.id)}
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Move to Done Now
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
 
-                    {todoAnimationList && (
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => handleMoveCard(cardDetail.card.id, todoAnimationList.id)}
-                      >
-                        <Clapperboard className="h-4 w-4 mr-2" />
-                        Move to To Do Animation
-                      </Button>
-                    )}
-                  </div>
+                    return (
+                      <div className="space-y-2">
+                        {doneList && (
+                          <Button
+                            className="w-full justify-start bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => handleMoveCard(cardDetail.card.id, doneList.id)}
+                          >
+                            <Check className="h-4 w-4 mr-2" />
+                            Move to Done
+                          </Button>
+                        )}
+
+                        {todoList && (
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() => handleMoveCard(cardDetail.card.id, todoList.id)}
+                          >
+                            <ListTodo className="h-4 w-4 mr-2" />
+                            Move to To Do
+                          </Button>
+                        )}
+
+                        {todoAnimationList && (
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() => handleMoveCard(cardDetail.card.id, todoAnimationList.id)}
+                          >
+                            <Clapperboard className="h-4 w-4 mr-2" />
+                            Move to To Do Animation
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="pt-2 border-t border-border">
                     <Button

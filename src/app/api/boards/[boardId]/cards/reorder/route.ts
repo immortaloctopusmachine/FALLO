@@ -6,6 +6,9 @@ import {
   ApiErrors,
 } from '@/lib/api-utils';
 import { handleCardListTransition } from '@/lib/quality-review';
+import { createNotificationWithSlackDM } from '@/lib/notifications';
+import { resolveApprovers } from '@/lib/role-utils';
+import type { BoardSettings } from '@/types';
 
 // Helper to check if a list is an "in progress" list (for time tracking)
 function isInProgressList(listName: string): boolean {
@@ -212,6 +215,53 @@ export async function POST(
             },
           });
         }
+      }
+    }
+
+    // Notify PO/Lead when a task enters a review list
+    if (sourceListId !== destinationListId && destList) {
+      const isReviewDest = destList.name.toLowerCase().includes('review');
+      const isReviewSrc = sourceList?.name.toLowerCase().includes('review');
+
+      if (isReviewDest && !isReviewSrc) {
+        // Fire-and-forget: don't block the response
+        (async () => {
+          try {
+            const [boardData, cardData] = await Promise.all([
+              prisma.board.findUnique({ where: { id: boardId }, select: { name: true, settings: true } }),
+              prisma.card.findUnique({ where: { id: cardId }, select: { title: true } }),
+            ]);
+            const settings = (boardData?.settings || {}) as BoardSettings;
+            const roleAssignments = settings.projectRoleAssignments || [];
+            const approvers = resolveApprovers(roleAssignments);
+
+            if (approvers.length === 0) return;
+
+            // Fetch Slack user IDs for the approvers
+            const approverUserIds = [...new Set(approvers.map((a) => a.userId))];
+            const users = await prisma.user.findMany({
+              where: { id: { in: approverUserIds } },
+              select: { id: true, slackUserId: true, name: true },
+            });
+            const userMap = new Map(users.map((u) => [u.id, u]));
+
+            for (const approver of approvers) {
+              const user = userMap.get(approver.userId);
+              if (!user) continue;
+
+              await createNotificationWithSlackDM({
+                userId: approver.userId,
+                type: 'review_requested',
+                title: `Review requested (${approver.roleName})`,
+                message: `Task "${cardData?.title || 'Untitled'}" is ready for your review on ${boardData?.name || 'a board'}`,
+                data: { boardId, cardId, cardTitle: cardData?.title },
+                slackUserId: user.slackUserId,
+              });
+            }
+          } catch (err) {
+            console.error('Failed to send review notifications:', err);
+          }
+        })();
       }
     }
 

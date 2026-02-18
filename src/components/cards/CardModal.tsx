@@ -25,10 +25,11 @@ import { TimeLogSection } from './TimeLogSection';
 import { CreateLinkedTasksModal } from './CreateLinkedTasksModal';
 import { CardQualityPanel } from './QualityReviewPanel';
 import { toast } from 'sonner';
-import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, BoardSettings, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
 import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
+import { TaskApprovals } from './TaskApprovals';
 import {
   Select,
   SelectContent,
@@ -49,6 +50,7 @@ interface CardModalProps {
   currentUserId?: string;
   isAdmin?: boolean;  // Whether current user is admin (for time log management)
   canViewQualitySummaries?: boolean;  // PO, Lead, Head of Art — can see Details/Quality tabs
+  boardSettings?: BoardSettings;  // Board settings (for PO/Lead approvals)
   taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
   planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
   allCards?: Card[];
@@ -101,6 +103,7 @@ export function CardModal({
   currentUserId,
   isAdmin = false,
   canViewQualitySummaries = false,
+  boardSettings = {},
   taskLists = [],
   planningLists = [],
   allCards = [],
@@ -150,6 +153,7 @@ export function CardModal({
     if (card) {
       setTitle(card.title);
       setDescription(card.description || '');
+      setDescriptionExpanded(!!card.description?.trim());
       setColor(card.color);
       setFeatureImage(card.featureImage);
       setFeatureImagePosition(card.featureImagePosition ?? 50);
@@ -161,6 +165,8 @@ export function CardModal({
         setLinkedUserStoryId(taskCard.taskData?.linkedUserStoryId ?? null);
         setLinkedEpicId(taskCard.taskData?.linkedEpicId ?? null);
         setChecklists(taskCard.checklists || []);
+        setTodoExpanded((taskCard.checklists || []).some(cl => cl.type === 'todo' && cl.items.length > 0));
+        setFeedbackExpanded((taskCard.checklists || []).some(cl => cl.type === 'feedback' && cl.items.length > 0));
         setAssignees(taskCard.assignees || []);
         setFlags([]);
         setConnectedTasks([]);
@@ -355,27 +361,26 @@ export function CardModal({
 
   const [availableTags, setAvailableTags] = useState<{ id: string; name: string }[]>([]);
 
-  // Fetch board members and tags for the linked tasks modal
+  // Fetch board members eagerly for TASK cards (approvals) or when linked tasks modal opens
+  const needsMembers = (card?.type === 'TASK') || isCreateLinkedTasksOpen;
   useEffect(() => {
-    if (isCreateLinkedTasksOpen) {
-      if (boardMembers.length === 0) {
-        fetch(`/api/boards/${boardId}/members`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success) setBoardMembers(data.data);
-          })
-          .catch(console.error);
-      }
-      if (availableTags.length === 0) {
-        fetch('/api/settings/tags')
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success) setAvailableTags(data.data.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
-          })
-          .catch(console.error);
-      }
+    if (needsMembers && boardMembers.length === 0) {
+      fetch(`/api/boards/${boardId}/members`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) setBoardMembers(data.data);
+        })
+        .catch(console.error);
     }
-  }, [isCreateLinkedTasksOpen, boardId, boardMembers.length, availableTags.length]);
+    if (isCreateLinkedTasksOpen && availableTags.length === 0) {
+      fetch('/api/settings/tags')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) setAvailableTags(data.data.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })));
+        })
+        .catch(console.error);
+    }
+  }, [needsMembers, isCreateLinkedTasksOpen, boardId, boardMembers.length, availableTags.length]);
 
   // Handle bulk linked tasks creation
   const handleLinkedTasksCreated = useCallback(
@@ -599,6 +604,28 @@ export function CardModal({
             </div>
           </div>
         </DialogHeader>
+
+        {/* PO & Lead Approvals (TASK cards only) */}
+        {card.type === 'TASK' && (
+          <TaskApprovals
+            boardId={boardId}
+            cardId={card.id}
+            taskData={(card as TaskCard).taskData}
+            boardSettings={boardSettings}
+            boardMembers={boardMembers}
+            currentUserId={currentUserId}
+            onApprovalChanged={(updatedTaskData, autoMovedToDone) => {
+              const updatedCard = {
+                ...card,
+                taskData: updatedTaskData,
+              } as TaskCard;
+              onUpdate(updatedCard);
+              if (autoMovedToDone) {
+                // Refresh will be handled by parent re-fetching board data
+              }
+            }}
+          />
+        )}
 
         {canViewQualitySummaries && (
           <div className="border-b border-border px-6 py-2">
@@ -1229,7 +1256,7 @@ export function CardModal({
           </div>
 
           {/* Middle Column - Attachments */}
-          <div className="w-[260px] shrink-0 border-l border-border overflow-y-auto p-4">
+          <div className="w-[312px] shrink-0 border-l border-border overflow-y-auto p-4">
             <div className="space-y-2">
               <Label className="text-caption font-medium text-text-secondary flex items-center gap-2">
                 <Paperclip className="h-4 w-4" />
@@ -1252,7 +1279,7 @@ export function CardModal({
 
           {/* Sidebar */}
           <div
-            className="w-[180px] shrink-0 space-y-4 border-l border-border overflow-y-auto p-4"
+            className="w-[198px] shrink-0 space-y-4 border-l border-border overflow-y-auto overflow-x-hidden p-4"
             style={{ backgroundColor: color ? `${color}10` : undefined }}
           >
             {/* Assignees */}

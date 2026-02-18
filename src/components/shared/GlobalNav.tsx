@@ -10,6 +10,7 @@ import {
   Building2,
   Users,
   User,
+  Wrench,
   Settings,
   Palette,
   Moon,
@@ -24,6 +25,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { NotificationBell } from './NotificationBell';
 
 interface GlobalNavProps {
   userName?: string | null;
@@ -37,6 +39,7 @@ const navItems = [
   { href: '/organization', label: 'Organization', icon: Building2 },
   { href: '/teams', label: 'Teams', icon: Users },
   { href: '/users', label: 'Users', icon: User },
+  { href: '/tools', label: 'Tools', icon: Wrench },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -104,6 +107,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
           })}
         </nav>
         <div className="flex items-center gap-4">
+          <NotificationBell />
           <span className="text-body text-text-secondary">
             {userName || userEmail}
           </span>

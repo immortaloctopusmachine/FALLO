@@ -34,6 +34,7 @@ import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } f
 import { cn } from '@/lib/utils';
 import { formatDisplayDate, getBusinessDaysBetween } from '@/lib/date-utils';
 import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
+import { fireDoneConfetti } from '@/lib/confetti';
 
 interface TasksViewProps {
   board: Board;
@@ -427,6 +428,11 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         destinationListId,
         newPosition,
       });
+      // Fire confetti when a card is moved to a Done list
+      if (destList && (destList.phase === 'DONE' || destList.name.toLowerCase().includes('done')) &&
+          !(srcList && (srcList.phase === 'DONE' || srcList.name.toLowerCase().includes('done')))) {
+        fireDoneConfetti();
+      }
     } catch (error) {
       console.error('Failed to reorder card:', error);
       if (boardSnapshotRef.current) {
@@ -498,6 +504,11 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         destinationListId: targetListId,
         newPosition: 0,
       });
+      // Fire confetti when card is moved to Done from review mode
+      const targetList = board.lists.find(l => l.id === targetListId);
+      if (targetList && (targetList.phase === 'DONE' || targetList.name.toLowerCase().includes('done'))) {
+        fireDoneConfetti();
+      }
     } catch (error) {
       console.error('Failed to move card:', error);
       toast.error('Failed to move card');
@@ -996,6 +1007,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
         canViewQualitySummaries={canViewQualitySummaries}
+        boardSettings={settings}
         taskLists={taskLists}
         planningLists={planningLists}
         allCards={allCards}
@@ -1023,6 +1035,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           boardId={board.id}
           allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
           onCardMoved={handleReviewModeCardMoved}
+          boardSettings={settings}
         />
       )}
     </div>

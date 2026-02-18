@@ -400,7 +400,54 @@ export async function PATCH(
       return updatedCard;
     });
 
-    return apiSuccess(card);
+    // Auto-move to Done when both PO and Lead have approved
+    let autoMovedToDone = false;
+    if (taskData) {
+      const td = card.taskData as Record<string, unknown> | null;
+      const hasBothApprovals = td?.approvedByPo && td?.approvedByLead;
+
+      if (hasBothApprovals) {
+        // Check if card is already in a Done list
+        const currentList = existingCard.list;
+        const isAlreadyDone =
+          currentList.phase === 'DONE' ||
+          currentList.name.toLowerCase().includes('done');
+
+        if (!isAlreadyDone) {
+          // Find the Done list on this board
+          const doneList = await prisma.list.findFirst({
+            where: {
+              boardId,
+              OR: [
+                { phase: 'DONE' },
+                { name: { contains: 'done', mode: 'insensitive' } },
+              ],
+              viewType: 'TASKS',
+            },
+            select: { id: true, name: true, phase: true, viewType: true },
+          });
+
+          if (doneList) {
+            await prisma.$transaction(async (tx) => {
+              await tx.card.update({
+                where: { id: cardId },
+                data: { listId: doneList.id },
+              });
+
+              await handleCardListTransition(tx, {
+                cardId,
+                fromList: existingCard.list,
+                toList: doneList,
+                boardSettings: existingCard.list.board.settings as Prisma.JsonValue,
+              });
+            });
+            autoMovedToDone = true;
+          }
+        }
+      }
+    }
+
+    return apiSuccess({ ...card, _autoMovedToDone: autoMovedToDone });
   } catch (error) {
     console.error('Failed to update card:', error);
     return ApiErrors.internal('Failed to update card');

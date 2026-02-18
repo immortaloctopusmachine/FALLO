@@ -254,6 +254,18 @@ model ModuleImageAsset {
   @@map("module_image_assets")
 }
 
+model GameSheetDocument {
+  id         String    @id @default(cuid())
+  name       String
+  data       Json      @default("{}")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
+
+  @@index([updatedAt])
+  @@map("game_sheet_documents")
+}
+
 model CardTag {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -336,6 +348,9 @@ model User {
   userCompanyRoles   UserCompanyRole[]
   timeLogs           TimeLog[]
   weeklyAvailability UserWeeklyAvailability[]
+
+  // Notifications
+  notifications Notification[]
 
   // NextAuth relations
   accounts Account[]
@@ -896,4 +911,22 @@ model SpineSkeletonModule {
 
   @@index([skeletonName])
   @@map("spine_skeleton_modules")
+}
+
+// In-app notifications
+model Notification {
+  id        String   @id @default(cuid())
+  type      String // "review_requested", "task_approved", "card_moved_to_done", etc.
+  title     String
+  message   String
+  data      Json     @default("{}")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
