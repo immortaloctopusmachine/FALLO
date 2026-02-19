@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { BoardHeader } from './BoardHeader';
 import { BoardView } from './BoardView';
@@ -8,6 +8,7 @@ import { BoardSettingsModal } from './BoardSettingsModal';
 import { BoardMembersModal } from './BoardMembersModal';
 import type { Board, BoardViewMode, BoardSettings, WeeklyProgress } from '@/types';
 import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
+import { recordClientPerf } from '@/lib/perf-client';
 import { cn } from '@/lib/utils';
 
 const TasksView = dynamic(
@@ -47,6 +48,7 @@ export function BoardViewWrapper({
   const [viewMode, setViewMode] = useState<BoardViewMode>('tasks');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const pendingViewSwitchRef = useRef<{ mode: BoardViewMode; startMs: number } | null>(null);
 
   useEffect(() => {
     setBoard(initialBoard);
@@ -72,12 +74,31 @@ export function BoardViewWrapper({
   }, []);
 
   const handleViewModeChange = async (mode: BoardViewMode) => {
+    pendingViewSwitchRef.current = { mode, startMs: performance.now() };
     setViewMode(mode);
 
     if (mode === 'planning') {
       prefetchPlanningData();
     }
   };
+
+  useEffect(() => {
+    const pendingSwitch = pendingViewSwitchRef.current;
+    if (!pendingSwitch || pendingSwitch.mode !== viewMode) return;
+
+    const waitingForPlanningData = viewMode === 'planning' && !hasFullData;
+    if (waitingForPlanningData) return;
+
+    const rafHandle = requestAnimationFrame(() => {
+      recordClientPerf('board.view_switch', performance.now() - pendingSwitch.startMs, {
+        mode: viewMode,
+        hasFullData,
+      });
+    });
+
+    pendingViewSwitchRef.current = null;
+    return () => cancelAnimationFrame(rafHandle);
+  }, [viewMode, hasFullData]);
 
   const handleSaveSettings = async (newSettings: BoardSettings) => {
     const response = await fetch(`/api/boards/${board.id}`, {

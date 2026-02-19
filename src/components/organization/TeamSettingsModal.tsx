@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, Check, ChevronsUpDown, Building2, Trash2, Upload, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,6 +57,7 @@ interface TeamSettingsModalProps {
 
 export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModalProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description || '');
   const [color, setColor] = useState(team.color);
@@ -116,6 +118,20 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
   const memberUserIds = members.map((m) => m.user.id);
   const availableUsers = users.filter((u) => !memberUserIds.includes(u.id));
 
+  const invalidateTeamRelatedQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['teams'] });
+    queryClient.invalidateQueries({ queryKey: ['teams', team.id] });
+    queryClient.invalidateQueries({ queryKey: ['studios'] });
+    if (team.studio?.id) {
+      queryClient.invalidateQueries({ queryKey: ['studios', team.studio.id] });
+    }
+    queryClient.invalidateQueries({ queryKey: ['users', 'page'] });
+    queryClient.invalidateQueries({ queryKey: ['users'] });
+    queryClient.invalidateQueries({ queryKey: ['boards'] });
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['timeline'] });
+  };
+
   const handleSave = async () => {
     setIsLoading(true);
     setError(null);
@@ -141,7 +157,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
       }
 
       onOpenChange(false);
-      router.refresh();
+      invalidateTeamRelatedQueries();
     } catch {
       setError('An error occurred. Please try again.');
     } finally {
@@ -164,7 +180,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
 
       if (data.success) {
         setMembers((prev) => [...prev, data.data]);
-        router.refresh();
+        invalidateTeamRelatedQueries();
       } else {
         setMemberError(data.error?.message || 'Failed to add member');
       }
@@ -186,7 +202,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
 
       if (data.success) {
         setMembers((prev) => prev.filter((m) => m.user.id !== userId));
-        router.refresh();
+        invalidateTeamRelatedQueries();
       }
     } catch (err) {
       console.error('Failed to remove member:', err);
@@ -206,8 +222,8 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
       if (data.success) {
         setShowDeleteDialog(false);
         onOpenChange(false);
+        invalidateTeamRelatedQueries();
         router.push('/teams');
-        router.refresh();
       }
     } catch {
       console.error('Failed to delete team');

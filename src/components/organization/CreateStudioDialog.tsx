@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,7 +24,7 @@ const STUDIO_COLORS = [
 ];
 
 export function CreateStudioDialog() {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -55,7 +55,8 @@ export function CreateStudioDialog() {
       setName('');
       setDescription('');
       setColor(STUDIO_COLORS[0]);
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['studios'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
     } catch {
       setError('An error occurred. Please try again.');
     } finally {

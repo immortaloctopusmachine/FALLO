@@ -29,6 +29,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { snapToMonday } from '@/lib/list-templates';
 import { formatDateInput } from '@/lib/date-utils';
+import { recordClientPerf } from '@/lib/perf-client';
 import type {
   Team,
   CoreProjectTemplate,
@@ -122,7 +123,10 @@ export function CreateProjectDialog({
   const [teamMembersCache, setTeamMembersCache] = useState<Record<string, SelectedMember[]>>({});
   const [teamLoadStatus, setTeamLoadStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   const [teamLoadMessage, setTeamLoadMessage] = useState<string | null>(null);
+  const [createProgressStage, setCreateProgressStage] = useState<'idle' | 'creating' | 'finalizing'>('idle');
+  const [createProgressMessage, setCreateProgressMessage] = useState<string | null>(null);
   const teamMemberRequestIdRef = useRef(0);
+  const createProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Set default start date when provided (snap to Monday)
   useEffect(() => {
@@ -131,6 +135,14 @@ export function CreateProjectDialog({
       setStartDate(formatDateInput(monday));
     }
   }, [defaultStartDate]);
+
+  useEffect(() => {
+    return () => {
+      if (createProgressTimerRef.current) {
+        clearTimeout(createProgressTimerRef.current);
+      }
+    };
+  }, []);
 
   // Reset form when dialog closes
   useEffect(() => {
@@ -152,6 +164,12 @@ export function CreateProjectDialog({
       setIsLoadingTeamMembers(false);
       setTeamLoadStatus('idle');
       setTeamLoadMessage(null);
+      setCreateProgressStage('idle');
+      setCreateProgressMessage(null);
+      if (createProgressTimerRef.current) {
+        clearTimeout(createProgressTimerRef.current);
+        createProgressTimerRef.current = null;
+      }
       setError(null);
     }
   }, [isOpen, defaultStartDate, coreTemplates]);
@@ -262,6 +280,7 @@ export function CreateProjectDialog({
     setTeamLoadStatus('loading');
     setTeamLoadMessage(`Loading team members for ${selectedTeamName}...`);
     const requestId = ++teamMemberRequestIdRef.current;
+    const loadStartMs = performance.now();
 
     try {
       const response = await fetch(`/api/teams/${teamId}/members?scope=ids`);
@@ -271,11 +290,13 @@ export function CreateProjectDialog({
       if (data.success && data.data) {
         const memberIds = (data.data as { userId: string }[]).map((member) => member.userId);
         const usersById = new Map(allUsers.map((user) => [user.id, user]));
+        let usedPickerFallback = false;
         let teamMembers = memberIds
           .map((memberId) => usersById.get(memberId))
           .filter((member): member is SelectedMember => Boolean(member));
 
         if (teamMembers.length !== memberIds.length) {
+          usedPickerFallback = true;
           const fallbackResponse = await fetch(`/api/teams/${teamId}/members?scope=picker`);
           const fallbackData = await fallbackResponse.json();
           if (requestId !== teamMemberRequestIdRef.current) return;
@@ -312,15 +333,31 @@ export function CreateProjectDialog({
         setTeamLoadMessage(
           `Loaded ${teamMembers.length} team member${teamMembers.length === 1 ? '' : 's'} for ${selectedTeamName}.`
         );
+        recordClientPerf('create_project.team_members_load', performance.now() - loadStartMs, {
+          teamId,
+          status: 'success',
+          source: usedPickerFallback ? 'picker_fallback' : 'ids',
+          members: teamMembers.length,
+        });
       } else {
         setTeamLoadStatus('error');
         setTeamLoadMessage(`Failed to load team members for ${selectedTeamName}.`);
+        recordClientPerf('create_project.team_members_load', performance.now() - loadStartMs, {
+          teamId,
+          status: 'api_error',
+          source: 'ids',
+        });
       }
     } catch (err) {
       console.error('Failed to fetch team members:', err);
       if (requestId === teamMemberRequestIdRef.current) {
         setTeamLoadStatus('error');
         setTeamLoadMessage(`Failed to load team members for ${selectedTeamName}.`);
+        recordClientPerf('create_project.team_members_load', performance.now() - loadStartMs, {
+          teamId,
+          status: 'error',
+          source: 'ids',
+        });
       }
     } finally {
       if (requestId === teamMemberRequestIdRef.current) {
@@ -425,6 +462,7 @@ export function CreateProjectDialog({
   };
 
   const hydrateTimelineCache = async (projectId: string) => {
+    const hydrateStartMs = performance.now();
     try {
       const response = await fetch(`/api/timeline/projects/${projectId}`);
       const payload = (await response.json()) as {
@@ -434,8 +472,14 @@ export function CreateProjectDialog({
       const createdProject = payload.success ? payload.data?.project : null;
       if (!createdProject) return;
       upsertTimelineProject(createdProject);
+      recordClientPerf('create_project.hydrate_timeline', performance.now() - hydrateStartMs, {
+        status: 'success',
+      });
     } catch (error) {
       console.error('Failed to hydrate timeline cache after project creation:', error);
+      recordClientPerf('create_project.hydrate_timeline', performance.now() - hydrateStartMs, {
+        status: 'error',
+      });
     }
   };
 
@@ -452,6 +496,17 @@ export function CreateProjectDialog({
 
     setIsLoading(true);
     setError(null);
+    const submitStartMs = performance.now();
+    const creationMode = selectedProjectTemplate ? 'clone_template' : 'core_template';
+    setCreateProgressStage('creating');
+    setCreateProgressMessage('Creating project...');
+    if (createProgressTimerRef.current) {
+      clearTimeout(createProgressTimerRef.current);
+    }
+    createProgressTimerRef.current = setTimeout(() => {
+      setCreateProgressStage('finalizing');
+      setCreateProgressMessage('Finalizing timeline blocks...');
+    }, 1800);
 
     try {
       let response;
@@ -520,10 +575,20 @@ export function CreateProjectDialog({
       const data = await parseApiResponse(response);
 
       if (!data.success || !data.data?.id) {
+        recordClientPerf('create_project.submit', performance.now() - submitStartMs, {
+          status: 'api_error',
+          mode: creationMode,
+        });
         setError(data.error?.message || 'Failed to create project');
         return;
       }
 
+      recordClientPerf('create_project.submit', performance.now() - submitStartMs, {
+        status: 'success',
+        mode: creationMode,
+      });
+      setCreateProgressStage('finalizing');
+      setCreateProgressMessage('Finalizing timeline blocks...');
       upsertTimelineProject(buildOptimisticTimelineProject(data.data.id));
       void hydrateTimelineCache(data.data.id);
       queryClient.invalidateQueries({ queryKey: ['timeline'] });
@@ -531,9 +596,19 @@ export function CreateProjectDialog({
       queryClient.invalidateQueries({ queryKey: ['boards'] });
       onClose();
     } catch {
+      recordClientPerf('create_project.submit', performance.now() - submitStartMs, {
+        status: 'error',
+        mode: creationMode,
+      });
       setError('An error occurred. Please try again.');
     } finally {
+      if (createProgressTimerRef.current) {
+        clearTimeout(createProgressTimerRef.current);
+        createProgressTimerRef.current = null;
+      }
       setIsLoading(false);
+      setCreateProgressStage('idle');
+      setCreateProgressMessage(null);
     }
   };
 
@@ -852,10 +927,15 @@ export function CreateProjectDialog({
           {error && (
             <div className="text-caption text-error">{error}</div>
           )}
+          {isLoading && createProgressMessage && (
+            <div role="status" aria-live="polite" className="text-caption text-text-tertiary">
+              {createProgressMessage}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
               Cancel
             </Button>
             <Button
@@ -868,7 +948,7 @@ export function CreateProjectDialog({
               }
             >
               {isLoading ? (
-                'Creating...'
+                createProgressStage === 'finalizing' ? 'Finalizing timeline...' : 'Creating project...'
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-1" />

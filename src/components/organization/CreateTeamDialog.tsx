@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, X, Check, ChevronsUpDown, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,7 +51,7 @@ interface CreateTeamDialogProps {
 }
 
 export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialogProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -153,7 +153,10 @@ export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialog
 
       setOpen(false);
       resetForm();
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['boards'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     } catch {
       setError('An error occurred. Please try again.');
     } finally {

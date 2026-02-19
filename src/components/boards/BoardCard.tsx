@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Layers, FileText, MoreHorizontal, Copy, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,6 +50,7 @@ export function BoardCard({
   onDeleted,
 }: BoardCardProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isCloning, setIsCloning] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -58,6 +60,15 @@ export function BoardCard({
   const bgStyle = settings ? getBoardBackgroundStyle(settings) : undefined;
   const canManage = isAdmin || isSuperAdmin;
   const canDelete = isArchived && canManage;
+
+  const invalidateBoardRelatedQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['boards'] });
+    queryClient.invalidateQueries({ queryKey: ['boards', 'archived'] });
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['projects', 'archived'] });
+    queryClient.invalidateQueries({ queryKey: ['timeline'] });
+    queryClient.invalidateQueries({ queryKey: ['teams'] });
+  };
 
   const getErrorMessage = async (response: Response) => {
     const fallback = `Request failed (${response.status} ${response.statusText})`;
@@ -89,8 +100,8 @@ export function BoardCard({
       const result = await response.json();
 
       if (response.ok && result.success) {
+        invalidateBoardRelatedQueries();
         router.push(`/boards/${result.data.id}`);
-        router.refresh();
       } else {
         const message = result?.error?.message || `Request failed (${response.status} ${response.statusText})`;
         console.error('Failed to clone board:', message);
@@ -117,7 +128,7 @@ export function BoardCard({
       });
 
       if (response.ok) {
-        router.refresh();
+        invalidateBoardRelatedQueries();
       } else {
         console.error('Failed to archive board:', await getErrorMessage(response));
       }
@@ -139,7 +150,7 @@ export function BoardCard({
       });
 
       if (response.ok) {
-        router.refresh();
+        invalidateBoardRelatedQueries();
       } else {
         console.error('Failed to unarchive board:', await getErrorMessage(response));
       }
@@ -166,7 +177,7 @@ export function BoardCard({
 
       if (response.ok) {
         onDeleted?.();
-        router.refresh();
+        invalidateBoardRelatedQueries();
       } else {
         console.error('Failed to delete board:', await getErrorMessage(response));
       }

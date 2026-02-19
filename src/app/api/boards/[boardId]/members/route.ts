@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-// POST /api/boards/[boardId]/members - Add a member
+// POST /api/boards/[boardId]/members - Add a member (accepts userId or email)
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { session, response: authResponse } = await requireAuth();
@@ -60,18 +60,31 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (adminResponse) return adminResponse;
 
     const body = await request.json();
-    const { email, permission = 'MEMBER' } = body;
+    const { userId, email, permission = 'MEMBER' } = body as {
+      userId?: string;
+      email?: string;
+      permission?: UserPermission;
+    };
 
-    if (!email || typeof email !== 'string') {
-      return ApiErrors.validation('Email is required');
+    if (
+      (typeof userId !== 'string' || userId.trim().length === 0) &&
+      (typeof email !== 'string' || email.trim().length === 0)
+    ) {
+      return ApiErrors.validation('User ID or email is required');
     }
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
-    });
+    // Find user by explicit ID first (faster for picker-driven UIs); email is fallback.
+    const user = typeof userId === 'string' && userId.trim().length > 0
+      ? await prisma.user.findUnique({
+          where: { id: userId.trim() },
+          select: { id: true, deletedAt: true },
+        })
+      : await prisma.user.findUnique({
+          where: { email: email!.toLowerCase().trim() },
+          select: { id: true, deletedAt: true },
+        });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return ApiErrors.notFound('User');
     }
 

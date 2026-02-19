@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Eye, EyeOff, Copy, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -67,7 +67,7 @@ export function CreateUserDialog({
   skills,
   companyRoles,
 }: CreateUserDialogProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -199,7 +199,12 @@ export function CreateUserDialog({
       }
 
       onClose();
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['users', 'page'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      selectedTeamIds.forEach((teamId) => {
+        queryClient.invalidateQueries({ queryKey: ['teams', teamId] });
+      });
     } catch {
       setError('An error occurred. Please try again.');
     } finally {

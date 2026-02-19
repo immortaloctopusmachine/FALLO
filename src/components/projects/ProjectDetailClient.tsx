@@ -981,6 +981,10 @@ export function ProjectDetailClient({
     queryClient.invalidateQueries({ queryKey: ['boards', board.id, 'project'] });
   }, [queryClient, board.id]);
 
+  const invalidateProjects = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+  }, [queryClient]);
+
   // ---- Handlers ----
 
   const fetchUsers = async () => {
@@ -1004,15 +1008,18 @@ export function ProjectDetailClient({
       });
       const data = await response.json();
       if (!data.success) setTeamId(board.teamId);
-      else router.refresh();
+      else {
+        invalidateBoard();
+        invalidateProjects();
+      }
     } catch {
       setTeamId(board.teamId);
     }
   };
 
-  const handleAddMember = async (userEmail: string) => {
+  const handleAddMember = async (userId: string) => {
     setUsersOpen(false);
-    const addedUser = users.find(u => u.email === userEmail);
+    const addedUser = users.find(u => u.id === userId);
     const tempId = `temp-${Date.now()}`;
 
     // Optimistically show avatar immediately
@@ -1031,7 +1038,7 @@ export function ProjectDetailClient({
       const response = await fetch(`/api/boards/${board.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail, permission: 'MEMBER' }),
+        body: JSON.stringify({ userId, permission: 'MEMBER' }),
       });
       const data = await response.json();
       if (data.success) {
@@ -1061,7 +1068,8 @@ export function ProjectDetailClient({
       const data = await response.json();
       if (data.success) {
         setMembers(prev => prev.filter(m => m.id !== memberId));
-        router.refresh();
+        invalidateBoard();
+        invalidateProjects();
       }
     } catch (err) {
       console.error('Failed to remove member:', err);
@@ -1077,7 +1085,10 @@ export function ProjectDetailClient({
         body: JSON.stringify({ description: description || null }),
       });
       const data = await response.json();
-      if (data.success) router.refresh();
+      if (data.success) {
+        invalidateBoard();
+        invalidateProjects();
+      }
     } catch (err) {
       console.error('Failed to save description:', err);
     } finally {
@@ -1103,7 +1114,9 @@ export function ProjectDetailClient({
         body: JSON.stringify({ settings: updatedSettings }),
       });
       const data = await response.json();
-      if (data.success) router.refresh();
+      if (data.success) {
+        invalidateBoard();
+      }
     } catch (err) {
       console.error('Failed to save links:', err);
     } finally {
@@ -1150,9 +1163,8 @@ export function ProjectDetailClient({
       const data = await response.json();
       if (data.success) {
         setIsEditingProductionTitle(false);
-        queryClient.invalidateQueries({ queryKey: ['boards', board.id, 'project'] });
-        queryClient.invalidateQueries({ queryKey: ['projects'] });
-        router.refresh();
+        invalidateBoard();
+        invalidateProjects();
       }
     } catch (err) {
       console.error('Failed to save production title:', err);
@@ -1222,7 +1234,9 @@ export function ProjectDetailClient({
         body: JSON.stringify({ settings: updatedSettings }),
       });
       const data = await response.json();
-      if (data.success) router.refresh();
+      if (data.success) {
+        invalidateBoard();
+      }
     } catch (err) {
       console.error('Failed to save project roles:', err);
     } finally {
@@ -1726,7 +1740,7 @@ export function ProjectDetailClient({
                           <CommandItem
                             key={user.id}
                             value={user.name || user.email}
-                            onSelect={() => handleAddMember(user.email)}
+                            onSelect={() => handleAddMember(user.id)}
                           >
                             <Avatar className="h-6 w-6 mr-2">
                               <AvatarImage src={user.image || undefined} />

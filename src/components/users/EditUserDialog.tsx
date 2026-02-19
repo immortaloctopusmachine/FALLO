@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,7 +86,7 @@ export function EditUserDialog({
   skills,
   companyRoles,
 }: EditUserDialogProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [permission, setPermission] = useState<string>('MEMBER');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
@@ -168,8 +168,18 @@ export function EditUserDialog({
         return;
       }
 
+      const affectedTeamIds = new Set<string>([
+        ...user.teamMembers.map((tm) => tm.team.id),
+        ...selectedTeamIds,
+      ]);
       onClose();
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['users', 'page'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['users', user.id, 'detail'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      affectedTeamIds.forEach((teamId) => {
+        queryClient.invalidateQueries({ queryKey: ['teams', teamId] });
+      });
     } catch {
       setError('An error occurred. Please try again.');
     } finally {
@@ -196,8 +206,18 @@ export function EditUserDialog({
         return;
       }
 
+      const affectedTeamIds = new Set<string>([
+        ...user.teamMembers.map((tm) => tm.team.id),
+        ...selectedTeamIds,
+      ]);
       onClose();
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['users', 'page'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['users', user.id, 'detail'] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      affectedTeamIds.forEach((teamId) => {
+        queryClient.invalidateQueries({ queryKey: ['teams', teamId] });
+      });
     } catch {
       setError('An error occurred. Please try again.');
       setShowDeleteConfirm(false);

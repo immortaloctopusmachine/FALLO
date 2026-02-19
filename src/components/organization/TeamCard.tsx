@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Users, Layers, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -40,7 +40,7 @@ export function TeamCard({
   members = [],
   showDelete = false,
 }: TeamCardProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -63,7 +63,10 @@ export function TeamCard({
       const data = await response.json();
       if (data.success) {
         setShowDeleteDialog(false);
-        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ['teams'] });
+        queryClient.invalidateQueries({ queryKey: ['boards'] });
+        queryClient.invalidateQueries({ queryKey: ['projects'] });
+        queryClient.invalidateQueries({ queryKey: ['timeline'] });
       }
     } catch (err) {
       console.error('Failed to delete team:', err);

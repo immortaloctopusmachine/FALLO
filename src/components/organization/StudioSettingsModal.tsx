@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ChangeEvent } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,7 +29,7 @@ export function StudioSettingsModal({
   open,
   onOpenChange,
 }: StudioSettingsModalProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [image, setImage] = useState(studio.image || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +86,8 @@ export function StudioSettingsModal({
       }
 
       onOpenChange(false);
-      router.refresh();
+      queryClient.invalidateQueries({ queryKey: ['studios'] });
+      queryClient.invalidateQueries({ queryKey: ['studios', studio.id] });
     } catch {
       setError('An error occurred. Please try again.');
     } finally {

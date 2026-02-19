@@ -127,6 +127,7 @@ model TeamMember {
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([userId, teamId])
+  @@index([teamId, joinedAt])
   @@map("team_members")
 }
 
@@ -502,6 +503,7 @@ model BoardMember {
 
   @@unique([userId, boardId])
   @@index([boardId])
+  @@index([boardId, joinedAt])
   @@map("board_members")
 }
 

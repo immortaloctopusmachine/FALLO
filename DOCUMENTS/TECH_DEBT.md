@@ -142,7 +142,15 @@ Status: In progress (tracked separately from feature-specific docs)
 - [x] Settings route switching prefetches likely pages after navigation render.
 - [x] Project detail now uses `GET /api/boards/:id?scope=project` (reduced payload vs full board scope).
 - [x] Project/team user pickers use `GET /api/users?scope=picker` instead of full users payload.
-- [ ] Continue narrowing remaining non-picker `/api/users` fetches where full metadata is not required.
+- [x] Project member add now posts `userId` to `/api/boards/:id/members` (email remains fallback for compatibility).
+- [x] Project creation dialog shows explicit staged progress (`Creating project...`, `Finalizing timeline blocks...`).
+- [x] Project detail hot-path writes now use targeted query invalidation instead of `router.refresh()`.
+- [x] Board/team card mutation actions now invalidate targeted query caches instead of full refresh.
+- [x] Organization and user admin dialogs now invalidate targeted caches (no `router.refresh()` in component layer).
+- [x] Client performance telemetry added for project/team load + board view switching with rolling p50/p95.
+- [x] Audited `/api/users` reads: non-picker usage is limited to user-management/detail surfaces that require metadata.
+- [x] Added composite indexes for member lookup hot paths (`team_members(teamId, joinedAt)`, `board_members(boardId, joinedAt)`).
+- [x] Team member add flow now batches board membership fan-out with `createMany(skipDuplicates)` (no per-board upsert loop).
 
 ### Why this is separate
 

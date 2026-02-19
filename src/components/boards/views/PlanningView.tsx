@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef, type WheelEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
@@ -197,12 +198,21 @@ export function PlanningView({
   canViewQualitySummaries = false,
 }: PlanningViewProps) {
   const [localBoard, setLocalBoard] = useState(initialBoard);
+  const syncingFromPropRef = useRef(false);
   const mutations = useBoardMutations(initialBoard.id);
   const boardSnapshotRef = useRef<Board | null>(null);
+  const queryClient = useQueryClient();
 
   // Sync with parent's board state when initialBoard changes
   useEffect(() => {
-    setLocalBoard(initialBoard);
+    syncingFromPropRef.current = true;
+    setLocalBoard((prev) => {
+      if (prev === initialBoard) {
+        syncingFromPropRef.current = false;
+        return prev;
+      }
+      return initialBoard;
+    });
   }, [initialBoard]);
 
   // Wrapper to update local state
@@ -215,6 +225,28 @@ export function PlanningView({
 
   // Use localBoard for display
   const board = localBoard;
+
+  // Sync local board state to TanStack Query cache so navigating away and back
+  // shows the correct card positions instead of stale cached data.
+  useEffect(() => {
+    if (syncingFromPropRef.current) {
+      if (board === initialBoard) {
+        syncingFromPropRef.current = false;
+      }
+      return;
+    }
+
+    if (board === initialBoard) return;
+
+    const updateLists = (old: Record<string, unknown> | undefined) => {
+      if (!old) return old;
+      if (old.lists === board.lists) return old;
+      return { ...old, lists: board.lists };
+    };
+    queryClient.setQueryData(['boards', board.id, 'light'], updateLists);
+    queryClient.setQueryData(['boards', board.id, 'full'], updateLists);
+  }, [board, initialBoard, queryClient]);
+
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeCardListId, setActiveCardListId] = useState<string | null>(null);
   const [isAddingEpic, setIsAddingEpic] = useState(false);

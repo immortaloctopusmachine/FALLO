@@ -137,3 +137,25 @@ Use this in PR reviews:
 6. Wheel/scroll UX:
    - If `preventDefault()` is required for wheel gestures, use a native `wheel` listener with
      `{ passive: false }` to avoid console spam and no-op prevention.
+7. ID-based membership writes:
+   - For picker-driven member-add flows, send `userId` (not email) to avoid extra lookup/normalization work.
+   - Keep email fallback only for manual-entry admin forms.
+8. Long-running create feedback:
+   - For creates that can take multiple seconds, show staged status text
+     (example: `Creating project...` then `Finalizing timeline blocks...`) to reduce user uncertainty.
+9. Client timing telemetry:
+   - Record key UX timings on the client and keep rolling p50/p95 summaries.
+   - Current metric names:
+     - `create_project.team_members_load`
+     - `create_project.submit`
+     - `create_project.hydrate_timeline`
+     - `board.view_switch`
+   - Inspect in browser console:
+     - `window.__falloPerfMetrics` (raw samples)
+     - import/use `getAllClientPerfSummaries()` from `src/lib/perf-client.ts` for summary output.
+10. Membership query/index hygiene:
+   - Keep composite indexes aligned with filter + sort usage on hot membership endpoints.
+   - Current required indexes:
+     - `team_members(teamId, joinedAt)` for `/api/teams/:teamId/members`
+     - `board_members(boardId, joinedAt)` for `/api/boards/:boardId/members`
+   - When adding a user to many boards/teams, prefer batched `createMany(skipDuplicates)` over per-row upserts.

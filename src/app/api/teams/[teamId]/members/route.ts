@@ -176,17 +176,14 @@ export async function POST(
       select: { id: true },
     });
 
-    for (const board of teamBoards) {
-      await prisma.boardMember.upsert({
-        where: {
-          userId_boardId: { userId, boardId: board.id },
-        },
-        update: {},
-        create: {
+    if (teamBoards.length > 0) {
+      await prisma.boardMember.createMany({
+        data: teamBoards.map((board) => ({
           userId,
           boardId: board.id,
-          permission: permission,
-        },
+          permission,
+        })),
+        skipDuplicates: true,
       });
     }
 
