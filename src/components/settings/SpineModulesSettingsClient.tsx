@@ -223,6 +223,8 @@ export function SpineModulesSettingsClient() {
         </p>
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-[1fr,340px] items-start">
+      {/* Left: Form */}
       <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Input
@@ -351,7 +353,8 @@ export function SpineModulesSettingsClient() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
+      {/* Right: Saved Spine Modules */}
+      <div className="rounded-lg border border-border overflow-hidden xl:sticky xl:top-4 h-fit">
         <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
           <h3 className="font-medium">Saved Spine Modules</h3>
           <span className="text-caption text-text-secondary">{modules.length}</span>
@@ -362,31 +365,28 @@ export function SpineModulesSettingsClient() {
         ) : modules.length === 0 ? (
           <div className="p-8 text-center text-text-secondary">No Spine modules configured yet.</div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border max-h-[calc(100vh-12rem)] overflow-y-auto">
             {modules.map((module) => (
-              <div key={module.id} className="flex items-start justify-between gap-4 bg-surface p-4">
-                <div className="space-y-1">
+              <div key={module.id} className="flex items-start justify-between gap-2 bg-surface p-3">
+                <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-2">
-                    <Bone className="h-4 w-4 text-text-tertiary" />
-                    <span className="font-medium text-text-primary">{module.skeletonName}</span>
+                    <Bone className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+                    <span className="font-medium text-body text-text-primary truncate">{module.skeletonName}</span>
                   </div>
-                  <div className="text-caption text-text-secondary">
-                    Group: {module.group} - Status: {module.status} - Z: {module.zOrder}
+                  <div className="text-caption text-text-secondary truncate">
+                    {module.group} · {module.status} · Z:{module.zOrder}
                   </div>
-                  {module.description ? (
-                    <div className="text-caption text-text-secondary">{module.description}</div>
-                  ) : null}
                   <div className="text-caption text-text-tertiary">
-                    {module.animations.length} anim - {module.skins.length} skins - {module.events.length} events
+                    {module.animations.length} anim · {module.skins.length} skins · {module.events.length} events
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 shrink-0">
                   <Button size="sm" variant="ghost" onClick={() => setForm(toForm(module))}>
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => handleDelete(module.id)} disabled={isSaving}>
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -394,6 +394,8 @@ export function SpineModulesSettingsClient() {
           </div>
         )}
       </div>
+
+      </div>{/* end grid */}
     </div>
   );
 }

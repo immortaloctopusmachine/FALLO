@@ -4,17 +4,19 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Home,
   Calendar,
   FolderKanban,
   LayoutGrid,
   Building2,
   Users,
   User,
-  Wrench,
+
   Settings,
   Palette,
   Moon,
   Sun,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -33,39 +35,41 @@ interface GlobalNavProps {
 }
 
 const navItems = [
+  { href: '/home', label: 'Home', icon: Home },
   { href: '/timeline', label: 'Timeline', icon: Calendar },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
   { href: '/boards', label: 'Boards', icon: LayoutGrid },
   { href: '/organization', label: 'Organization', icon: Building2 },
   { href: '/teams', label: 'Teams', icon: Users },
   { href: '/users', label: 'Users', icon: User },
-  { href: '/tools', label: 'Tools', icon: Wrench },
+
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<'dark' | 'slate' | 'light'>('slate');
+  const [theme, setTheme] = useState<'dark' | 'slate' | 'light' | 'sparkle'>('slate');
 
-  const applyTheme = (nextTheme: 'dark' | 'slate' | 'light') => {
+  const applyTheme = (nextTheme: 'dark' | 'slate' | 'light' | 'sparkle') => {
     const root = document.documentElement;
-    root.classList.remove('dark', 'slate');
+    root.classList.remove('dark', 'slate', 'sparkle');
     if (nextTheme === 'dark') root.classList.add('dark');
     if (nextTheme === 'slate') root.classList.add('slate');
+    if (nextTheme === 'sparkle') root.classList.add('sparkle');
   };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const storedTheme = window.localStorage.getItem('ui.theme');
     const nextTheme =
-      storedTheme === 'light' || storedTheme === 'slate' || storedTheme === 'dark'
+      storedTheme === 'light' || storedTheme === 'slate' || storedTheme === 'dark' || storedTheme === 'sparkle'
         ? storedTheme
         : 'slate';
     setTheme(nextTheme);
     applyTheme(nextTheme);
   }, []);
 
-  const setSkin = (nextTheme: 'dark' | 'slate' | 'light') => {
+  const setSkin = (nextTheme: 'dark' | 'slate' | 'light' | 'sparkle') => {
     setTheme(nextTheme);
     if (typeof window !== 'undefined') {
       applyTheme(nextTheme);
@@ -100,7 +104,9 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                     : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <span className="sparkle-icon-chip" aria-hidden="true">
+                  <Icon className="h-4 w-4 sparkle-icon-glyph" />
+                </span>
                 {item.label}
               </Link>
             );
@@ -119,15 +125,16 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 title="Choose skin"
                 aria-label="Choose skin"
               >
-                {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'slate' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'slate' ? <Palette className="h-4 w-4" /> : theme === 'sparkle' ? <Sparkles className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuLabel>Skin</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as 'dark' | 'slate' | 'light')}>
+              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as 'dark' | 'slate' | 'light' | 'sparkle')}>
                 <DropdownMenuRadioItem value="dark">Dark (Noir)</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="slate">Slate</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="sparkle">Sparkle</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>

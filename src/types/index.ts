@@ -77,6 +77,7 @@ export interface UserStoryCard extends BaseCard {
   type: 'USER_STORY';
   userStoryData: UserStoryCardData;
   // Computed (not stored)
+  taskCount?: number;
   completionPercentage?: number;
   totalStoryPoints?: number;
   connectedTasks?: TaskCard[];
@@ -585,8 +586,8 @@ export interface TimelineData {
   blocks: TimelineBlock[];
   events: TimelineEvent[];
   availability: UserWeeklyAvailability[];
-  blockTypes: BlockType[];
-  eventTypes: EventType[];
+  blockTypes?: BlockType[];
+  eventTypes?: EventType[];
 }
 
 export interface TimelineArchivedProjectSummary {

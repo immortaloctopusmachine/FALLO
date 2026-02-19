@@ -27,6 +27,7 @@ declare module '@auth/core/jwt' {
   interface JWT {
     id: string;
     permission: UserPermission;
+    permissionRefreshedAt?: number;
   }
 }
 
@@ -178,13 +179,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id!;
         token.permission = user.permission;
+        token.permissionRefreshedAt = Date.now();
       }
       // Backward compat: existing sessions may have 'role' instead of 'permission'
       if (!token.permission && (token as Record<string, unknown>).role) {
         token.permission = (token as Record<string, unknown>).role as UserPermission;
       }
-      // Always refresh permission from DB so changes take effect without re-login
-      if (token.id) {
+      // Refresh permission from DB at most once every 5 minutes
+      const PERMISSION_REFRESH_MS = 5 * 60 * 1000;
+      const lastRefresh = token.permissionRefreshedAt ?? 0;
+      if (token.id && Date.now() - lastRefresh > PERMISSION_REFRESH_MS) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
@@ -193,8 +197,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (dbUser) {
             token.permission = dbUser.permission as UserPermission;
           }
+          token.permissionRefreshedAt = Date.now();
         } catch {
-          // If DB query fails, keep the cached permission
+          // If DB query fails, keep the cached permission and retry next interval
         }
       }
       return token;

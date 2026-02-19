@@ -44,7 +44,7 @@ export async function GET(
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     return apiSuccess(comments);

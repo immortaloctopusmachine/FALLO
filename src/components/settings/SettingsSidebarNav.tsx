@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Sparkles,
   Tag,
@@ -37,17 +38,31 @@ interface SettingsSidebarNavProps {
 
 export function SettingsSidebarNav({ isSuperAdmin, isAdmin }: SettingsSidebarNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
-  const settingsNav = [
-    ...baseSettingsNav,
-    ...(isAdmin ? [{ name: 'Spine Modules', href: '/settings/spine-modules', icon: Bone }] : []),
-    ...(isSuperAdmin
-      ? [
-          { name: 'Uploads', href: '/settings/uploads', icon: Images },
-          { name: 'Review Questions', href: '/settings/review-questions', icon: FileQuestion },
-        ]
-      : []),
-  ];
+  const settingsNav = useMemo(
+    () => [
+      ...baseSettingsNav,
+      ...(isAdmin ? [{ name: 'Spine Modules', href: '/settings/spine-modules', icon: Bone }] : []),
+      ...(isSuperAdmin
+        ? [
+            { name: 'Uploads', href: '/settings/uploads', icon: Images },
+            { name: 'Review Questions', href: '/settings/review-questions', icon: FileQuestion },
+          ]
+        : []),
+    ],
+    [isAdmin, isSuperAdmin]
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      for (const item of settingsNav) {
+        router.prefetch(item.href);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [router, settingsNav]);
 
   return (
     <nav className="w-64 border-r border-border bg-surface p-4">

@@ -7,6 +7,7 @@ import {
 } from '@/lib/api-utils';
 
 // GET /api/boards/[boardId]/cards/[cardId]/attachments
+// Supports: ?limit=N (return latest N + totalCount), ?slim=true (skip comments)
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
@@ -16,7 +17,48 @@ export async function GET(
     if (authResponse) return authResponse;
 
     const { cardId } = await params;
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const slim = searchParams.get('slim') === 'true';
 
+    // Optimized path: slim / limited fetch for review mode
+    if (slim || (limit && limit > 0)) {
+      const slimQuery = {
+        where: { cardId },
+        ...(limit && limit > 0 ? { take: limit } : {}),
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          type: true,
+          size: true,
+          createdAt: true,
+          uploader: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' as const },
+      };
+
+      if (limit && limit > 0) {
+        const [attachments, totalCount] = await Promise.all([
+          prisma.attachment.findMany(slimQuery),
+          prisma.attachment.count({ where: { cardId } }),
+        ]);
+        return apiSuccess({ items: attachments, totalCount });
+      }
+
+      const attachments = await prisma.attachment.findMany(slimQuery);
+      return apiSuccess(attachments);
+    }
+
+    // Default path: full data with comments (backward compatible)
     const attachments = await prisma.attachment.findMany({
       where: { cardId },
       include: {
@@ -44,7 +86,6 @@ export async function GET(
       },
       orderBy: { createdAt: 'desc' },
     });
-
     return apiSuccess(attachments);
   } catch (error) {
     console.error('Failed to fetch attachments:', error);

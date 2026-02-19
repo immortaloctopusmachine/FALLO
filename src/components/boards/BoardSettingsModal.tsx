@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { Settings, Save, AlertTriangle, Archive, Copy, FileText, Paintbrush, ImageIcon, X, Ban } from 'lucide-react';
 import {
@@ -38,6 +39,7 @@ export function BoardSettingsModal({
   onSave,
 }: BoardSettingsModalProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<BoardSettings>(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -51,8 +53,6 @@ export function BoardSettingsModal({
     setIsSaving(true);
     try {
       await onSave(settings);
-
-      router.refresh(); // Refresh to get updated list data
       onClose();
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -71,9 +71,13 @@ export function BoardSettingsModal({
       });
 
       if (response.ok) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['boards'] }),
+          queryClient.invalidateQueries({ queryKey: ['projects'] }),
+          queryClient.invalidateQueries({ queryKey: ['timeline'] }),
+        ]);
         onClose();
         router.push('/boards');
-        router.refresh();
       } else {
         console.error('Failed to archive board');
       }
@@ -99,9 +103,9 @@ export function BoardSettingsModal({
       const result = await response.json();
 
       if (response.ok && result.success) {
+        await queryClient.invalidateQueries({ queryKey: ['boards'] });
         onClose();
         router.push(`/boards/${result.data.id}`);
-        router.refresh();
       } else {
         console.error('Failed to clone board:', result.error);
       }

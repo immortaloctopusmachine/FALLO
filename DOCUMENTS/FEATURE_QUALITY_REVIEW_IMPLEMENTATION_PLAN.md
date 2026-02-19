@@ -51,6 +51,11 @@ This plan tracks implementation work for `DOCUMENTS/FEATURE_QUALITY_REVIEW.md`.
 - [x] Run lint/type-check/tests after UI wiring.
 
 ## Notes
+- For cross-cutting performance/deployment guidance, see `DOCUMENTS/PERFORMANCE_RUNBOOK.md`.
+- For related platform-level tracking, see `DOCUMENTS/TECH_DEBT.md` ("2026-02-19 Performance Stabilization Follow-Up").
+- Active performance pattern: Project detail fetches use `GET /api/boards/:id?scope=project` (not full board payload).
+- Active performance pattern: User/member pickers use `GET /api/users?scope=picker` and team picker scopes.
+- Active performance pattern: Board/settings navigation uses predictive prefetch (hover + idle warmup).
 - Evaluation eligibility is role-based (`LEAD`, `PO`, `HEAD_OF_ART`), not permission-based.
 - Score visibility is aggregated/anonymized only.
 - Quality summaries are visible only to users with `LEAD`, `PO`, or `HEAD_OF_ART` roles.

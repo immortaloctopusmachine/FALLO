@@ -137,6 +137,21 @@ export async function GET(
       .filter((log) => new Date(log.startTime) >= monthStart)
       .reduce((sum, log) => sum + (log.durationMs || 0), 0);
 
+    // Work day metrics (8h = 1 work day)
+    const WORK_DAY_MS = 8 * 60 * 60 * 1000;
+    const effectiveWorkDays = Math.round((totalMs / WORK_DAY_MS) * 10) / 10;
+
+    // Count unique calendar dates that have logged time
+    const uniqueDates = new Set(
+      allLogs
+        .filter((log) => log.durationMs && log.durationMs > 0)
+        .map((log) => new Date(log.startTime).toISOString().slice(0, 10))
+    );
+    const daysWithLogs = uniqueDates.size;
+    const avgHoursPerDay = daysWithLogs > 0
+      ? Math.round((totalMs / daysWithLogs / (60 * 60 * 1000)) * 10) / 10
+      : 0;
+
     return apiSuccess({
       logs: timeLogs,
       stats: {
@@ -146,6 +161,9 @@ export async function GET(
         thisWeekFormatted: formatDuration(thisWeekMs),
         thisMonthMs,
         thisMonthFormatted: formatDuration(thisMonthMs),
+        effectiveWorkDays,
+        daysWithLogs,
+        avgHoursPerDay,
         timeByPhase: Object.entries(timeByPhase).map(([phase, ms]) => ({
           phase,
           ms,

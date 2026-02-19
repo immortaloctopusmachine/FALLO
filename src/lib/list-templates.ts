@@ -53,7 +53,7 @@ export const STANDARD_SLOT_TEMPLATE: ListTemplate = {
   description: 'Full production cycle with 5-day blocks starting on Mondays',
   taskLists: [
     { name: 'Backlog', viewType: 'TASKS', phase: 'BACKLOG', color: PHASE_COLORS.BACKLOG, durationWeeks: 0, position: 0 },
-    { name: 'To Do Animation', viewType: 'TASKS', color: '#800020', durationWeeks: 0, position: 1 },
+    { name: 'To Do FX/Animation', viewType: 'TASKS', color: '#800020', durationWeeks: 0, position: 1 },
     { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 2 },
     { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 3 },
     { name: 'Review', viewType: 'TASKS', color: '#8B5CF6', durationWeeks: 0, position: 4 },
@@ -84,7 +84,7 @@ export const BRANDED_GAME_TEMPLATE: ListTemplate = {
   description: 'Shorter production cycle with 5-day blocks',
   taskLists: [
     { name: 'Backlog', viewType: 'TASKS', phase: 'BACKLOG', color: PHASE_COLORS.BACKLOG, durationWeeks: 0, position: 0 },
-    { name: 'To Do Animation', viewType: 'TASKS', color: '#800020', durationWeeks: 0, position: 1 },
+    { name: 'To Do FX/Animation', viewType: 'TASKS', color: '#800020', durationWeeks: 0, position: 1 },
     { name: 'To Do', viewType: 'TASKS', color: '#3B82F6', durationWeeks: 0, position: 2 },
     { name: 'In Progress', viewType: 'TASKS', color: '#F59E0B', durationWeeks: 0, position: 3 },
     { name: 'Review', viewType: 'TASKS', color: '#8B5CF6', durationWeeks: 0, position: 4 },

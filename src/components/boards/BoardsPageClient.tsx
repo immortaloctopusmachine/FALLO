@@ -3,7 +3,7 @@
 import { BoardCard } from '@/components/boards/BoardCard';
 import { ArchivedBoardsSection } from '@/components/boards/ArchivedBoardsSection';
 import { BoardsSkeleton } from '@/components/boards/BoardsSkeleton';
-import { useBoards, useArchivedBoards } from '@/hooks/api/use-boards';
+import { useBoards } from '@/hooks/api/use-boards';
 
 interface BoardsPageClientProps {
   isAdmin: boolean;
@@ -13,7 +13,6 @@ interface BoardsPageClientProps {
 
 export function BoardsPageClient({ isAdmin: _isAdmin, isSuperAdmin = false, currentUserId }: BoardsPageClientProps) {
   const { data: boards, isLoading } = useBoards();
-  const { data: archivedBoardsRaw, refetch: refetchArchived } = useArchivedBoards();
 
   if (isLoading) return <BoardsSkeleton />;
 
@@ -28,19 +27,6 @@ export function BoardsPageClient({ isAdmin: _isAdmin, isSuperAdmin = false, curr
   // Separate regular boards from templates
   const regularBoards = activeBoards.filter(b => !b.isTemplate);
   const templateBoards = activeBoards.filter(b => b.isTemplate);
-
-  // Prepare archived boards data
-  const archivedBoardsData = (archivedBoardsRaw || []).map(board => ({
-    id: board.id,
-    name: board.name,
-    description: board.description,
-    listCount: board.lists.length,
-    memberCount: board.members.length,
-    members: board.members.map(m => ({ id: m.user.id, name: m.user.name, image: m.user.image })),
-    isTemplate: board.isTemplate,
-    isAdmin: isAdminForBoard(board),
-    settings: board.settings,
-  }));
 
   return (
     <main className="p-6 flex-1">
@@ -107,14 +93,11 @@ export function BoardsPageClient({ isAdmin: _isAdmin, isSuperAdmin = false, curr
         </div>
       )}
 
-      {/* Archived Boards Section */}
-      {archivedBoardsData.length > 0 && (
-        <ArchivedBoardsSection
-          boards={archivedBoardsData}
-          isSuperAdmin={isSuperAdmin}
-          onBoardDeleted={() => refetchArchived()}
-        />
-      )}
+      {/* Archived Boards Section - data fetched lazily on expand */}
+      <ArchivedBoardsSection
+        currentUserId={currentUserId}
+        isSuperAdmin={isSuperAdmin}
+      />
     </main>
   );
 }

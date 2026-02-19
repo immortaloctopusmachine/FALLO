@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
 import { SettingsSidebarNav } from '@/components/settings/SettingsSidebarNav';
 
 export default async function SettingsLayout({
@@ -15,13 +14,8 @@ export default async function SettingsLayout({
     redirect('/login');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { permission: true },
-  });
-
-  const isSuperAdmin = user?.permission === 'SUPER_ADMIN';
-  const isAdmin = user?.permission === 'ADMIN' || isSuperAdmin;
+  const isSuperAdmin = session.user.permission === 'SUPER_ADMIN';
+  const isAdmin = session.user.permission === 'ADMIN' || isSuperAdmin;
 
   return (
     <div className="min-h-screen bg-background">

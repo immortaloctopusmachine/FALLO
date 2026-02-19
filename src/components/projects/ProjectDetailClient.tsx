@@ -985,7 +985,7 @@ export function ProjectDetailClient({
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/users');
+      const response = await fetch('/api/users?scope=picker');
       const data = await response.json();
       if (data.success) setUsers(data.data);
     } catch (err) {

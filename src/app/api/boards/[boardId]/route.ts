@@ -7,10 +7,9 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
-import { processDueStagedTasks } from '@/lib/task-release';
 import { setBoardArchivedOnlyAt, setProjectArchivedAt } from '@/lib/project-archive';
 
-// GET /api/boards/[boardId] - Get a single board with all details
+// GET /api/boards/[boardId] - Get a single board (scope: light | full | project)
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ boardId: string }> }
@@ -21,133 +20,334 @@ export async function GET(
 
     const { boardId } = await params;
     const { searchParams } = new URL(request.url);
-    const scope = searchParams.get('scope') === 'light' ? 'light' : 'full';
+    const requestedScope = searchParams.get('scope');
+    const scope =
+      requestedScope === 'full' || requestedScope === 'project' ? requestedScope : 'light';
     const isLightScope = scope === 'light';
 
-    if (scope === 'full') {
-      // Lazy fallback: process due staged tasks whenever full board data is fetched.
-      // This keeps releases flowing even if cron is delayed or unavailable.
-      try {
-        await processDueStagedTasks({ boardId });
-      } catch (releaseError) {
-        console.error('Lazy staged-task release failed:', releaseError);
-      }
-    }
-
-    // All authenticated users can view any board
-    const board = await prisma.board.findFirst({
-      where: {
-        id: boardId,
-      },
-      include: {
-        team: {
-          select: { id: true, name: true, color: true },
+    if (scope === 'project') {
+      const board = await prisma.board.findFirst({
+        where: {
+          id: boardId,
         },
-        members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                permission: true,
-                userCompanyRoles: {
-                  include: {
-                    companyRole: {
-                      select: { id: true, name: true, color: true, position: true },
-                    },
-                  },
-                },
-              },
-            },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          teamId: true,
+          settings: true,
+          team: {
+            select: { id: true, name: true, color: true },
           },
-        },
-        timelineEvents: {
-          include: {
-            eventType: true,
-          },
-          orderBy: { startDate: 'asc' },
-        },
-        timelineBlocks: {
-          include: {
-            blockType: true,
-          },
-          orderBy: { position: 'asc' },
-        },
-        lists: {
-          orderBy: { position: 'asc' },
-          include: {
-            cards: {
-              where: { archivedAt: null },
-              orderBy: { position: 'asc' },
-              include: {
-                assignees: {
-                  include: {
-                    user: {
-                      select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        image: true,
+          members: {
+            select: {
+              id: true,
+              userId: true,
+              permission: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                  userCompanyRoles: {
+                    select: {
+                      companyRole: {
+                        select: {
+                          id: true,
+                          name: true,
+                          color: true,
+                          position: true,
+                        },
                       },
                     },
                   },
                 },
-                _count: {
-                  select: {
-                    attachments: true,
-                    comments: true,
-                  },
-                },
-                checklists: {
-                  ...(isLightScope
-                    ? {
-                        select: {
-                          id: true,
-                          name: true,
-                          type: true,
-                          position: true,
-                          createdAt: true,
-                          items: {
-                            select: {
-                              id: true,
-                              isComplete: true,
-                            },
-                          },
-                        },
-                      }
-                    : {
-                        include: {
-                          items: true,
-                        },
-                      }),
+              },
+            },
+          },
+          lists: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              viewType: true,
+              phase: true,
+              cards: {
+                where: { archivedAt: null },
+                orderBy: { position: 'asc' },
+                select: {
+                  id: true,
+                  type: true,
+                  listId: true,
+                  taskData: true,
+                  userStoryData: true,
                 },
               },
             },
-            // Include timeline block relation for sync indicator
-            timelineBlock: {
-              select: {
-                id: true,
-                blockType: {
+          },
+          timelineEvents: {
+            orderBy: { startDate: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              startDate: true,
+              endDate: true,
+              eventType: {
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                  icon: true,
+                  description: true,
+                  isDefault: true,
+                  position: true,
+                },
+              },
+            },
+          },
+          timelineBlocks: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true,
+              startDate: true,
+              endDate: true,
+              position: true,
+              blockType: {
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                  description: true,
+                  isDefault: true,
+                  position: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!board) {
+        return ApiErrors.notFound('Board');
+      }
+
+      const weeklyProgress = await prisma.weeklyProgress.findMany({
+        where: { boardId },
+        orderBy: { weekStartDate: 'asc' },
+        select: {
+          id: true,
+          completedPoints: true,
+        },
+      });
+
+      return NextResponse.json(
+        { success: true, data: { ...board, weeklyProgress } },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      );
+    }
+
+    // All authenticated users can view any board
+    // Use explicit `select` at every level to minimise SQL columns fetched.
+    // Board structure and cards are fetched in parallel for faster loading.
+
+    const cardSelect = {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      position: true,
+      listId: true,
+      color: true,
+      featureImage: true,
+      featureImagePosition: true,
+      createdAt: true,
+      updatedAt: true,
+      taskData: true,
+      userStoryData: true,
+      epicData: true,
+      utilityData: true,
+      assignees: {
+        select: {
+          id: true,
+          userId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          attachments: true,
+          comments: true,
+        },
+      },
+      checklists: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          position: true,
+          createdAt: true,
+          items: isLightScope
+            ? { select: { id: true as const, isComplete: true as const } }
+            : {
+                orderBy: { position: 'asc' as const },
+                select: {
+                  id: true,
+                  content: true,
+                  isComplete: true,
+                  position: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
+              },
+        },
+      },
+    } as const;
+
+    // Run board structure + cards in parallel to halve latency on remote DB
+    const [boardBase, allBoardCards] = await Promise.all([
+      prisma.board.findFirst({
+        where: { id: boardId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          isTemplate: true,
+          settings: true,
+          teamId: true,
+          createdAt: true,
+          updatedAt: true,
+          archivedAt: true,
+          team: {
+            select: { id: true, name: true, color: true },
+          },
+          members: {
+            select: {
+              id: true,
+              userId: true,
+              permission: true,
+              joinedAt: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                  permission: true,
+                },
+              },
+            },
+          },
+          ...(!isLightScope
+            ? {
+                timelineEvents: {
+                  orderBy: { startDate: 'asc' as const },
                   select: {
-                    name: true,
-                    color: true,
+                    id: true,
+                    title: true,
+                    description: true,
+                    startDate: true,
+                    endDate: true,
+                    eventType: {
+                      select: {
+                        id: true,
+                        name: true,
+                        color: true,
+                        icon: true,
+                        description: true,
+                        isDefault: true,
+                        position: true,
+                      },
+                    },
+                  },
+                },
+              }
+            : {}),
+          timelineBlocks: {
+            orderBy: { position: 'asc' as const },
+            select: {
+              id: true,
+              startDate: true,
+              endDate: true,
+              position: true,
+              blockType: {
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                  description: true,
+                  isDefault: true,
+                  position: true,
+                },
+              },
+            },
+          },
+          lists: {
+            orderBy: { position: 'asc' as const },
+            select: {
+              id: true,
+              name: true,
+              position: true,
+              boardId: true,
+              viewType: true,
+              phase: true,
+              color: true,
+              startDate: true,
+              endDate: true,
+              durationWeeks: true,
+              durationDays: true,
+              createdAt: true,
+              updatedAt: true,
+              timelineBlock: {
+                select: {
+                  id: true,
+                  blockType: {
+                    select: { name: true, color: true },
                   },
                 },
               },
             },
           },
         },
-      }
-    });
+      }),
+      // Cards fetched separately in parallel — avoids sequential list→card→relation chain
+      prisma.card.findMany({
+        where: { list: { boardId }, archivedAt: null },
+        orderBy: { position: 'asc' },
+        select: cardSelect,
+      }),
+    ]);
 
-    if (!board) {
+    if (!boardBase) {
       return ApiErrors.notFound('Board');
     }
 
-    const listsWithTimeline = board.lists.map((list) => ({
+    // Group cards by listId and merge into lists
+    const cardsByList = new Map<string, typeof allBoardCards>();
+    for (const card of allBoardCards) {
+      const existing = cardsByList.get(card.listId);
+      if (existing) {
+        existing.push(card);
+      } else {
+        cardsByList.set(card.listId, [card]);
+      }
+    }
+
+    const listsWithTimeline = boardBase.lists.map((list) => ({
       ...list,
+      cards: cardsByList.get(list.id) || [],
       timelineBlockId: list.timelineBlock?.id || null,
       timelineBlock: list.timelineBlock
         ? {
@@ -157,9 +357,11 @@ export async function GET(
         : null,
     }));
 
+    const board = { ...boardBase, lists: listsWithTimeline };
+
     if (scope === 'light') {
       return NextResponse.json(
-        { success: true, data: { ...board, lists: listsWithTimeline, weeklyProgress: [] } },
+        { success: true, data: { ...board, weeklyProgress: [] } },
         {
           headers: {
             'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -231,7 +433,7 @@ export async function GET(
 
           return {
             ...card,
-            connectedTasks,
+            taskCount: totalTasks,
             completionPercentage,
             totalStoryPoints,
           };
@@ -255,7 +457,6 @@ export async function GET(
 
           return {
             ...card,
-            connectedUserStories,
             storyCount: connectedUserStories.length,
             overallProgress,
             totalStoryPoints,
@@ -368,24 +569,30 @@ export async function DELETE(
       // Explicit cleanup keeps permanent delete reliable even if DB cascade
       // constraints differ across environments/migrations.
       await prisma.$transaction(async (tx) => {
-        await tx.userWeeklyAvailability.deleteMany({ where: { boardId } });
-        await tx.timelineEvent.deleteMany({ where: { boardId } });
-        await tx.timelineBlock.deleteMany({ where: { boardId } });
-        await tx.weeklyProgress.deleteMany({ where: { boardId } });
-        await tx.activity.deleteMany({ where: { boardId } });
-        await tx.boardMember.deleteMany({ where: { boardId } });
-        await tx.spineTrackerData.deleteMany({ where: { boardId } });
-        await tx.timeLog.deleteMany({
-          where: {
-            OR: [
-              { list: { boardId } },
-              { card: { list: { boardId } } },
-            ],
-          },
-        });
+        // Phase 1: Delete all independent records in parallel
+        // (timeLog must be deleted before lists due to FK on listId)
+        await Promise.all([
+          tx.timeLog.deleteMany({
+            where: {
+              OR: [
+                { list: { boardId } },
+                { card: { list: { boardId } } },
+              ],
+            },
+          }),
+          tx.userWeeklyAvailability.deleteMany({ where: { boardId } }),
+          tx.timelineEvent.deleteMany({ where: { boardId } }),
+          tx.timelineBlock.deleteMany({ where: { boardId } }),
+          tx.weeklyProgress.deleteMany({ where: { boardId } }),
+          tx.activity.deleteMany({ where: { boardId } }),
+          tx.boardMember.deleteMany({ where: { boardId } }),
+          tx.spineTrackerData.deleteMany({ where: { boardId } }),
+        ]);
+        // Phase 2: Delete lists (cascades to cards and card children)
         await tx.list.deleteMany({ where: { boardId } });
+        // Phase 3: Delete the board itself
         await tx.board.delete({ where: { id: boardId } });
-      });
+      }, { timeout: 30000 });
 
       return apiSuccess(null);
     }

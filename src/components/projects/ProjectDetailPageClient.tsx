@@ -174,7 +174,7 @@ export function ProjectDetailPageClient({
 }: ProjectDetailPageClientProps) {
   const { data: project, isLoading: isLoading } = useQuery({
     queryKey: ['boards', projectId, 'project'],
-    queryFn: () => apiFetch<ProjectData>(`/api/boards/${projectId}`),
+    queryFn: () => apiFetch<ProjectData>(`/api/boards/${projectId}?scope=project`),
   });
 
   // Derive isAdmin from project membership OR global SUPER_ADMIN permission

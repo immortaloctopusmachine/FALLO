@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/boards';
+  const callbackUrl = searchParams.get('callbackUrl') || '/home';
   const error = searchParams.get('error');
 
   const [email, setEmail] = useState('');

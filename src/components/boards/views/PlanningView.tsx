@@ -246,15 +246,16 @@ export function PlanningView({
   const [iterationDistribution, setIterationDistribution] =
     useState<IterationDistributionMetrics | null>(null);
   const [isLoadingQualitySummary, setIsLoadingQualitySummary] = useState(false);
+  const [qualitySummaryExpanded, setQualitySummaryExpanded] = useState(false);
 
+  // Only fetch quality data when user explicitly expands the Team Quality Summary section
   useEffect(() => {
-    if (!canViewQualitySummaries) {
-      setQualitySummary(null);
-      setQualityAdjustedVelocity(null);
-      setIterationDistribution(null);
-      setIsLoadingQualitySummary(false);
+    if (!canViewQualitySummaries || !qualitySummaryExpanded) {
       return;
     }
+
+    // Skip if already loaded for this board
+    if (qualitySummary) return;
 
     let isCancelled = false;
 
@@ -306,7 +307,7 @@ export function PlanningView({
     return () => {
       isCancelled = true;
     };
-  }, [board.id, canViewQualitySummaries]);
+  }, [board.id, canViewQualitySummaries, qualitySummaryExpanded, qualitySummary]);
 
   // Filter to get Epics and User Stories
   const epics = useMemo(() => {
@@ -374,6 +375,40 @@ export function PlanningView({
 
   const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
 
+  const tasksByUserStory = useMemo(() => {
+    const map = new Map<string, TaskCard[]>();
+
+    for (const card of allCards) {
+      if (card.type !== 'TASK') continue;
+      const task = card as TaskCard;
+      const linkedUserStoryId = task.taskData?.linkedUserStoryId;
+      if (!linkedUserStoryId) continue;
+
+      const existing = map.get(linkedUserStoryId) || [];
+      existing.push(task);
+      map.set(linkedUserStoryId, existing);
+    }
+
+    return map;
+  }, [allCards]);
+
+  const userStoriesByEpic = useMemo(() => {
+    const map = new Map<string, UserStoryCard[]>();
+
+    for (const card of allCards) {
+      if (card.type !== 'USER_STORY') continue;
+      const story = card as UserStoryCard;
+      const linkedEpicId = story.userStoryData?.linkedEpicId;
+      if (!linkedEpicId) continue;
+
+      const existing = map.get(linkedEpicId) || [];
+      existing.push(story);
+      map.set(linkedEpicId, existing);
+    }
+
+    return map;
+  }, [allCards]);
+
   // Get the "Done" list from Tasks view to calculate completed points
   const doneListId = useMemo(() => {
     return board.lists.find(list =>
@@ -437,7 +472,7 @@ export function PlanningView({
   // Calculate epic health
   const epicsWithHealth = useMemo((): EpicWithHealth[] => {
     return epics.map(epic => {
-      const connectedStories = epic.connectedUserStories || [];
+      const connectedStories = userStoriesByEpic.get(epic.id) || [];
       const blockedCount = connectedStories.filter(s => {
         const data = s.userStoryData as { flags?: UserStoryFlag[] } | undefined;
         return data?.flags?.includes('BLOCKED');
@@ -463,7 +498,7 @@ export function PlanningView({
 
       return { ...epic, health, healthReason };
     });
-  }, [epics]);
+  }, [epics, userStoriesByEpic]);
 
   // Calculate done points per planning list
   const listDonePoints = useMemo(() => {
@@ -472,8 +507,8 @@ export function PlanningView({
     planningListSections.forEach(list => {
       let points = 0;
       list.userStories.forEach(story => {
-        const connectedTasks = (story.connectedTasks || []) as TaskCard[];
-        connectedTasks.forEach(task => {
+        const connectedTasks = tasksByUserStory.get(story.id) || [];
+        connectedTasks.forEach((task) => {
           if (task.listId === doneListId) {
             points += task.taskData?.storyPoints ?? 0;
           }
@@ -483,7 +518,7 @@ export function PlanningView({
     });
 
     return donePoints;
-  }, [planningListSections, doneListId]);
+  }, [planningListSections, doneListId, tasksByUserStory]);
 
   // Handle list collapse toggle
   const handleCollapseChange = useCallback((listId: string, collapsed: boolean) => {
@@ -1199,15 +1234,21 @@ export function PlanningView({
 
           {canViewQualitySummaries && (
             <div className="mt-4 rounded-lg border border-border-subtle bg-background p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-caption font-medium text-text-secondary">Team Quality Summary</div>
+            <button
+              onClick={() => setQualitySummaryExpanded(!qualitySummaryExpanded)}
+              className="flex w-full items-center justify-between"
+            >
+              <div className="flex items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors">
+                {qualitySummaryExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Team Quality Summary
+              </div>
               {isLoadingQualitySummary && (
                 <div className="text-caption text-text-tertiary">Loading...</div>
               )}
-            </div>
+            </button>
 
-            {qualitySummary ? (
-              <div className="space-y-3">
+            {qualitySummaryExpanded && qualitySummary ? (
+              <div className="space-y-3 mt-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="rounded-md border border-border-subtle bg-surface p-2.5">
                     <div className="text-caption text-text-tertiary">Overall</div>
@@ -1366,11 +1407,11 @@ export function PlanningView({
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="text-body text-text-tertiary">
-                Quality summary is not available yet.
+            ) : qualitySummaryExpanded ? (
+              <div className="text-body text-text-tertiary mt-3">
+                {isLoadingQualitySummary ? 'Loading quality data...' : 'Quality summary is not available yet.'}
               </div>
-            )}
+            ) : null}
             </div>
           )}
         </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Plus, ChevronDown, ChevronRight, Archive } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Archive, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProjectCard } from '@/components/projects/ProjectCard';
 import { useProjects, useArchivedProjects } from '@/hooks/api/use-projects';
@@ -22,7 +22,7 @@ function ProjectsSkeleton() {
         <div className="h-8 w-32 animate-pulse rounded bg-surface-hover" />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}
             className="rounded-lg border border-border bg-surface overflow-hidden"
@@ -56,13 +56,16 @@ function ProjectsSkeleton() {
 
 export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: ProjectsPageClientProps) {
   const queryClient = useQueryClient();
-  const { data: projects, isLoading } = useProjects();
-  const { data: archivedProjectsData } = useArchivedProjects();
+  const { data, isLoading } = useProjects();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const { data: archivedProjectsData, isLoading: archivedLoading } = useArchivedProjects({
+    enabled: archivedExpanded,
+  });
 
   if (isLoading) return <ProjectsSkeleton />;
 
-  const activeProjects = projects || [];
+  const activeProjects = data?.projects || [];
+  const archivedCount = data?.archivedCount || 0;
   const archivedProjects = archivedProjectsData || [];
 
   const handleArchivedProjectAction = () => {
@@ -120,7 +123,7 @@ export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: Pro
       )}
 
       {/* Archived Projects Section */}
-      {archivedProjects.length > 0 && isAdmin && (
+      {archivedCount > 0 && isAdmin && (
         <div className="mt-10">
           <button
             onClick={() => setArchivedExpanded(!archivedExpanded)}
@@ -133,33 +136,42 @@ export function ProjectsPageClient({ isAdmin, isSuperAdmin, currentUserId }: Pro
             )}
             <Archive className="h-4 w-4" />
             <h2 className="text-title font-medium">
-              Archived ({archivedProjects.length})
+              Archived ({archivedCount})
             </h2>
           </button>
 
           {archivedExpanded && (
             <>
-              <p className="text-caption text-text-tertiary mb-4 ml-6">
-                Archived projects are hidden from the main view. Restore them to make them active again.
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 opacity-75">
-                {archivedProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    id={project.id}
-                    name={project.name}
-                    teamName={project.team?.name || null}
-                    teamColor={project.team?.color || null}
-                    members={project.members}
-                    settings={(project.settings as BoardSettings) || null}
-                    weeklyProgress={project.weeklyProgress || []}
-                    isAdmin={isProjectAdmin(project)}
-                    isSuperAdmin={isSuperAdmin}
-                    isArchived
-                    onDeleted={handleArchivedProjectAction}
-                  />
-                ))}
-              </div>
+              {archivedLoading ? (
+                <div className="flex items-center gap-2 ml-6 text-text-tertiary">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-body">Loading archived projects...</span>
+                </div>
+              ) : (
+                <>
+                  <p className="text-caption text-text-tertiary mb-4 ml-6">
+                    Archived projects are hidden from the main view. Restore them to make them active again.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 opacity-75">
+                    {archivedProjects.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        id={project.id}
+                        name={project.name}
+                        teamName={project.team?.name || null}
+                        teamColor={project.team?.color || null}
+                        members={project.members}
+                        settings={(project.settings as BoardSettings) || null}
+                        weeklyProgress={project.weeklyProgress || []}
+                        isAdmin={isProjectAdmin(project)}
+                        isSuperAdmin={isSuperAdmin}
+                        isArchived
+                        onDeleted={handleArchivedProjectAction}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

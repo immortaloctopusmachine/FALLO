@@ -26,7 +26,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { CardCompact } from '@/components/cards/CardCompact';
 import type { Card, CardType } from '@/types';
-import type { ChainLink } from '@/lib/task-presets';
+
 import { cn } from '@/lib/utils';
 import { formatDateRange } from '@/lib/date-utils';
 
@@ -68,7 +68,6 @@ interface ListProps {
   secondarySectionTitle?: string;
   secondaryEmptyText?: string;
   renderSecondaryCardActions?: (card: Card) => ReactNode;
-  chainMap?: Map<string, ChainLink[]>; // Dependency chain data for cards
   extraHeaderActions?: ReactNode;
   useTwoRowHeaderActions?: boolean; // Move add/actions icons to a second header row
 }
@@ -87,8 +86,8 @@ function getListTintStyle(listName: string): React.CSSProperties | undefined {
     return { backgroundImage: 'linear-gradient(rgba(168,85,247,0.05), rgba(168,85,247,0.03))' };
   }
 
-  // To Do Animation - subtle maroon
-  if (name.includes('animation')) {
+  // To Do FX/Animation - subtle maroon
+  if (name.includes('animation') || name.includes('fx/')) {
     return { backgroundImage: 'linear-gradient(rgba(128,0,32,0.06), rgba(128,0,32,0.03))' };
   }
 
@@ -128,7 +127,6 @@ export function List({
   secondarySectionTitle,
   secondaryEmptyText = 'No cards in this section.',
   renderSecondaryCardActions,
-  chainMap,
   extraHeaderActions,
   useTwoRowHeaderActions = false,
 }: ListProps) {
@@ -446,7 +444,7 @@ export function List({
             key={card.id}
             card={card}
             onClick={() => onCardClick(card)}
-            dependencyChain={chainMap?.get(card.id)}
+
           />
         ))}
 

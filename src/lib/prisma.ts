@@ -4,7 +4,25 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+function isServerlessRuntime(): boolean {
+  return Boolean(
+    process.env.VERCEL
+      || process.env.AWS_LAMBDA_FUNCTION_NAME
+      || process.env.NETLIFY
+      || process.env.CF_PAGES
+  );
+}
+
 function resolveDatabaseUrl(): string | undefined {
+  const rawDirectUrl = process.env.DIRECT_URL;
+  const useDirectUrl =
+    process.env.PRISMA_USE_DIRECT_URL === 'true'
+    || (!isServerlessRuntime() && Boolean(rawDirectUrl));
+
+  if (useDirectUrl && rawDirectUrl) {
+    return rawDirectUrl;
+  }
+
   const rawDatabaseUrl = process.env.DATABASE_URL;
   if (!rawDatabaseUrl) return undefined;
 

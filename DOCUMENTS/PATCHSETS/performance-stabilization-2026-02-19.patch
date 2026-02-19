@@ -1,0 +1,2074 @@
+diff --git a/.env.example b/.env.example
+index 088a294..de840c8 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,8 +1,10 @@
+ # Database (Supabase PostgreSQL)
+ # Runtime (serverless): Transaction pooler (port 6543)
+-DATABASE_URL="postgresql://postgres.[YOUR-PROJECT-REF]:[URL-ENCODED-PASSWORD]@aws-1-[YOUR-REGION].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
++DATABASE_URL="postgresql://postgres.[YOUR-PROJECT-REF]:[URL-ENCODED-PASSWORD]@aws-1-[YOUR-REGION].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=10"
+ # Prisma CLI / migrations: Session pooler (port 5432)
+ DIRECT_URL="postgresql://postgres.[YOUR-PROJECT-REF]:[URL-ENCODED-PASSWORD]@aws-1-[YOUR-REGION].pooler.supabase.com:5432/postgres"
++# Optional: force Prisma runtime to use DIRECT_URL (recommended for non-serverless deployments)
++PRISMA_USE_DIRECT_URL="false"
+ 
+ # NextAuth
+ NEXTAUTH_URL="http://localhost:3800"
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 2334b21..ceddf20 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -435,6 +435,7 @@ model Board {
+   spineTrackerData SpineTrackerData?
+ 
+   @@index([teamId])
++  @@index([isTemplate, archivedAt, name])
+   @@map("boards")
+ }
+ 
+@@ -500,6 +501,7 @@ model BoardMember {
+   board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+ 
+   @@unique([userId, boardId])
++  @@index([boardId])
+   @@map("board_members")
+ }
+ 
+@@ -529,6 +531,7 @@ model List {
+   timeLogs      TimeLog[]
+ 
+   @@index([boardId])
++  @@index([boardId, position])
+   @@index([viewType])
+   @@map("lists")
+ }
+@@ -571,6 +574,7 @@ model Card {
+   timeLogs TimeLog[]
+ 
+   @@index([listId])
++  @@index([listId, archivedAt, position])
+   @@index([parentId])
+   @@index([type])
+   @@map("cards")
+@@ -664,6 +668,7 @@ model CardUser {
+   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+ 
+   @@unique([userId, cardId])
++  @@index([cardId])
+   @@map("card_users")
+ }
+ 
+@@ -797,6 +802,7 @@ model TimelineBlock {
+   list   List?   @relation(fields: [listId], references: [id])
+ 
+   @@index([boardId])
++  @@index([boardId, position])
+   @@map("timeline_blocks")
+ }
+ 
+@@ -836,6 +842,7 @@ model TimelineEvent {
+   eventType   EventType @relation(fields: [eventTypeId], references: [id])
+ 
+   @@index([boardId])
++  @@index([boardId, startDate])
+   @@map("timeline_events")
+ }
+ 
+diff --git a/src/app/(dashboard)/settings/layout.tsx b/src/app/(dashboard)/settings/layout.tsx
+index a31e5b3..371464c 100644
+--- a/src/app/(dashboard)/settings/layout.tsx
++++ b/src/app/(dashboard)/settings/layout.tsx
+@@ -2,7 +2,6 @@ import Link from 'next/link';
+ import { ArrowLeft } from 'lucide-react';
+ import { redirect } from 'next/navigation';
+ import { auth } from '@/lib/auth';
+-import { prisma } from '@/lib/prisma';
+ import { SettingsSidebarNav } from '@/components/settings/SettingsSidebarNav';
+ 
+ export default async function SettingsLayout({
+@@ -15,13 +14,8 @@ export default async function SettingsLayout({
+     redirect('/login');
+   }
+ 
+-  const user = await prisma.user.findUnique({
+-    where: { id: session.user.id },
+-    select: { permission: true },
+-  });
+-
+-  const isSuperAdmin = user?.permission === 'SUPER_ADMIN';
+-  const isAdmin = user?.permission === 'ADMIN' || isSuperAdmin;
++  const isSuperAdmin = session.user.permission === 'SUPER_ADMIN';
++  const isAdmin = session.user.permission === 'ADMIN' || isSuperAdmin;
+ 
+   return (
+     <div className="min-h-screen bg-background">
+diff --git a/src/app/(dashboard)/settings/review-questions/page.tsx b/src/app/(dashboard)/settings/review-questions/page.tsx
+index 4b6aae7..98dee0e 100644
+--- a/src/app/(dashboard)/settings/review-questions/page.tsx
++++ b/src/app/(dashboard)/settings/review-questions/page.tsx
+@@ -1,6 +1,5 @@
+ import { redirect } from 'next/navigation';
+ import { auth } from '@/lib/auth';
+-import { prisma } from '@/lib/prisma';
+ import { ReviewQuestionsSettingsClient } from '@/components/settings/ReviewQuestionsSettingsClient';
+ 
+ export default async function ReviewQuestionsSettingsPage() {
+@@ -10,12 +9,7 @@ export default async function ReviewQuestionsSettingsPage() {
+     redirect('/login');
+   }
+ 
+-  const user = await prisma.user.findUnique({
+-    where: { id: session.user.id },
+-    select: { permission: true },
+-  });
+-
+-  if (user?.permission !== 'SUPER_ADMIN') {
++  if (session.user.permission !== 'SUPER_ADMIN') {
+     redirect('/settings/skills');
+   }
+ 
+diff --git a/src/app/(dashboard)/settings/spine-modules/page.tsx b/src/app/(dashboard)/settings/spine-modules/page.tsx
+index 0278617..11fc77c 100644
+--- a/src/app/(dashboard)/settings/spine-modules/page.tsx
++++ b/src/app/(dashboard)/settings/spine-modules/page.tsx
+@@ -1,6 +1,5 @@
+ import { redirect } from 'next/navigation';
+ import { auth } from '@/lib/auth';
+-import { prisma } from '@/lib/prisma';
+ import { SpineModulesSettingsClient } from '@/components/settings/SpineModulesSettingsClient';
+ 
+ export default async function SpineModulesSettingsPage() {
+@@ -10,13 +9,8 @@ export default async function SpineModulesSettingsPage() {
+     redirect('/login');
+   }
+ 
+-  const user = await prisma.user.findUnique({
+-    where: { id: session.user.id },
+-    select: { permission: true },
+-  });
+-
+   const canManageSpineModules =
+-    user?.permission === 'ADMIN' || user?.permission === 'SUPER_ADMIN';
++    session.user.permission === 'ADMIN' || session.user.permission === 'SUPER_ADMIN';
+ 
+   if (!canManageSpineModules) {
+     redirect('/settings/modules');
+diff --git a/src/app/(dashboard)/settings/uploads/page.tsx b/src/app/(dashboard)/settings/uploads/page.tsx
+index d957bbf..cf98843 100644
+--- a/src/app/(dashboard)/settings/uploads/page.tsx
++++ b/src/app/(dashboard)/settings/uploads/page.tsx
+@@ -1,6 +1,5 @@
+ import { redirect } from 'next/navigation';
+ import { auth } from '@/lib/auth';
+-import { prisma } from '@/lib/prisma';
+ import { UploadsSettingsClient } from '@/components/settings/UploadsSettingsClient';
+ 
+ export default async function UploadsSettingsPage() {
+@@ -10,12 +9,7 @@ export default async function UploadsSettingsPage() {
+     redirect('/login');
+   }
+ 
+-  const user = await prisma.user.findUnique({
+-    where: { id: session.user.id },
+-    select: { permission: true },
+-  });
+-
+-  if (user?.permission !== 'SUPER_ADMIN') {
++  if (session.user.permission !== 'SUPER_ADMIN') {
+     redirect('/settings/skills');
+   }
+ 
+diff --git a/src/app/api/boards/[boardId]/cards/reorder/route.ts b/src/app/api/boards/[boardId]/cards/reorder/route.ts
+index 171ca83..258ac7f 100644
+--- a/src/app/api/boards/[boardId]/cards/reorder/route.ts
++++ b/src/app/api/boards/[boardId]/cards/reorder/route.ts
+@@ -68,7 +68,7 @@ export async function POST(
+     const wasInProgress = sourceList && isInProgressList(sourceList.name);
+     const isNowInProgress = destList && isInProgressList(destList.name);
+ 
+-    // Use a transaction to update positions
++    // Use a transaction to update positions (timeout increased: card moves + position cleanup + review cycle transitions)
+     await prisma.$transaction(async (tx) => {
+       // If moving to a different list
+       if (sourceListId !== destinationListId) {
+@@ -150,7 +150,7 @@ export async function POST(
+           data: { position: newPosition },
+         });
+       }
+-    });
++    }, { timeout: 15000 });
+ 
+     // Handle time tracking when moving between lists
+     if (sourceListId !== destinationListId) {
+@@ -267,7 +267,8 @@ export async function POST(
+ 
+     return apiSuccess(null);
+   } catch (error) {
+-    console.error('Failed to reorder cards:', error);
+-    return ApiErrors.internal('Failed to reorder cards');
++    const detail = error instanceof Error ? error.message : String(error);
++    console.error('Failed to reorder cards:', detail, error);
++    return ApiErrors.internal(`Failed to reorder cards: ${detail}`);
+   }
+ }
+diff --git a/src/app/api/boards/[boardId]/clone/route.ts b/src/app/api/boards/[boardId]/clone/route.ts
+index f369d51..2edfd9d 100644
+--- a/src/app/api/boards/[boardId]/clone/route.ts
++++ b/src/app/api/boards/[boardId]/clone/route.ts
+@@ -1,3 +1,4 @@
++import { randomUUID } from 'node:crypto';
+ import { prisma } from '@/lib/prisma';
+ import {
+   requireAuth,
+@@ -6,6 +7,92 @@ import {
+ } from '@/lib/api-utils';
+ import type { Prisma } from '@prisma/client';
+ 
++const CREATE_MANY_CHUNK_SIZE = 500;
++
++function chunkArray<T>(items: T[], chunkSize: number): T[][] {
++  if (items.length <= chunkSize) return [items];
++  const chunks: T[][] = [];
++  for (let i = 0; i < items.length; i += chunkSize) {
++    chunks.push(items.slice(i, i + chunkSize));
++  }
++  return chunks;
++}
++
++function asJsonObject(value: Prisma.JsonValue | null | undefined): Record<string, unknown> | null {
++  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
++  return value as Record<string, unknown>;
++}
++
++function remapCardReference(
++  source: Record<string, unknown>,
++  key: string,
++  cardIdMap: Map<string, string>,
++) {
++  const value = source[key];
++  if (typeof value !== 'string' || value.length === 0) {
++    delete source[key];
++    return;
++  }
++  const mapped = cardIdMap.get(value);
++  if (mapped) {
++    source[key] = mapped;
++  } else {
++    delete source[key];
++  }
++}
++
++function remapListReference(
++  source: Record<string, unknown>,
++  key: string,
++  listIdMap: Map<string, string>,
++) {
++  const value = source[key];
++  if (typeof value !== 'string' || value.length === 0) {
++    delete source[key];
++    return;
++  }
++  const mapped = listIdMap.get(value);
++  if (mapped) {
++    source[key] = mapped;
++  } else {
++    delete source[key];
++  }
++}
++
++function remapTaskData(
++  value: Prisma.JsonValue | null | undefined,
++  cardIdMap: Map<string, string>,
++  listIdMap: Map<string, string>,
++): Prisma.InputJsonValue | undefined {
++  const taskData = asJsonObject(value);
++  if (!taskData) {
++    return value ?? undefined;
++  }
++
++  const updated = { ...taskData };
++  remapCardReference(updated, 'linkedUserStoryId', cardIdMap);
++  remapCardReference(updated, 'linkedEpicId', cardIdMap);
++  remapCardReference(updated, 'dependsOnTaskId', cardIdMap);
++  remapListReference(updated, 'stagedFromPlanningListId', listIdMap);
++  remapListReference(updated, 'releaseTargetListId', listIdMap);
++
++  return updated as Prisma.InputJsonValue;
++}
++
++function remapUserStoryData(
++  value: Prisma.JsonValue | null | undefined,
++  cardIdMap: Map<string, string>,
++): Prisma.InputJsonValue | undefined {
++  const userStoryData = asJsonObject(value);
++  if (!userStoryData) {
++    return value ?? undefined;
++  }
++
++  const updated = { ...userStoryData };
++  remapCardReference(updated, 'linkedEpicId', cardIdMap);
++  return updated as Prisma.InputJsonValue;
++}
++
+ // POST /api/boards/[boardId]/clone - Clone a board (works with regular boards and templates)
+ export async function POST(
+   request: Request,
+@@ -17,7 +104,7 @@ export async function POST(
+ 
+     const { boardId } = await params;
+ 
+-    // Get the source board with all its data
++    // Fetch only fields needed for cloning to reduce read payload.
+     const sourceBoard = await prisma.board.findFirst({
+       where: {
+         id: boardId,
+@@ -27,22 +114,59 @@ export async function POST(
+           },
+         },
+       },
+-      include: {
++      select: {
++        name: true,
++        description: true,
++        settings: true,
+         lists: {
+           orderBy: { position: 'asc' },
+-          include: {
++          select: {
++            id: true,
++            name: true,
++            position: true,
++            viewType: true,
++            phase: true,
++            color: true,
++            durationWeeks: true,
++            durationDays: true,
+             cards: {
+               where: { archivedAt: null },
+               orderBy: { position: 'asc' },
+-              include: {
++              select: {
++                id: true,
++                type: true,
++                title: true,
++                description: true,
++                position: true,
++                color: true,
++                featureImage: true,
++                featureImagePosition: true,
++                taskData: true,
++                userStoryData: true,
++                epicData: true,
++                utilityData: true,
+                 checklists: {
+-                  include: {
++                  select: {
++                    name: true,
++                    type: true,
++                    position: true,
+                     items: {
+                       orderBy: { position: 'asc' },
++                      select: {
++                        content: true,
++                        position: true,
++                      },
+                     },
+                   },
+                 },
+-                attachments: true,
++                attachments: {
++                  select: {
++                    name: true,
++                    url: true,
++                    type: true,
++                    size: true,
++                  },
++                },
+               },
+             },
+           },
+@@ -54,255 +178,212 @@ export async function POST(
+       return ApiErrors.notFound('Board');
+     }
+ 
+-    const body = await request.json();
+-    const { name, asTemplate = false } = body;
++    const body = (await request.json()) as Record<string, unknown>;
++    const name = typeof body.name === 'string' ? body.name : '';
++    const asTemplate = body.asTemplate === true;
++    const startDate = typeof body.startDate === 'string' ? body.startDate : undefined;
++    const teamId = typeof body.teamId === 'string' && body.teamId.length > 0 ? body.teamId : null;
++    const memberIds = Array.isArray(body.memberIds) ? body.memberIds : [];
++    const initialSettings = body.settings;
+ 
+-    const newBoardName = name?.trim() || `${sourceBoard.name} (Copy)`;
++    const newBoardName = name.trim() || `${sourceBoard.name} (Copy)`;
++    const sourceSettings =
++      sourceBoard.settings && typeof sourceBoard.settings === 'object' && !Array.isArray(sourceBoard.settings)
++        ? (sourceBoard.settings as Record<string, unknown>)
++        : {};
++    const mergedSettings = {
++      ...sourceSettings,
++      ...(initialSettings && typeof initialSettings === 'object' && !Array.isArray(initialSettings)
++        ? (initialSettings as Record<string, unknown>)
++        : {}),
++      ...(startDate ? { projectStartDate: startDate } : {}),
++    };
+ 
+-    // Create ID mapping for cards (old ID -> new ID)
+-    const cardIdMap = new Map<string, string>();
+-    // Create ID mapping for lists (old ID -> new ID)
++    let membersToAdd: { userId: string; permission: 'MEMBER' | 'ADMIN' }[] = [];
++    if (memberIds.length > 0) {
++      membersToAdd = memberIds
++        .filter((id): id is string => typeof id === 'string' && id !== session.user.id)
++        .map((id) => ({ userId: id, permission: 'MEMBER' as const }));
++    } else if (teamId) {
++      const teamMembers = await prisma.teamMember.findMany({
++        where: { teamId },
++        select: { userId: true, permission: true },
++      });
++      membersToAdd = teamMembers
++        .filter((member) => member.userId !== session.user.id)
++        .map((member) => ({
++          userId: member.userId,
++          permission:
++            member.permission === 'ADMIN' || member.permission === 'SUPER_ADMIN'
++              ? ('ADMIN' as const)
++              : ('MEMBER' as const),
++        }));
++    }
++
++    if (membersToAdd.length > 1) {
++      const uniqueMembers = new Map<string, 'MEMBER' | 'ADMIN'>();
++      for (const member of membersToAdd) {
++        const existing = uniqueMembers.get(member.userId);
++        if (existing === 'ADMIN') continue;
++        uniqueMembers.set(member.userId, member.permission === 'ADMIN' ? 'ADMIN' : 'MEMBER');
++      }
++      membersToAdd = Array.from(uniqueMembers.entries()).map(([userId, permission]) => ({
++        userId,
++        permission,
++      }));
++    }
++
++    // Pre-generate all IDs so we can bulk insert and remap links without post-create queries.
++    const newBoardId = randomUUID();
+     const listIdMap = new Map<string, string>();
++    const cardIdMap = new Map<string, string>();
+ 
+-    // Clone the board using a transaction
+-    const newBoard = await prisma.$transaction(async (tx) => {
+-      // 1. Create the new board
+-      const board = await tx.board.create({
+-        data: {
+-          name: newBoardName,
+-          description: sourceBoard.description,
+-          isTemplate: asTemplate,
+-          settings: sourceBoard.settings || {},
+-          members: {
+-            create: {
+-              userId: session.user.id,
+-              permission: 'ADMIN',
+-            },
+-          },
+-        },
++    for (const sourceList of sourceBoard.lists) {
++      listIdMap.set(sourceList.id, randomUUID());
++      for (const sourceCard of sourceList.cards) {
++        cardIdMap.set(sourceCard.id, randomUUID());
++      }
++    }
++
++    const listRows: Prisma.ListCreateManyInput[] = [];
++    const cardRows: Prisma.CardCreateManyInput[] = [];
++    const checklistRows: Prisma.ChecklistCreateManyInput[] = [];
++    const checklistItemRows: Prisma.ChecklistItemCreateManyInput[] = [];
++    const attachmentRows: Prisma.AttachmentCreateManyInput[] = [];
++
++    for (const sourceList of sourceBoard.lists) {
++      const mappedListId = listIdMap.get(sourceList.id);
++      if (!mappedListId) continue;
++
++      listRows.push({
++        id: mappedListId,
++        boardId: newBoardId,
++        name: sourceList.name,
++        position: sourceList.position,
++        viewType: sourceList.viewType,
++        phase: sourceList.phase,
++        color: sourceList.color,
++        startDate: null,
++        endDate: null,
++        durationWeeks: sourceList.durationWeeks,
++        durationDays: sourceList.durationDays,
+       });
+ 
+-      // 2. Clone lists and cards
+-      for (const sourceList of sourceBoard.lists) {
+-        const newList = await tx.list.create({
+-          data: {
+-            boardId: board.id,
+-            name: sourceList.name,
+-            position: sourceList.position,
+-            viewType: sourceList.viewType,
+-            phase: sourceList.phase,
+-            color: sourceList.color,
+-            // Don't copy dates for templates/clones - user will set their own
+-            startDate: null,
+-            endDate: null,
+-            durationWeeks: sourceList.durationWeeks,
+-          },
++      for (const sourceCard of sourceList.cards) {
++        const mappedCardId = cardIdMap.get(sourceCard.id);
++        if (!mappedCardId) continue;
++
++        cardRows.push({
++          id: mappedCardId,
++          listId: mappedListId,
++          type: sourceCard.type,
++          title: sourceCard.title,
++          description: sourceCard.description,
++          position: sourceCard.position,
++          color: sourceCard.color,
++          featureImage: sourceCard.featureImage,
++          featureImagePosition: sourceCard.featureImagePosition,
++          taskData: remapTaskData(sourceCard.taskData, cardIdMap, listIdMap),
++          userStoryData: remapUserStoryData(sourceCard.userStoryData, cardIdMap),
++          epicData: sourceCard.epicData as Prisma.InputJsonValue | undefined,
++          utilityData: sourceCard.utilityData as Prisma.InputJsonValue | undefined,
+         });
+-        listIdMap.set(sourceList.id, newList.id);
+-
+-        // Clone cards in this list
+-        for (const sourceCard of sourceList.cards) {
+-          const newCard = await tx.card.create({
+-            data: {
+-              listId: newList.id,
+-              type: sourceCard.type,
+-              title: sourceCard.title,
+-              description: sourceCard.description,
+-              position: sourceCard.position,
+-              color: sourceCard.color,
+-              featureImage: sourceCard.featureImage,
+-              featureImagePosition: sourceCard.featureImagePosition,
+-              // Copy type-specific data (will update linked IDs later)
+-              taskData: sourceCard.taskData ?? undefined,
+-              userStoryData: sourceCard.userStoryData ?? undefined,
+-              epicData: sourceCard.epicData ?? undefined,
+-              utilityData: sourceCard.utilityData ?? undefined,
+-              // Don't copy: assignees, comments (they're user-specific)
+-            },
++
++        for (const sourceChecklist of sourceCard.checklists) {
++          const mappedChecklistId = randomUUID();
++          checklistRows.push({
++            id: mappedChecklistId,
++            cardId: mappedCardId,
++            name: sourceChecklist.name,
++            type: sourceChecklist.type,
++            position: sourceChecklist.position,
+           });
+ 
+-          // Store ID mapping
+-          cardIdMap.set(sourceCard.id, newCard.id);
+-
+-          // Clone checklists
+-          for (const sourceChecklist of sourceCard.checklists) {
+-            const newChecklist = await tx.checklist.create({
+-              data: {
+-                cardId: newCard.id,
+-                name: sourceChecklist.name,
+-                type: sourceChecklist.type,
+-                position: sourceChecklist.position,
+-              },
++          for (const sourceItem of sourceChecklist.items) {
++            checklistItemRows.push({
++              checklistId: mappedChecklistId,
++              content: sourceItem.content,
++              position: sourceItem.position,
++              isComplete: false,
+             });
+-
+-            // Clone checklist items (reset completion status for templates)
+-            for (const sourceItem of sourceChecklist.items) {
+-              await tx.checklistItem.create({
+-                data: {
+-                  checklistId: newChecklist.id,
+-                  content: sourceItem.content,
+-                  position: sourceItem.position,
+-                  isComplete: false, // Reset completion status
+-                },
+-              });
+-            }
+           }
++        }
+ 
+-          // Clone attachments (just references, not actual files)
+-          for (const sourceAttachment of sourceCard.attachments) {
+-            await tx.attachment.create({
+-              data: {
+-                cardId: newCard.id,
+-                name: sourceAttachment.name,
+-                url: sourceAttachment.url,
+-                type: sourceAttachment.type,
+-                size: sourceAttachment.size,
+-                uploaderId: session.user.id,
+-              },
+-            });
+-          }
++        for (const sourceAttachment of sourceCard.attachments) {
++          attachmentRows.push({
++            cardId: mappedCardId,
++            name: sourceAttachment.name,
++            url: sourceAttachment.url,
++            type: sourceAttachment.type,
++            size: sourceAttachment.size,
++            uploaderId: session.user.id,
++          });
+         }
+       }
++    }
+ 
+-      return board;
+-    });
+-
+-    // 3. Update card connections with new IDs
+-    // This needs to be done after all cards are created
+-    type CardUpdate = {
+-      id: string;
+-      taskData?: Prisma.InputJsonValue;
+-      userStoryData?: Prisma.InputJsonValue;
+-    };
+-    const cardsToUpdate: CardUpdate[] = [];
++    const boardMemberRows: Prisma.BoardMemberCreateManyInput[] = [
++      {
++        boardId: newBoardId,
++        userId: session.user.id,
++        permission: 'ADMIN',
++      },
++      ...membersToAdd.map((member) => ({
++        boardId: newBoardId,
++        userId: member.userId,
++        permission: member.permission,
++      })),
++    ];
+ 
+-    // Get all cards from the new board
+-    const newBoardCards = await prisma.card.findMany({
+-      where: {
+-        list: {
+-          boardId: newBoard.id,
++    await prisma.$transaction(async (tx) => {
++      await tx.board.create({
++        data: {
++          id: newBoardId,
++          name: newBoardName,
++          description: sourceBoard.description,
++          isTemplate: asTemplate,
++          settings: mergedSettings,
++          teamId,
+         },
+-      },
+-      select: {
+-        id: true,
+-        type: true,
+-        taskData: true,
+-        userStoryData: true,
+-      },
+-    });
++      });
+ 
+-    for (const card of newBoardCards) {
+-      if (card.type === 'TASK' && card.taskData) {
+-        const taskData = card.taskData as {
+-          linkedUserStoryId?: string;
+-          linkedEpicId?: string;
+-          stagedFromPlanningListId?: string;
+-          releaseTargetListId?: string;
+-        };
+-        let needsUpdate = false;
+-        const updatedTaskData = { ...taskData };
+-
+-        if (taskData.linkedUserStoryId && cardIdMap.has(taskData.linkedUserStoryId)) {
+-          updatedTaskData.linkedUserStoryId = cardIdMap.get(taskData.linkedUserStoryId);
+-          needsUpdate = true;
+-        } else if (taskData.linkedUserStoryId) {
+-          // The linked card doesn't exist in this clone, remove the link
+-          delete updatedTaskData.linkedUserStoryId;
+-          needsUpdate = true;
+-        }
++      await tx.boardMember.createMany({
++        data: boardMemberRows,
++        skipDuplicates: true,
++      });
+ 
+-        if (taskData.linkedEpicId && cardIdMap.has(taskData.linkedEpicId)) {
+-          updatedTaskData.linkedEpicId = cardIdMap.get(taskData.linkedEpicId);
+-          needsUpdate = true;
+-        } else if (taskData.linkedEpicId) {
+-          delete updatedTaskData.linkedEpicId;
+-          needsUpdate = true;
++      if (listRows.length > 0) {
++        for (const chunk of chunkArray(listRows, CREATE_MANY_CHUNK_SIZE)) {
++          await tx.list.createMany({ data: chunk });
+         }
++      }
+ 
+-        if (taskData.stagedFromPlanningListId) {
+-          if (listIdMap.has(taskData.stagedFromPlanningListId)) {
+-            updatedTaskData.stagedFromPlanningListId = listIdMap.get(taskData.stagedFromPlanningListId);
+-          } else {
+-            delete updatedTaskData.stagedFromPlanningListId;
+-          }
+-          needsUpdate = true;
+-        }
+-
+-        if (taskData.releaseTargetListId) {
+-          if (listIdMap.has(taskData.releaseTargetListId)) {
+-            updatedTaskData.releaseTargetListId = listIdMap.get(taskData.releaseTargetListId);
+-          } else {
+-            delete updatedTaskData.releaseTargetListId;
+-          }
+-          needsUpdate = true;
++      if (cardRows.length > 0) {
++        for (const chunk of chunkArray(cardRows, CREATE_MANY_CHUNK_SIZE)) {
++          await tx.card.createMany({ data: chunk });
+         }
++      }
+ 
+-        if (needsUpdate) {
+-          cardsToUpdate.push({ id: card.id, taskData: updatedTaskData as Prisma.InputJsonValue });
++      if (checklistRows.length > 0) {
++        for (const chunk of chunkArray(checklistRows, CREATE_MANY_CHUNK_SIZE)) {
++          await tx.checklist.createMany({ data: chunk });
+         }
+       }
+ 
+-      if (card.type === 'USER_STORY' && card.userStoryData) {
+-        const userStoryData = card.userStoryData as { linkedEpicId?: string };
+-
+-        if (userStoryData.linkedEpicId) {
+-          const updatedUserStoryData = { ...userStoryData };
+-
+-          if (cardIdMap.has(userStoryData.linkedEpicId)) {
+-            updatedUserStoryData.linkedEpicId = cardIdMap.get(userStoryData.linkedEpicId);
+-          } else {
+-            delete updatedUserStoryData.linkedEpicId;
+-          }
+-
+-          cardsToUpdate.push({ id: card.id, userStoryData: updatedUserStoryData as Prisma.InputJsonValue });
++      if (checklistItemRows.length > 0) {
++        for (const chunk of chunkArray(checklistItemRows, CREATE_MANY_CHUNK_SIZE)) {
++          await tx.checklistItem.createMany({ data: chunk });
+         }
+       }
+-    }
+ 
+-    // Batch update cards with new connection IDs
+-    for (const cardUpdate of cardsToUpdate) {
+-      if (cardUpdate.taskData) {
+-        await prisma.card.update({
+-          where: { id: cardUpdate.id },
+-          data: { taskData: cardUpdate.taskData },
+-        });
+-      }
+-      if (cardUpdate.userStoryData) {
+-        await prisma.card.update({
+-          where: { id: cardUpdate.id },
+-          data: { userStoryData: cardUpdate.userStoryData },
+-        });
++      if (attachmentRows.length > 0) {
++        for (const chunk of chunkArray(attachmentRows, CREATE_MANY_CHUNK_SIZE)) {
++          await tx.attachment.createMany({ data: chunk });
++        }
+       }
+-    }
+-
+-    // Fetch the complete new board for response
+-    const completeBoard = await prisma.board.findUnique({
+-      where: { id: newBoard.id },
+-      include: {
+-        members: {
+-          include: {
+-            user: {
+-              select: {
+-                id: true,
+-                name: true,
+-                email: true,
+-                image: true,
+-              },
+-            },
+-          },
+-        },
+-        lists: {
+-          orderBy: { position: 'asc' },
+-          include: {
+-            _count: {
+-              select: { cards: true },
+-            },
+-          },
+-        },
+-      },
+-    });
++    }, { timeout: 60000 });
+ 
+-    return apiSuccess(completeBoard, 201);
++    return apiSuccess({ id: newBoardId }, 201);
+   } catch (error) {
+     console.error('Failed to clone board:', error);
+     return ApiErrors.internal('Failed to clone board');
+diff --git a/src/app/api/boards/[boardId]/route.ts b/src/app/api/boards/[boardId]/route.ts
+index f579553..0ce40e3 100644
+--- a/src/app/api/boards/[boardId]/route.ts
++++ b/src/app/api/boards/[boardId]/route.ts
+@@ -7,7 +7,6 @@ import {
+   apiSuccess,
+   ApiErrors,
+ } from '@/lib/api-utils';
+-import { processDueStagedTasks } from '@/lib/task-release';
+ import { setBoardArchivedOnlyAt, setProjectArchivedAt } from '@/lib/project-archive';
+ 
+ // GET /api/boards/[boardId] - Get a single board with all details
+@@ -21,19 +20,9 @@ export async function GET(
+ 
+     const { boardId } = await params;
+     const { searchParams } = new URL(request.url);
+-    const scope = searchParams.get('scope') === 'light' ? 'light' : 'full';
++    const scope = searchParams.get('scope') === 'full' ? 'full' : 'light';
+     const isLightScope = scope === 'light';
+ 
+-    if (scope === 'full') {
+-      // Lazy fallback: process due staged tasks whenever full board data is fetched.
+-      // This keeps releases flowing even if cron is delayed or unavailable.
+-      try {
+-        await processDueStagedTasks({ boardId });
+-      } catch (releaseError) {
+-        console.error('Lazy staged-task release failed:', releaseError);
+-      }
+-    }
+-
+     // All authenticated users can view any board
+     const board = await prisma.board.findFirst({
+       where: {
+@@ -52,23 +41,20 @@ export async function GET(
+                 email: true,
+                 image: true,
+                 permission: true,
+-                userCompanyRoles: {
+-                  include: {
+-                    companyRole: {
+-                      select: { id: true, name: true, color: true, position: true },
+-                    },
+-                  },
+-                },
+               },
+             },
+           },
+         },
+-        timelineEvents: {
+-          include: {
+-            eventType: true,
+-          },
+-          orderBy: { startDate: 'asc' },
+-        },
++        ...(!isLightScope
++          ? {
++              timelineEvents: {
++                include: {
++                  eventType: true,
++                },
++                orderBy: { startDate: 'asc' },
++              },
++            }
++          : {}),
+         timelineBlocks: {
+           include: {
+             blockType: true,
+@@ -231,7 +217,7 @@ export async function GET(
+ 
+           return {
+             ...card,
+-            connectedTasks,
++            taskCount: totalTasks,
+             completionPercentage,
+             totalStoryPoints,
+           };
+@@ -255,7 +241,6 @@ export async function GET(
+ 
+           return {
+             ...card,
+-            connectedUserStories,
+             storyCount: connectedUserStories.length,
+             overallProgress,
+             totalStoryPoints,
+@@ -368,24 +353,30 @@ export async function DELETE(
+       // Explicit cleanup keeps permanent delete reliable even if DB cascade
+       // constraints differ across environments/migrations.
+       await prisma.$transaction(async (tx) => {
+-        await tx.userWeeklyAvailability.deleteMany({ where: { boardId } });
+-        await tx.timelineEvent.deleteMany({ where: { boardId } });
+-        await tx.timelineBlock.deleteMany({ where: { boardId } });
+-        await tx.weeklyProgress.deleteMany({ where: { boardId } });
+-        await tx.activity.deleteMany({ where: { boardId } });
+-        await tx.boardMember.deleteMany({ where: { boardId } });
+-        await tx.spineTrackerData.deleteMany({ where: { boardId } });
+-        await tx.timeLog.deleteMany({
+-          where: {
+-            OR: [
+-              { list: { boardId } },
+-              { card: { list: { boardId } } },
+-            ],
+-          },
+-        });
++        // Phase 1: Delete all independent records in parallel
++        // (timeLog must be deleted before lists due to FK on listId)
++        await Promise.all([
++          tx.timeLog.deleteMany({
++            where: {
++              OR: [
++                { list: { boardId } },
++                { card: { list: { boardId } } },
++              ],
++            },
++          }),
++          tx.userWeeklyAvailability.deleteMany({ where: { boardId } }),
++          tx.timelineEvent.deleteMany({ where: { boardId } }),
++          tx.timelineBlock.deleteMany({ where: { boardId } }),
++          tx.weeklyProgress.deleteMany({ where: { boardId } }),
++          tx.activity.deleteMany({ where: { boardId } }),
++          tx.boardMember.deleteMany({ where: { boardId } }),
++          tx.spineTrackerData.deleteMany({ where: { boardId } }),
++        ]);
++        // Phase 2: Delete lists (cascades to cards and card children)
+         await tx.list.deleteMany({ where: { boardId } });
++        // Phase 3: Delete the board itself
+         await tx.board.delete({ where: { id: boardId } });
+-      });
++      }, { timeout: 30000 });
+ 
+       return apiSuccess(null);
+     }
+diff --git a/src/app/api/boards/route.ts b/src/app/api/boards/route.ts
+index e80bbe3..9bd11a2 100644
+--- a/src/app/api/boards/route.ts
++++ b/src/app/api/boards/route.ts
+@@ -10,55 +10,31 @@ import type { BoardTemplateType, ListViewType, ListPhase, BoardSettings } from '
+ 
+ const CORE_TEMPLATE_TASK_LISTS = BOARD_TEMPLATES.STANDARD_SLOT.taskLists;
+ 
+-async function findBlockTypeForList(list: {
+-  name: string;
+-  phase: string | null;
+-  color: string | null;
+-}) {
+-  const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
+-  const listNameLower = list.name.toLowerCase();
++import type { BlockType as PrismaBlockType } from '@prisma/client';
++type BlockType = PrismaBlockType;
+ 
+-  let blockType = null;
++function matchBlockTypeForList(
++  allBlockTypes: BlockType[],
++  list: { name: string; phase: string | null },
++): BlockType | null {
++  const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
+ 
+   if (searchTerms) {
+     for (const term of searchTerms) {
+-      blockType = await prisma.blockType.findFirst({
+-        where: { name: { contains: term, mode: 'insensitive' } },
+-      });
+-      if (blockType) break;
++      const match = allBlockTypes.find(bt => bt.name.toLowerCase().includes(term.toLowerCase()));
++      if (match) return match;
+     }
+   }
+ 
+-  if (!blockType) {
+-    const nameParts = listNameLower.split(/[\s\/\-]+/);
+-    for (const part of nameParts) {
+-      if (part.length > 2) {
+-        blockType = await prisma.blockType.findFirst({
+-          where: { name: { contains: part, mode: 'insensitive' } },
+-        });
+-        if (blockType) break;
+-      }
++  const nameParts = list.name.toLowerCase().split(/[\s\/\-]+/);
++  for (const part of nameParts) {
++    if (part.length > 2) {
++      const match = allBlockTypes.find(bt => bt.name.toLowerCase().includes(part));
++      if (match) return match;
+     }
+   }
+ 
+-  if (!blockType) {
+-    blockType = await prisma.blockType.findFirst({
+-      where: { isDefault: true },
+-    });
+-  }
+-
+-  if (!blockType) {
+-    blockType = await prisma.blockType.create({
+-      data: {
+-        name: list.name,
+-        color: list.color || '#6B7280',
+-        isDefault: false,
+-        position: 0,
+-      },
+-    });
+-  }
+-
+-  return blockType;
++  return allBlockTypes.find(bt => bt.isDefault) ?? null;
+ }
+ 
+ // GET /api/boards - Get all boards for current user
+@@ -75,6 +51,30 @@ export async function GET(request: Request) {
+     const { searchParams } = new URL(request.url);
+     const archived = searchParams.get('archived') === 'true';
+     const projects = searchParams.get('projects') === 'true';
++    const templates = searchParams.get('templates') === 'true';
++
++    if (templates) {
++      const templateBoards = await prisma.board.findMany({
++        where: {
++          isTemplate: true,
++          archivedAt: null,
++        },
++        select: {
++          id: true,
++          name: true,
++          description: true,
++          isTemplate: true,
++          settings: true,
++          lists: {
++            orderBy: { position: 'asc' },
++            select: { id: true },
++          },
++        },
++        orderBy: { name: 'asc' },
++      });
++
++      return apiSuccess(templateBoards);
++    }
+ 
+     if (projects) {
+       // Projects are filtered by settings.projectArchivedAt (project-level archive state),
+@@ -114,11 +114,12 @@ export async function GET(request: Request) {
+         return archived ? isProjectArchived : !isProjectArchived;
+       });
+ 
+-      // Populate weekly snapshots for non-archived projects (fire-and-forget).
++      // Populate weekly snapshots for non-archived projects without blocking response latency.
+       if (!archived) {
+-        await Promise.allSettled(
+-          filteredBoards.map((b) => ensureWeeklySnapshot(b.id))
+-        );
++        const snapshotTargets = filteredBoards.slice(0, 20);
++        void Promise.allSettled(snapshotTargets.map((b) => ensureWeeklySnapshot(b.id))).catch((error) => {
++          console.error('Failed to update weekly snapshots:', error);
++        });
+       }
+ 
+       return apiSuccess(filteredBoards);
+@@ -427,50 +428,73 @@ export async function POST(request: Request) {
+         orderBy: { position: 'asc' },
+       });
+ 
+-      // Create timeline blocks for each planning list
++      // Pre-fetch all block types once (instead of N+1 queries per list)
++      const allBlockTypes = await prisma.blockType.findMany();
++
++      // Resolve block type for each planning list (in-memory matching)
++      const resolvedBlockTypes: BlockType[] = [];
+       for (let i = 0; i < planningLists.length; i++) {
+         const list = planningLists[i];
+         const explicitBlockTypeId = coreTemplate?.blocks[i]?.blockTypeId;
+-        const blockType = explicitBlockTypeId
+-          ? await prisma.blockType.findUnique({ where: { id: explicitBlockTypeId } }) ??
+-            await findBlockTypeForList(list)
+-          : await findBlockTypeForList(list);
++        let blockType: BlockType | null = null;
+ 
+-        // Create timeline block
+-        await prisma.timelineBlock.create({
+-          data: {
+-            boardId: board.id,
+-            blockTypeId: blockType.id,
+-            listId: list.id,
+-            startDate: list.startDate!,
+-            endDate: list.endDate!,
+-            position: i + 1,
+-          },
+-        });
++        if (explicitBlockTypeId) {
++          blockType = allBlockTypes.find(bt => bt.id === explicitBlockTypeId) ?? null;
++        }
++        if (!blockType) {
++          blockType = matchBlockTypeForList(allBlockTypes, list);
++        }
++        if (!blockType) {
++          // Create a new block type only if no match found at all
++          blockType = await prisma.blockType.create({
++            data: { name: list.name, color: list.color || '#6B7280', isDefault: false, position: 0 },
++          });
++          allBlockTypes.push(blockType);
++        }
++        resolvedBlockTypes.push(blockType);
+       }
+ 
+-      if (coreTemplate && coreTemplate.events.length > 0) {
+-        const firstDate = snapToMonday(new Date(startDate as string));
+-        const useLegacyIndexOffset = coreTemplate.events.every((event) => (event as { unitOffset?: number }).unitOffset === 0);
+-        for (let i = 0; i < coreTemplate.events.length; i++) {
+-          const templateEvent = coreTemplate.events[i];
+-          const explicitUnitOffset = Math.max(
+-            0,
+-            Math.floor((templateEvent as { unitOffset?: number }).unitOffset ?? 0)
+-          );
+-          const unitOffset = useLegacyIndexOffset ? i * 5 : explicitUnitOffset;
+-          const eventDate = addBusinessDays(firstDate, unitOffset);
+-
+-          await prisma.timelineEvent.create({
++      // Create all timeline blocks in parallel
++      await Promise.all(
++        planningLists.map((list, i) =>
++          prisma.timelineBlock.create({
+             data: {
+               boardId: board.id,
+-              eventTypeId: templateEvent.eventTypeId,
+-              title: templateEvent.title?.trim() || templateEvent.eventType.name,
+-              startDate: eventDate,
+-              endDate: eventDate,
++              blockTypeId: resolvedBlockTypes[i].id,
++              listId: list.id,
++              startDate: list.startDate!,
++              endDate: list.endDate!,
++              position: i + 1,
+             },
+-          });
+-        }
++          })
++        )
++      );
++
++      // Create all timeline events in parallel
++      if (coreTemplate && coreTemplate.events.length > 0) {
++        const firstDate = snapToMonday(new Date(startDate as string));
++        const useLegacyIndexOffset = coreTemplate.events.every((event) => (event as { unitOffset?: number }).unitOffset === 0);
++
++        await Promise.all(
++          coreTemplate.events.map((templateEvent, i) => {
++            const explicitUnitOffset = Math.max(
++              0,
++              Math.floor((templateEvent as { unitOffset?: number }).unitOffset ?? 0)
++            );
++            const unitOffset = useLegacyIndexOffset ? i * 5 : explicitUnitOffset;
++            const eventDate = addBusinessDays(firstDate, unitOffset);
++
++            return prisma.timelineEvent.create({
++              data: {
++                boardId: board.id,
++                eventTypeId: templateEvent.eventTypeId,
++                title: templateEvent.title?.trim() || templateEvent.eventType.name,
++                startDate: eventDate,
++                endDate: eventDate,
++              },
++            });
++          })
++        );
+       }
+ 
+       // Update board settings with lastDayAnimationTweaks
+diff --git a/src/app/api/timeline/projects/[projectId]/route.ts b/src/app/api/timeline/projects/[projectId]/route.ts
+index ab85451..2227c49 100644
+--- a/src/app/api/timeline/projects/[projectId]/route.ts
++++ b/src/app/api/timeline/projects/[projectId]/route.ts
+@@ -1,6 +1,6 @@
+ import { prisma } from '@/lib/prisma';
+ import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
+-import type { TimelineData, BlockType, EventType } from '@/types';
++import type { TimelineData } from '@/types';
+ 
+ // GET /api/timeline/projects/[projectId] - Lazy-load full timeline data for one project
+ export async function GET(
+@@ -13,37 +13,35 @@ export async function GET(
+ 
+     const { projectId } = await params;
+ 
+-    const [board, blockTypes, eventTypes] = await Promise.all([
+-      prisma.board.findFirst({
+-        where: {
+-          id: projectId,
+-          isTemplate: false,
+-        },
+-        include: {
+-          team: {
+-            select: {
+-              id: true,
+-              name: true,
+-              color: true,
+-            },
++    const board = await prisma.board.findFirst({
++      where: {
++        id: projectId,
++        isTemplate: false,
++      },
++      include: {
++        team: {
++          select: {
++            id: true,
++            name: true,
++            color: true,
+           },
+-          members: {
+-            include: {
+-              user: {
+-                select: {
+-                  id: true,
+-                  name: true,
+-                  email: true,
+-                  image: true,
+-                  userCompanyRoles: {
+-                    include: {
+-                      companyRole: {
+-                        select: {
+-                          id: true,
+-                          name: true,
+-                          color: true,
+-                          position: true,
+-                        },
++        },
++        members: {
++          include: {
++            user: {
++              select: {
++                id: true,
++                name: true,
++                email: true,
++                image: true,
++                userCompanyRoles: {
++                  include: {
++                    companyRole: {
++                      select: {
++                        id: true,
++                        name: true,
++                        color: true,
++                        position: true,
+                       },
+                     },
+                   },
+@@ -51,46 +49,40 @@ export async function GET(
+               },
+             },
+           },
+-          weeklyAvailability: {
+-            include: {
+-              user: {
+-                select: {
+-                  id: true,
+-                  name: true,
+-                  email: true,
+-                  image: true,
+-                },
++        },
++        weeklyAvailability: {
++          include: {
++            user: {
++              select: {
++                id: true,
++                name: true,
++                email: true,
++                image: true,
+               },
+             },
+           },
+-          timelineBlocks: {
+-            include: {
+-              blockType: true,
+-              list: {
+-                select: {
+-                  id: true,
+-                  name: true,
+-                  phase: true,
+-                },
++        },
++        timelineBlocks: {
++          include: {
++            blockType: true,
++            list: {
++              select: {
++                id: true,
++                name: true,
++                phase: true,
+               },
+             },
+-            orderBy: { startDate: 'asc' },
+           },
+-          timelineEvents: {
+-            include: {
+-              eventType: true,
+-            },
+-            orderBy: { startDate: 'asc' },
++          orderBy: { startDate: 'asc' },
++        },
++        timelineEvents: {
++          include: {
++            eventType: true,
+           },
++          orderBy: { startDate: 'asc' },
+         },
+-      }),
+-      prisma.blockType.findMany({
+-        orderBy: { position: 'asc' },
+-      }),
+-      prisma.eventType.findMany({
+-        orderBy: { position: 'asc' },
+-      }),
+-    ]);
++      },
++    });
+ 
+     if (!board) {
+       return ApiErrors.notFound('Project');
+@@ -189,25 +181,6 @@ export async function GET(
+       metricsByListId.set(task.listId, existing);
+     }
+ 
+-    const mappedBlockTypes: BlockType[] = blockTypes.map((bt) => ({
+-      id: bt.id,
+-      name: bt.name,
+-      color: bt.color,
+-      description: bt.description,
+-      isDefault: bt.isDefault,
+-      position: bt.position,
+-    }));
+-
+-    const mappedEventTypes: EventType[] = eventTypes.map((et) => ({
+-      id: et.id,
+-      name: et.name,
+-      color: et.color,
+-      icon: et.icon,
+-      description: et.description,
+-      isDefault: et.isDefault,
+-      position: et.position,
+-    }));
+-
+     const settings = (board.settings as Record<string, unknown>) || {};
+     const rawProjectRoleAssignments = Array.isArray(settings.projectRoleAssignments)
+       ? settings.projectRoleAssignments
+@@ -312,8 +285,6 @@ export async function GET(
+           position: event.eventType.position,
+         },
+       })),
+-      blockTypes: mappedBlockTypes,
+-      eventTypes: mappedEventTypes,
+     };
+ 
+     return apiSuccess({ project });
+diff --git a/src/app/api/timeline/route.ts b/src/app/api/timeline/route.ts
+index 4a15751..5dc5221 100644
+--- a/src/app/api/timeline/route.ts
++++ b/src/app/api/timeline/route.ts
+@@ -92,6 +92,7 @@ export async function GET() {
+         orderBy: { name: 'asc' },
+       }),
+     ]);
++    const userById = new Map(users.map((user) => [user.id, user]));
+ 
+     const boardIds = baseBoards.map((board) => board.id);
+ 
+@@ -205,7 +206,8 @@ export async function GET() {
+     }
+ 
+     if (autoArchiveUpdates.length > 0) {
+-      await prisma.$transaction(
++      // Persist archive metadata in background to avoid blocking timeline reads.
++      void prisma.$transaction(
+         autoArchiveUpdates.map((item) =>
+           prisma.board.update({
+             where: { id: item.boardId },
+@@ -215,7 +217,9 @@ export async function GET() {
+             },
+           })
+         )
+-      );
++      ).catch((error) => {
++        console.error('Failed to persist timeline auto-archive metadata:', error);
++      });
+     }
+ 
+     const boards = activeBoardIds.length
+@@ -256,15 +260,12 @@ export async function GET() {
+               },
+             },
+             weeklyAvailability: {
+-              include: {
+-                user: {
+-                  select: {
+-                    id: true,
+-                    name: true,
+-                    email: true,
+-                    image: true,
+-                  },
+-                },
++              select: {
++                id: true,
++                dedication: true,
++                weekStart: true,
++                userId: true,
++                boardId: true,
+               },
+             },
+             timelineBlocks: {
+@@ -481,7 +482,12 @@ export async function GET() {
+           weekStart: a.weekStart.toISOString(),
+           userId: a.userId,
+           boardId: a.boardId,
+-          user: a.user,
++          user: userById.get(a.userId) || {
++            id: a.userId,
++            name: null,
++            email: '',
++            image: null,
++          },
+         })),
+         events: board.timelineEvents.map((event) => ({
+           id: event.id,
+@@ -499,8 +505,6 @@ export async function GET() {
+             position: event.eventType.position,
+           },
+         })),
+-        blockTypes: mappedBlockTypes,
+-        eventTypes: mappedEventTypes,
+       };
+     });
+ 
+diff --git a/src/components/boards/BoardSettingsModal.tsx b/src/components/boards/BoardSettingsModal.tsx
+index ac385e1..9c40187 100644
+--- a/src/components/boards/BoardSettingsModal.tsx
++++ b/src/components/boards/BoardSettingsModal.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useState } from 'react';
+ import { useRouter } from 'next/navigation';
++import { useQueryClient } from '@tanstack/react-query';
+ import { useRef } from 'react';
+ import { Settings, Save, AlertTriangle, Archive, Copy, FileText, Paintbrush, ImageIcon, X, Ban } from 'lucide-react';
+ import {
+@@ -38,6 +39,7 @@ export function BoardSettingsModal({
+   onSave,
+ }: BoardSettingsModalProps) {
+   const router = useRouter();
++  const queryClient = useQueryClient();
+   const [settings, setSettings] = useState<BoardSettings>(initialSettings);
+   const [isSaving, setIsSaving] = useState(false);
+   const [isArchiving, setIsArchiving] = useState(false);
+@@ -51,8 +53,6 @@ export function BoardSettingsModal({
+     setIsSaving(true);
+     try {
+       await onSave(settings);
+-
+-      router.refresh(); // Refresh to get updated list data
+       onClose();
+     } catch (error) {
+       console.error('Failed to save settings:', error);
+@@ -71,9 +71,13 @@ export function BoardSettingsModal({
+       });
+ 
+       if (response.ok) {
++        await Promise.all([
++          queryClient.invalidateQueries({ queryKey: ['boards'] }),
++          queryClient.invalidateQueries({ queryKey: ['projects'] }),
++          queryClient.invalidateQueries({ queryKey: ['timeline'] }),
++        ]);
+         onClose();
+         router.push('/boards');
+-        router.refresh();
+       } else {
+         console.error('Failed to archive board');
+       }
+@@ -99,9 +103,9 @@ export function BoardSettingsModal({
+       const result = await response.json();
+ 
+       if (response.ok && result.success) {
++        await queryClient.invalidateQueries({ queryKey: ['boards'] });
+         onClose();
+         router.push(`/boards/${result.data.id}`);
+-        router.refresh();
+       } else {
+         console.error('Failed to clone board:', result.error);
+       }
+diff --git a/src/components/boards/BoardViewWrapper.tsx b/src/components/boards/BoardViewWrapper.tsx
+index f818e1f..a5354ef 100644
+--- a/src/components/boards/BoardViewWrapper.tsx
++++ b/src/components/boards/BoardViewWrapper.tsx
+@@ -2,7 +2,6 @@
+ 
+ import { useEffect, useState } from 'react';
+ import dynamic from 'next/dynamic';
+-import { useRouter } from 'next/navigation';
+ import { BoardHeader } from './BoardHeader';
+ import { BoardView } from './BoardView';
+ import { BoardSettingsModal } from './BoardSettingsModal';
+@@ -44,7 +43,6 @@ export function BoardViewWrapper({
+   isLoadingFullData = false,
+   onLoadFullData,
+ }: BoardViewWrapperProps) {
+-  const router = useRouter();
+   const [board, setBoard] = useState(initialBoard);
+   const [viewMode, setViewMode] = useState<BoardViewMode>('tasks');
+   const [settingsOpen, setSettingsOpen] = useState(false);
+@@ -78,9 +76,6 @@ export function BoardViewWrapper({
+       ...prev,
+       settings: newSettings,
+     }));
+-
+-    // Refresh to pick up any computed changes
+-    router.refresh();
+   };
+ 
+   const bgStyle = getBoardBackgroundStyle(board.settings);
+diff --git a/src/components/boards/CreateBoardDialog.tsx b/src/components/boards/CreateBoardDialog.tsx
+index 78f50b6..96e0def 100644
+--- a/src/components/boards/CreateBoardDialog.tsx
++++ b/src/components/boards/CreateBoardDialog.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useState, useEffect } from 'react';
+ import { useRouter } from 'next/navigation';
++import { useQueryClient } from '@tanstack/react-query';
+ import { Plus, LayoutGrid, Layers, FileText } from 'lucide-react';
+ import { Button } from '@/components/ui/button';
+ import {
+@@ -40,6 +41,7 @@ async function parseApiResponse(response: Response) {
+ 
+ export function CreateBoardDialog() {
+   const router = useRouter();
++  const queryClient = useQueryClient();
+   const [open, setOpen] = useState(false);
+   const [name, setName] = useState('');
+   const [description, setDescription] = useState('');
+@@ -87,15 +89,15 @@ export function CreateBoardDialog() {
+         if (data.success && data.data?.templates) {
+           const templates = data.data.templates as CoreProjectTemplate[];
+           setCoreTemplates(templates);
+-          if (!selectedCoreTemplateId && templates.length > 0) {
+-            setSelectedCoreTemplateId(templates[0].id);
+-            setUseBlankTemplate(false);
++          if (templates.length > 0) {
++            setSelectedCoreTemplateId((prev) => prev || templates[0].id);
++            setUseBlankTemplate((prev) => (prev ? false : prev));
+           }
+         }
+       })
+       .catch(console.error)
+       .finally(() => setIsLoadingCoreTemplates(false));
+-  }, [open, selectedCoreTemplateId]);
++  }, [open]);
+ 
+   const handleSelectProjectTemplate = (templateId: string) => {
+     setSelectedProjectTemplate(templateId);
+@@ -157,8 +159,8 @@ export function CreateBoardDialog() {
+       setSelectedCoreTemplateId(coreTemplates[0]?.id || '');
+       setUseBlankTemplate(false);
+       setSelectedProjectTemplate(null);
++      await queryClient.invalidateQueries({ queryKey: ['boards'] });
+       router.push(`/boards/${data.data.id}`);
+-      router.refresh();
+     } catch {
+       setError('An error occurred. Please try again.');
+     } finally {
+diff --git a/src/components/boards/views/PlanningView.tsx b/src/components/boards/views/PlanningView.tsx
+index 7659726..ac87323 100644
+--- a/src/components/boards/views/PlanningView.tsx
++++ b/src/components/boards/views/PlanningView.tsx
+@@ -374,6 +374,40 @@ export function PlanningView({
+ 
+   const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
+ 
++  const tasksByUserStory = useMemo(() => {
++    const map = new Map<string, TaskCard[]>();
++
++    for (const card of allCards) {
++      if (card.type !== 'TASK') continue;
++      const task = card as TaskCard;
++      const linkedUserStoryId = task.taskData?.linkedUserStoryId;
++      if (!linkedUserStoryId) continue;
++
++      const existing = map.get(linkedUserStoryId) || [];
++      existing.push(task);
++      map.set(linkedUserStoryId, existing);
++    }
++
++    return map;
++  }, [allCards]);
++
++  const userStoriesByEpic = useMemo(() => {
++    const map = new Map<string, UserStoryCard[]>();
++
++    for (const card of allCards) {
++      if (card.type !== 'USER_STORY') continue;
++      const story = card as UserStoryCard;
++      const linkedEpicId = story.userStoryData?.linkedEpicId;
++      if (!linkedEpicId) continue;
++
++      const existing = map.get(linkedEpicId) || [];
++      existing.push(story);
++      map.set(linkedEpicId, existing);
++    }
++
++    return map;
++  }, [allCards]);
++
+   // Get the "Done" list from Tasks view to calculate completed points
+   const doneListId = useMemo(() => {
+     return board.lists.find(list =>
+@@ -437,7 +471,7 @@ export function PlanningView({
+   // Calculate epic health
+   const epicsWithHealth = useMemo((): EpicWithHealth[] => {
+     return epics.map(epic => {
+-      const connectedStories = epic.connectedUserStories || [];
++      const connectedStories = userStoriesByEpic.get(epic.id) || [];
+       const blockedCount = connectedStories.filter(s => {
+         const data = s.userStoryData as { flags?: UserStoryFlag[] } | undefined;
+         return data?.flags?.includes('BLOCKED');
+@@ -463,7 +497,7 @@ export function PlanningView({
+ 
+       return { ...epic, health, healthReason };
+     });
+-  }, [epics]);
++  }, [epics, userStoriesByEpic]);
+ 
+   // Calculate done points per planning list
+   const listDonePoints = useMemo(() => {
+@@ -472,8 +506,8 @@ export function PlanningView({
+     planningListSections.forEach(list => {
+       let points = 0;
+       list.userStories.forEach(story => {
+-        const connectedTasks = (story.connectedTasks || []) as TaskCard[];
+-        connectedTasks.forEach(task => {
++        const connectedTasks = tasksByUserStory.get(story.id) || [];
++        connectedTasks.forEach((task) => {
+           if (task.listId === doneListId) {
+             points += task.taskData?.storyPoints ?? 0;
+           }
+@@ -483,7 +517,7 @@ export function PlanningView({
+     });
+ 
+     return donePoints;
+-  }, [planningListSections, doneListId]);
++  }, [planningListSections, doneListId, tasksByUserStory]);
+ 
+   // Handle list collapse toggle
+   const handleCollapseChange = useCallback((listId: string, collapsed: boolean) => {
+diff --git a/src/components/cards/CardCompact.tsx b/src/components/cards/CardCompact.tsx
+index 01a6d0e..4ec6459 100644
+--- a/src/components/cards/CardCompact.tsx
++++ b/src/components/cards/CardCompact.tsx
+@@ -219,7 +219,7 @@ const flagConfig: Record<UserStoryFlag, { icon: typeof AlertTriangle; color: str
+ function UserStoryCardBadges({ card }: { card: UserStoryCard }) {
+   const progress = card.completionPercentage ?? 0;
+   const flags = card.userStoryData?.flags || [];
+-  const taskCount = card.connectedTasks?.length ?? 0;
++  const taskCount = card.taskCount ?? card.connectedTasks?.length ?? 0;
+ 
+   return (
+     <div className="mt-2 space-y-1.5">
+diff --git a/src/components/cards/CardModal.tsx b/src/components/cards/CardModal.tsx
+index 2996281..77876d0 100644
+--- a/src/components/cards/CardModal.tsx
++++ b/src/components/cards/CardModal.tsx
+@@ -249,6 +249,28 @@ export function CardModal({
+     }
+   }, [allCards, card?.type, linkedEpicId]);
+ 
++  // Derive connected cards locally so board payloads can stay lean.
++  useEffect(() => {
++    if (!card) return;
++
++    if (card.type === 'USER_STORY') {
++      const derivedConnectedTasks = allCards.filter(
++        (candidate): candidate is TaskCard =>
++          candidate.type === 'TASK' && candidate.taskData?.linkedUserStoryId === card.id
++      );
++      setConnectedTasks(derivedConnectedTasks);
++      return;
++    }
++
++    if (card.type === 'EPIC') {
++      const derivedConnectedUserStories = allCards.filter(
++        (candidate): candidate is UserStoryCard =>
++          candidate.type === 'USER_STORY' && candidate.userStoryData?.linkedEpicId === card.id
++      );
++      setConnectedUserStories(derivedConnectedUserStories);
++    }
++  }, [allCards, card]);
++
+   // Core save function - used by auto-save
+   const performSave = useCallback(async () => {
+     if (!card || !title.trim()) return;
+diff --git a/src/components/cards/CreateLinkedTasksModal.tsx b/src/components/cards/CreateLinkedTasksModal.tsx
+index 452efc8..2f8abcb 100644
+--- a/src/components/cards/CreateLinkedTasksModal.tsx
++++ b/src/components/cards/CreateLinkedTasksModal.tsx
+@@ -138,30 +138,25 @@ export function CreateLinkedTasksModal({
+     }
+ 
+     setIsCreating(true);
+-    const createdCards: Card[] = [];
+ 
+     try {
+-      let previousTaskId: string | null = null;
+-
+-      for (let i = 0; i < LINKED_TASK_PRESETS.length; i++) {
+-        const preset = LINKED_TASK_PRESETS[i];
++      // Build all card definitions for batch creation (single API call)
++      const cardDefs = LINKED_TASK_PRESETS.map((preset, i) => {
+         const task = tasks[i];
+-
+         const isStaged = task.destinationMode === 'STAGED';
+         const listId = isStaged ? task.stagingPlanningListId : task.listId;
+ 
+-        const body: Record<string, unknown> = {
++        return {
+           title: effectiveTitles[i].trim(),
+-          type: 'TASK',
+           listId,
+           description: task.description.trim() || null,
+           color: preset.color,
+           assigneeIds: task.assigneeId ? [task.assigneeId] : [],
+           tagIds: task.tagId ? [task.tagId] : [],
++          dependsOnPrevious: i > 0,
+           taskData: {
+             linkedUserStoryId: userStoryId,
+             storyPoints: task.storyPoints,
+-            dependsOnTaskId: previousTaskId,
+           },
+           taskDestination: {
+             mode: task.destinationMode,
+@@ -170,30 +165,24 @@ export function CreateLinkedTasksModal({
+             releaseTargetListId: task.releaseTargetListId,
+           },
+         };
++      });
+ 
+-        const card = await apiFetch<Card>(
+-          `/api/boards/${boardId}/cards`,
+-          {
+-            method: 'POST',
+-            headers: { 'Content-Type': 'application/json' },
+-            body: JSON.stringify(body),
+-          }
+-        );
+-        createdCards.push(card);
+-        previousTaskId = card.id;
+-      }
++      const createdCards = await apiFetch<Card[]>(
++        `/api/boards/${boardId}/cards/batch`,
++        {
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({ cards: cardDefs }),
++        }
++      );
+ 
+       onTasksCreated(createdCards);
+       toast.success(`${LINKED_TASK_PRESETS.length} linked tasks created`);
+       onClose();
+     } catch (error) {
+       console.error('Failed to create linked tasks:', error);
+-      const message = error instanceof Error ? error.message : 'Failed to create some tasks';
++      const message = error instanceof Error ? error.message : 'Failed to create tasks';
+       toast.error(message);
+-      // Still notify about any that were created
+-      if (createdCards.length > 0) {
+-        onTasksCreated(createdCards);
+-      }
+     } finally {
+       setIsCreating(false);
+     }
+diff --git a/src/components/projects/ProjectDetailPageClient.tsx b/src/components/projects/ProjectDetailPageClient.tsx
+index 4055c17..2d17fcd 100644
+--- a/src/components/projects/ProjectDetailPageClient.tsx
++++ b/src/components/projects/ProjectDetailPageClient.tsx
+@@ -174,7 +174,7 @@ export function ProjectDetailPageClient({
+ }: ProjectDetailPageClientProps) {
+   const { data: project, isLoading: isLoading } = useQuery({
+     queryKey: ['boards', projectId, 'project'],
+-    queryFn: () => apiFetch<ProjectData>(`/api/boards/${projectId}`),
++    queryFn: () => apiFetch<ProjectData>(`/api/boards/${projectId}?scope=full`),
+   });
+ 
+   // Derive isAdmin from project membership OR global SUPER_ADMIN permission
+diff --git a/src/components/shared/NotificationBell.tsx b/src/components/shared/NotificationBell.tsx
+index 79fe8ed..3403ce2 100644
+--- a/src/components/shared/NotificationBell.tsx
++++ b/src/components/shared/NotificationBell.tsx
+@@ -53,14 +53,35 @@ export function NotificationBell() {
+     }
+   }, []);
+ 
+-  // Poll every 30 seconds + fetch on focus
++  // Poll every 60s (paused when tab is hidden) + fetch on focus/visibility
+   useEffect(() => {
+     fetchNotifications();
+-    const interval = setInterval(fetchNotifications, 30000);
++
++    let intervalId: ReturnType<typeof setInterval> | null = null;
++    const startPolling = () => {
++      if (!intervalId) intervalId = setInterval(fetchNotifications, 60_000);
++    };
++    const stopPolling = () => {
++      if (intervalId) { clearInterval(intervalId); intervalId = null; }
++    };
++
++    const handleVisibilityChange = () => {
++      if (document.visibilityState === 'hidden') {
++        stopPolling();
++      } else {
++        fetchNotifications();
++        startPolling();
++      }
++    };
+     const handleFocus = () => fetchNotifications();
++
++    if (document.visibilityState !== 'hidden') startPolling();
++    document.addEventListener('visibilitychange', handleVisibilityChange);
+     window.addEventListener('focus', handleFocus);
++
+     return () => {
+-      clearInterval(interval);
++      stopPolling();
++      document.removeEventListener('visibilitychange', handleVisibilityChange);
+       window.removeEventListener('focus', handleFocus);
+     };
+   }, [fetchNotifications]);
+diff --git a/src/components/timeline/CreateProjectDialog.tsx b/src/components/timeline/CreateProjectDialog.tsx
+index 16aa568..d0c71e5 100644
+--- a/src/components/timeline/CreateProjectDialog.tsx
++++ b/src/components/timeline/CreateProjectDialog.tsx
+@@ -1,7 +1,7 @@
+ 'use client';
+ 
+ import { useState, useEffect } from 'react';
+-import { useRouter } from 'next/navigation';
++import { useQueryClient } from '@tanstack/react-query';
+ import { Plus, Layers, FileText, Calendar, UserPlus, X } from 'lucide-react';
+ import { Button } from '@/components/ui/button';
+ import {
+@@ -82,7 +82,7 @@ export function CreateProjectDialog({
+   defaultStartDate,
+   teams,
+ }: CreateProjectDialogProps) {
+-  const router = useRouter();
++  const queryClient = useQueryClient();
+   const [name, setName] = useState('');
+   const [startDate, setStartDate] = useState('');
+   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+@@ -195,14 +195,14 @@ export function CreateProjectDialog({
+         if (data.success && data.data?.templates) {
+           const templates = data.data.templates as CoreProjectTemplate[];
+           setCoreTemplates(templates);
+-          if (!selectedCoreTemplateId && templates.length > 0) {
+-            setSelectedCoreTemplateId(templates[0].id);
++          if (templates.length > 0) {
++            setSelectedCoreTemplateId((prev) => prev || templates[0].id);
+           }
+         }
+       })
+       .catch(console.error)
+       .finally(() => setIsLoadingCoreTemplates(false));
+-  }, [isOpen, selectedCoreTemplateId]);
++  }, [isOpen]);
+ 
+   // When team changes, auto-populate with team members
+   const handleTeamChange = async (teamId: string) => {
+@@ -350,8 +350,10 @@ export function CreateProjectDialog({
+         return;
+       }
+ 
++      queryClient.invalidateQueries({ queryKey: ['timeline'] });
++      queryClient.invalidateQueries({ queryKey: ['projects'] });
++      queryClient.invalidateQueries({ queryKey: ['boards'] });
+       onClose();
+-      router.refresh();
+     } catch {
+       setError('An error occurred. Please try again.');
+     } finally {
+@@ -361,7 +363,7 @@ export function CreateProjectDialog({
+ 
+   return (
+     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
++      <DialogContent className="max-w-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
+         <DialogHeader>
+           <DialogTitle>Create Project</DialogTitle>
+           <DialogDescription>
+@@ -601,7 +603,7 @@ export function CreateProjectDialog({
+                   );
+                 })}
+             </div>
+-            {isLoadingCoreTemplates && (
++            {isLoadingCoreTemplates && coreTemplates.length === 0 && (
+               <div className="text-caption text-text-tertiary">Loading core templates...</div>
+             )}
+             {!isLoadingCoreTemplates && coreTemplates.length === 0 && (
+@@ -650,7 +652,7 @@ export function CreateProjectDialog({
+                 </div>
+               </div>
+             )}
+-            {isLoadingTemplates && (
++            {isLoadingTemplates && projectTemplates.length === 0 && (
+               <div className="text-caption text-text-tertiary">Loading templates...</div>
+             )}
+           </div>
+diff --git a/src/lib/api-utils.ts b/src/lib/api-utils.ts
+index 15e0b45..3f9d923 100644
+--- a/src/lib/api-utils.ts
++++ b/src/lib/api-utils.ts
+@@ -171,7 +171,23 @@ export async function requireBoardMember(
+   | { membership: { userId: string; boardId: string; permission: PermissionLevel }; response?: never }
+   | { membership?: never; response: NextResponse<ApiResponse> }
+ > {
+-  // SUPER_ADMIN can access any board even without explicit membership
++  const membership = await prisma.boardMember.findUnique({
++    where: {
++      userId_boardId: { userId, boardId },
++    },
++    select: { userId: true, boardId: true, permission: true },
++  });
++
++  if (membership) {
++    return {
++      membership: {
++        ...membership,
++        permission: membership.permission as PermissionLevel,
++      },
++    };
++  }
++
++  // Fallback for SUPER_ADMIN users who may not have explicit board membership.
+   const user = await prisma.user.findUnique({
+     where: { id: userId },
+     select: { permission: true },
+@@ -183,22 +199,8 @@ export async function requireBoardMember(
+     };
+   }
+ 
+-  const membership = await prisma.boardMember.findUnique({
+-    where: {
+-      userId_boardId: { userId, boardId },
+-    },
+-    select: { userId: true, boardId: true, permission: true },
+-  });
+-
+-  if (!membership) {
+-    return { response: ApiErrors.forbidden('Not a member of this board') };
+-  }
+-
+   return {
+-    membership: {
+-      ...membership,
+-      permission: membership.permission as PermissionLevel,
+-    },
++    response: ApiErrors.forbidden('Not a member of this board'),
+   };
+ }
+ 
+diff --git a/src/lib/auth/index.ts b/src/lib/auth/index.ts
+index c774186..2819a0c 100644
+--- a/src/lib/auth/index.ts
++++ b/src/lib/auth/index.ts
+@@ -27,6 +27,7 @@ declare module '@auth/core/jwt' {
+   interface JWT {
+     id: string;
+     permission: UserPermission;
++    permissionRefreshedAt?: number;
+   }
+ }
+ 
+@@ -178,13 +179,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
+       if (user) {
+         token.id = user.id!;
+         token.permission = user.permission;
++        token.permissionRefreshedAt = Date.now();
+       }
+       // Backward compat: existing sessions may have 'role' instead of 'permission'
+       if (!token.permission && (token as Record<string, unknown>).role) {
+         token.permission = (token as Record<string, unknown>).role as UserPermission;
+       }
+-      // Always refresh permission from DB so changes take effect without re-login
+-      if (token.id) {
++      // Refresh permission from DB at most once every 5 minutes
++      const PERMISSION_REFRESH_MS = 5 * 60 * 1000;
++      const lastRefresh = token.permissionRefreshedAt ?? 0;
++      if (token.id && Date.now() - lastRefresh > PERMISSION_REFRESH_MS) {
+         try {
+           const dbUser = await prisma.user.findUnique({
+             where: { id: token.id as string },
+@@ -193,8 +197,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
+           if (dbUser) {
+             token.permission = dbUser.permission as UserPermission;
+           }
++          token.permissionRefreshedAt = Date.now();
+         } catch {
+-          // If DB query fails, keep the cached permission
++          // If DB query fails, keep the cached permission and retry next interval
+         }
+       }
+       return token;
+diff --git a/src/lib/prisma.ts b/src/lib/prisma.ts
+index e441d0c..b16634c 100644
+--- a/src/lib/prisma.ts
++++ b/src/lib/prisma.ts
+@@ -4,7 +4,25 @@ const globalForPrisma = globalThis as unknown as {
+   prisma: PrismaClient | undefined;
+ };
+ 
++function isServerlessRuntime(): boolean {
++  return Boolean(
++    process.env.VERCEL
++      || process.env.AWS_LAMBDA_FUNCTION_NAME
++      || process.env.NETLIFY
++      || process.env.CF_PAGES
++  );
++}
++
+ function resolveDatabaseUrl(): string | undefined {
++  const rawDirectUrl = process.env.DIRECT_URL;
++  const useDirectUrl =
++    process.env.PRISMA_USE_DIRECT_URL === 'true'
++    || (!isServerlessRuntime() && Boolean(rawDirectUrl));
++
++  if (useDirectUrl && rawDirectUrl) {
++    return rawDirectUrl;
++  }
++
+   const rawDatabaseUrl = process.env.DATABASE_URL;
+   if (!rawDatabaseUrl) return undefined;
+ 
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 7f70b6b..a220950 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -77,6 +77,7 @@ export interface UserStoryCard extends BaseCard {
+   type: 'USER_STORY';
+   userStoryData: UserStoryCardData;
+   // Computed (not stored)
++  taskCount?: number;
+   completionPercentage?: number;
+   totalStoryPoints?: number;
+   connectedTasks?: TaskCard[];
+@@ -585,8 +586,8 @@ export interface TimelineData {
+   blocks: TimelineBlock[];
+   events: TimelineEvent[];
+   availability: UserWeeklyAvailability[];
+-  blockTypes: BlockType[];
+-  eventTypes: EventType[];
++  blockTypes?: BlockType[];
++  eventTypes?: EventType[];
+ }
+ 
+ export interface TimelineArchivedProjectSummary {

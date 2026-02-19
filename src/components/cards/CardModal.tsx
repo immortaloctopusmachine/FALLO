@@ -249,6 +249,28 @@ export function CardModal({
     }
   }, [allCards, card?.type, linkedEpicId]);
 
+  // Derive connected cards locally so board payloads can stay lean.
+  useEffect(() => {
+    if (!card) return;
+
+    if (card.type === 'USER_STORY') {
+      const derivedConnectedTasks = allCards.filter(
+        (candidate): candidate is TaskCard =>
+          candidate.type === 'TASK' && candidate.taskData?.linkedUserStoryId === card.id
+      );
+      setConnectedTasks(derivedConnectedTasks);
+      return;
+    }
+
+    if (card.type === 'EPIC') {
+      const derivedConnectedUserStories = allCards.filter(
+        (candidate): candidate is UserStoryCard =>
+          candidate.type === 'USER_STORY' && candidate.userStoryData?.linkedEpicId === card.id
+      );
+      setConnectedUserStories(derivedConnectedUserStories);
+    }
+  }, [allCards, card]);
+
   // Core save function - used by auto-save
   const performSave = useCallback(async () => {
     if (!card || !title.trim()) return;
@@ -605,28 +627,6 @@ export function CardModal({
           </div>
         </DialogHeader>
 
-        {/* PO & Lead Approvals (TASK cards only) */}
-        {card.type === 'TASK' && (
-          <TaskApprovals
-            boardId={boardId}
-            cardId={card.id}
-            taskData={(card as TaskCard).taskData}
-            boardSettings={boardSettings}
-            boardMembers={boardMembers}
-            currentUserId={currentUserId}
-            onApprovalChanged={(updatedTaskData, autoMovedToDone) => {
-              const updatedCard = {
-                ...card,
-                taskData: updatedTaskData,
-              } as TaskCard;
-              onUpdate(updatedCard);
-              if (autoMovedToDone) {
-                // Refresh will be handled by parent re-fetching board data
-              }
-            }}
-          />
-        )}
-
         {canViewQualitySummaries && (
           <div className="border-b border-border px-6 py-2">
             <div className="flex items-center gap-2">
@@ -697,6 +697,28 @@ export function CardModal({
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* PO & Lead Approvals (TASK cards only) */}
+            {card.type === 'TASK' && (
+              <TaskApprovals
+                boardId={boardId}
+                cardId={card.id}
+                taskData={(card as TaskCard).taskData}
+                boardSettings={boardSettings}
+                boardMembers={boardMembers}
+                currentUserId={currentUserId}
+                onApprovalChanged={(updatedTaskData, autoMovedToDone) => {
+                  const updatedCard = {
+                    ...card,
+                    taskData: updatedTaskData,
+                  } as TaskCard;
+                  onUpdate(updatedCard);
+                  if (autoMovedToDone) {
+                    // Refresh will be handled by parent re-fetching board data
+                  }
+                }}
+              />
             )}
 
             {/* Description */}

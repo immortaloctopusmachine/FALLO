@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type {
   TimelineData,
@@ -21,5 +21,7 @@ export function useTimelineData() {
     queryKey: ['timeline'],
     queryFn: () => apiFetch<TimelineResponse>('/api/timeline'),
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    placeholderData: keepPreviousData,
   });
 }

@@ -4,6 +4,12 @@
 
 This feature introduces a structured quality evaluation system tied to review cycles, combined with velocity tracking (burn-up/burn-down) that connects throughput to quality. The goal is to answer not just "how much did we ship?" but "how good was what we shipped?"
 
+### Related Operational Docs
+
+- Performance and deployment/runtime guidance is tracked separately in `DOCUMENTS/PERFORMANCE_RUNBOOK.md`.
+- Cross-cutting performance debt tracking is in `DOCUMENTS/TECH_DEBT.md` under "2026-02-19 Performance Stabilization Follow-Up".
+- Current performance conventions include scoped payload APIs (`scope=project`, `scope=picker`) and predictive prefetch for high-traffic views.
+
 ---
 
 ## 2. Core Concepts

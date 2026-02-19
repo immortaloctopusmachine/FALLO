@@ -102,7 +102,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/users');
+      const response = await fetch('/api/users?scope=picker');
       const data = await response.json();
       if (data.success) {
         setUsers(data.data);

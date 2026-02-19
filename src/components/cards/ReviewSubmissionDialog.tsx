@@ -45,33 +45,30 @@ export function ReviewSubmissionDialog({
 
   const placeholder = PLACEHOLDERS[card.type] || PLACEHOLDERS.UTILITY;
 
-  const handleSubmit = async () => {
-    if (!reviewText.trim()) return;
-
+  const handleSubmit = () => {
+    if (!reviewText.trim() || isSubmitting) return;
     setIsSubmitting(true);
-    try {
-      const data: ReviewSubmissionData = {
-        reviewText: reviewText.trim(),
-        visibleInEngine,
-        notes: notes.trim(),
-      };
 
-      await fetch(`/api/boards/${boardId}/cards/${card.id}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: JSON.stringify(data),
-          type: 'review_submission',
-        }),
-      });
+    const data: ReviewSubmissionData = {
+      reviewText: reviewText.trim(),
+      visibleInEngine,
+      notes: notes.trim(),
+    };
 
-      onSubmit();
-    } catch (error) {
+    // Fire the comment POST in the background — close the dialog immediately
+    // so the user isn't waiting. The card move will also happen in the background.
+    fetch(`/api/boards/${boardId}/cards/${card.id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: JSON.stringify(data),
+        type: 'review_submission',
+      }),
+    }).catch((error) => {
       console.error('Failed to submit review:', error);
-      onSubmit();
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
+
+    onSubmit();
   };
 
   const handleSkip = () => {

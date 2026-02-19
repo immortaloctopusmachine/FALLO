@@ -43,7 +43,14 @@ export async function GET() {
     const { response } = await requireAuth();
     if (response) return response;
 
-    const [baseBoards, blockTypes, eventTypes, teams, users] = await Promise.all([
+    // Run all initial queries in a single parallel batch to minimize DB round-trips.
+    // The groupBy/release queries don't filter by boardId — extra results for template
+    // boards are ignored during processing. This saves a full round-trip vs. waiting
+    // for board IDs before querying.
+    const [
+      baseBoards, blockTypes, eventTypes, teams, users,
+      blockEndMaxByBoard, eventEndMaxByBoard, releaseEvents,
+    ] = await Promise.all([
       // Timeline shows all projects (non-template boards), including board-archived ones.
       // Project-level archive state is controlled by settings.projectArchivedAt.
       prisma.board.findMany({
@@ -91,40 +98,31 @@ export async function GET() {
         },
         orderBy: { name: 'asc' },
       }),
+      prisma.timelineBlock.groupBy({
+        by: ['boardId'],
+        _max: { endDate: true },
+      }),
+      prisma.timelineEvent.groupBy({
+        by: ['boardId'],
+        _max: { endDate: true },
+      }),
+      prisma.timelineEvent.findMany({
+        where: {
+          eventType: {
+            name: {
+              equals: RELEASE_EVENT_NAME,
+              mode: 'insensitive',
+            },
+          },
+        },
+        select: {
+          boardId: true,
+          startDate: true,
+          endDate: true,
+        },
+      }),
     ]);
-
-    const boardIds = baseBoards.map((board) => board.id);
-
-    const [blockEndMaxByBoard, eventEndMaxByBoard, releaseEvents] = boardIds.length
-      ? await Promise.all([
-          prisma.timelineBlock.groupBy({
-            by: ['boardId'],
-            where: { boardId: { in: boardIds } },
-            _max: { endDate: true },
-          }),
-          prisma.timelineEvent.groupBy({
-            by: ['boardId'],
-            where: { boardId: { in: boardIds } },
-            _max: { endDate: true },
-          }),
-          prisma.timelineEvent.findMany({
-            where: {
-              boardId: { in: boardIds },
-              eventType: {
-                name: {
-                  equals: RELEASE_EVENT_NAME,
-                  mode: 'insensitive',
-                },
-              },
-            },
-            select: {
-              boardId: true,
-              startDate: true,
-              endDate: true,
-            },
-          }),
-        ])
-      : [[], [], []];
+    const userById = new Map(users.map((user) => [user.id, user]));
 
     const blockEndMap = new Map<string, Date>();
     for (const row of blockEndMaxByBoard) {
@@ -205,7 +203,8 @@ export async function GET() {
     }
 
     if (autoArchiveUpdates.length > 0) {
-      await prisma.$transaction(
+      // Persist archive metadata in background to avoid blocking timeline reads.
+      void prisma.$transaction(
         autoArchiveUpdates.map((item) =>
           prisma.board.update({
             where: { id: item.boardId },
@@ -215,7 +214,9 @@ export async function GET() {
             },
           })
         )
-      );
+      ).catch((error) => {
+        console.error('Failed to persist timeline auto-archive metadata:', error);
+      });
     }
 
     const boards = activeBoardIds.length
@@ -256,15 +257,12 @@ export async function GET() {
               },
             },
             weeklyAvailability: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                  },
-                },
+              select: {
+                id: true,
+                dedication: true,
+                weekStart: true,
+                userId: true,
+                boardId: true,
               },
             },
             timelineBlocks: {
@@ -481,7 +479,12 @@ export async function GET() {
           weekStart: a.weekStart.toISOString(),
           userId: a.userId,
           boardId: a.boardId,
-          user: a.user,
+          user: userById.get(a.userId) || {
+            id: a.userId,
+            name: null,
+            email: '',
+            image: null,
+          },
         })),
         events: board.timelineEvents.map((event) => ({
           id: event.id,
@@ -499,8 +502,6 @@ export async function GET() {
             position: event.eventType.position,
           },
         })),
-        blockTypes: mappedBlockTypes,
-        eventTypes: mappedEventTypes,
       };
     });
 

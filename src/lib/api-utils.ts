@@ -171,7 +171,23 @@ export async function requireBoardMember(
   | { membership: { userId: string; boardId: string; permission: PermissionLevel }; response?: never }
   | { membership?: never; response: NextResponse<ApiResponse> }
 > {
-  // SUPER_ADMIN can access any board even without explicit membership
+  const membership = await prisma.boardMember.findUnique({
+    where: {
+      userId_boardId: { userId, boardId },
+    },
+    select: { userId: true, boardId: true, permission: true },
+  });
+
+  if (membership) {
+    return {
+      membership: {
+        ...membership,
+        permission: membership.permission as PermissionLevel,
+      },
+    };
+  }
+
+  // Fallback for SUPER_ADMIN users who may not have explicit board membership.
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { permission: true },
@@ -183,22 +199,8 @@ export async function requireBoardMember(
     };
   }
 
-  const membership = await prisma.boardMember.findUnique({
-    where: {
-      userId_boardId: { userId, boardId },
-    },
-    select: { userId: true, boardId: true, permission: true },
-  });
-
-  if (!membership) {
-    return { response: ApiErrors.forbidden('Not a member of this board') };
-  }
-
   return {
-    membership: {
-      ...membership,
-      permission: membership.permission as PermissionLevel,
-    },
+    response: ApiErrors.forbidden('Not a member of this board'),
   };
 }
 

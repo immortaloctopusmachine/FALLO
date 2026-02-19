@@ -16,6 +16,50 @@ export async function GET(
     if (response) return response;
 
     const { teamId } = await params;
+    const { searchParams } = new URL(request.url);
+    const scope = searchParams.get('scope');
+
+    if (scope === 'ids') {
+      const members = await prisma.teamMember.findMany({
+        where: { teamId },
+        orderBy: { joinedAt: 'asc' },
+        select: {
+          userId: true,
+        },
+      });
+
+      return apiSuccess(members);
+    }
+
+    if (scope === 'picker') {
+      const members = await prisma.teamMember.findMany({
+        where: { teamId },
+        orderBy: { joinedAt: 'asc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+              userCompanyRoles: {
+                include: {
+                  companyRole: {
+                    select: {
+                      id: true,
+                      name: true,
+                      color: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return apiSuccess(members);
+    }
 
     const members = await prisma.teamMember.findMany({
       where: { teamId },

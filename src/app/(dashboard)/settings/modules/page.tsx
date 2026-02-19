@@ -32,12 +32,12 @@ const MANUAL_EPIC = '__manual__';
 
 // Cold-to-warm color mapping for story point buttons
 const SP_COLORS: Record<number, { bg: string; bgSelected: string; text: string; border: string }> = {
-  1:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   bgSelected: 'bg-blue-500',   text: 'text-blue-700 dark:text-blue-300',   border: 'border-blue-200 dark:border-blue-800' },
-  2:  { bg: 'bg-cyan-50 dark:bg-cyan-950/30',    bgSelected: 'bg-cyan-500',   text: 'text-cyan-700 dark:text-cyan-300',   border: 'border-cyan-200 dark:border-cyan-800' },
-  3:  { bg: 'bg-green-50 dark:bg-green-950/30',   bgSelected: 'bg-green-500',  text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
-  5:  { bg: 'bg-yellow-50 dark:bg-yellow-950/30', bgSelected: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
-  8:  { bg: 'bg-orange-50 dark:bg-orange-950/30', bgSelected: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
-  13: { bg: 'bg-red-50 dark:bg-red-950/30',       bgSelected: 'bg-red-500',    text: 'text-red-700 dark:text-red-300',     border: 'border-red-200 dark:border-red-800' },
+  1:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   bgSelected: 'bg-blue-700',   text: 'text-blue-700 dark:text-blue-300',   border: 'border-blue-200 dark:border-blue-800' },
+  2:  { bg: 'bg-cyan-50 dark:bg-cyan-950/30',    bgSelected: 'bg-cyan-700',   text: 'text-cyan-700 dark:text-cyan-300',   border: 'border-cyan-200 dark:border-cyan-800' },
+  3:  { bg: 'bg-green-50 dark:bg-green-950/30',   bgSelected: 'bg-green-700',  text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
+  5:  { bg: 'bg-yellow-50 dark:bg-yellow-950/30', bgSelected: 'bg-amber-700', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
+  8:  { bg: 'bg-orange-50 dark:bg-orange-950/30', bgSelected: 'bg-orange-700', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
+  13: { bg: 'bg-red-50 dark:bg-red-950/30',       bgSelected: 'bg-red-700',    text: 'text-red-700 dark:text-red-300',     border: 'border-red-200 dark:border-red-800' },
   21: { bg: 'bg-rose-50 dark:bg-rose-950/30',     bgSelected: 'bg-rose-600',   text: 'text-rose-700 dark:text-rose-300',   border: 'border-rose-200 dark:border-rose-800' },
 };
 type ImageTarget = 'userStory' | string;
@@ -483,6 +483,10 @@ export default function ModulesSettingsPage() {
         </p>
       </div>
 
+      <div className="grid gap-6 xl:grid-cols-[1fr,340px] items-start">
+      {/* Left: Form */}
+      <div className="space-y-6 min-w-0">
+
       <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
         <h3 className="text-body font-semibold">Module Header</h3>
         <div className="grid gap-3 md:grid-cols-2">
@@ -918,7 +922,10 @@ export default function ModulesSettingsPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
+      </div>{/* end left column */}
+
+      {/* Right: Saved Modules */}
+      <div className="rounded-lg border border-border overflow-hidden xl:sticky xl:top-4 h-fit">
         <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-surface">
           <h3 className="font-medium">Saved Modules</h3>
           <span className="text-caption text-text-tertiary">{modules.length}</span>
@@ -927,21 +934,20 @@ export default function ModulesSettingsPage() {
         {modules.length === 0 ? (
           <div className="p-8 text-center text-text-secondary">No modules created yet.</div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border max-h-[calc(100vh-12rem)] overflow-y-auto">
             {modules.map((module) => (
-              <div key={module.id} className="p-4 bg-surface flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="font-medium text-text-primary">{module.name} ({module.symbol})</div>
-                  {module.description && <div className="text-caption text-text-secondary">{module.description}</div>}
-                  <div className="text-caption text-text-secondary">Epic: {module.epicName}</div>
-                  <div className="text-caption text-text-tertiary">Tasks: {module.taskTemplates.length}</div>
+              <div key={module.id} className="p-3 bg-surface flex items-start justify-between gap-2">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="font-medium text-body text-text-primary truncate">{module.name} ({module.symbol})</div>
+                  {module.description && <div className="text-caption text-text-secondary truncate">{module.description}</div>}
+                  <div className="text-caption text-text-tertiary">Epic: {module.epicName} · {module.taskTemplates.length} tasks</div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 shrink-0">
                   <Button size="sm" variant="ghost" onClick={() => handleEdit(module)}>
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => handleDelete(module.id)}>
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -949,6 +955,8 @@ export default function ModulesSettingsPage() {
           </div>
         )}
       </div>
+
+      </div>{/* end grid */}
     </div>
   );
 }

@@ -16,6 +16,33 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const includeMetadata = searchParams.get('include') === 'metadata';
+    const scope = searchParams.get('scope');
+
+    if (scope === 'picker') {
+      const users = await prisma.user.findMany({
+        where: { deletedAt: null },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          userCompanyRoles: {
+            include: {
+              companyRole: {
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return apiSuccess(users);
+    }
 
     const usersPromise = prisma.user.findMany({
       where: { deletedAt: null },

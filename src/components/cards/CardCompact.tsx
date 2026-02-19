@@ -8,13 +8,11 @@ import { Paperclip, MessageSquare, CheckSquare, BookOpen, Layers, FileText, Aler
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, UserStoryFlag, UtilitySubtype } from '@/types';
 import { cn } from '@/lib/utils';
-import type { ChainLink } from '@/lib/task-presets';
 
 interface CardCompactProps {
   card: Card;
   onClick: () => void;
   sortable?: boolean;
-  dependencyChain?: ChainLink[] | null;
 }
 
 
@@ -25,7 +23,7 @@ const cardTypeIcons = {
   UTILITY: FileText,
 };
 
-export const CardCompact = memo(function CardCompact({ card, onClick, sortable = true, dependencyChain }: CardCompactProps) {
+export const CardCompact = memo(function CardCompact({ card, onClick, sortable = true }: CardCompactProps) {
   const {
     attributes,
     listeners,
@@ -86,33 +84,6 @@ export const CardCompact = memo(function CardCompact({ card, onClick, sortable =
         </h4>
       </div>
 
-      {/* Dependency chain (Task cards only) */}
-      {dependencyChain && dependencyChain.length > 1 && (
-        <div className="mt-1 flex items-center gap-1">
-          {dependencyChain.map((link, i) => (
-            <div key={link.id} className="flex items-center gap-1">
-              {i > 0 && <span className="text-border text-[8px]">→</span>}
-              <span
-                className={cn(
-                  'flex items-center gap-0.5 text-[10px] leading-tight',
-                  link.isCurrent ? 'font-semibold text-card-task' : link.isComplete ? 'text-success' : 'text-text-tertiary'
-                )}
-              >
-                {link.isComplete ? (
-                  <CheckSquare className="h-2.5 w-2.5" />
-                ) : (
-                  <span className={cn(
-                    'inline-block h-1.5 w-1.5 rounded-full',
-                    link.isCurrent ? 'bg-card-task' : 'bg-text-tertiary/50'
-                  )} />
-                )}
-                {link.typeLabel}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Type-specific content */}
       {card.type === 'TASK' && <TaskCardBadges card={card as TaskCard} />}
       {card.type === 'USER_STORY' && <UserStoryCardBadges card={card as UserStoryCard} />}
@@ -122,7 +93,7 @@ export const CardCompact = memo(function CardCompact({ card, onClick, sortable =
   );
 }, (prev, next) => {
   // Custom comparator: skip onClick (always new closure) and compare card by reference
-  return prev.card === next.card && prev.sortable === next.sortable && prev.dependencyChain === next.dependencyChain;
+  return prev.card === next.card && prev.sortable === next.sortable;
 });
 
 function TaskCardBadges({ card }: { card: TaskCard }) {
@@ -219,7 +190,7 @@ const flagConfig: Record<UserStoryFlag, { icon: typeof AlertTriangle; color: str
 function UserStoryCardBadges({ card }: { card: UserStoryCard }) {
   const progress = card.completionPercentage ?? 0;
   const flags = card.userStoryData?.flags || [];
-  const taskCount = card.connectedTasks?.length ?? 0;
+  const taskCount = card.taskCount ?? card.connectedTasks?.length ?? 0;
 
   return (
     <div className="mt-2 space-y-1.5">

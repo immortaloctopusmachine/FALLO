@@ -10,20 +10,21 @@ export const LINKED_TASK_PRESETS = [
 
 export type LinkedTaskPresetKey = (typeof LINKED_TASK_PRESETS)[number]['key'];
 
-// Known suffixes for extracting type label from card title
+// Known suffixes → display labels for extracting type label from card title
 // Order matters: longer suffixes first so "CONCEPT : FX/ANIMATION" matches before "FX/ANIMATION"
-const KNOWN_SUFFIXES = ['CONCEPT : FX/ANIMATION', 'CONCEPT', 'STATIC ART', 'FX/ANIMATION'] as const;
+const SUFFIX_LABELS: [suffix: string, label: string][] = [
+  ['CONCEPT : FX/ANIMATION', 'Concept - FX/Animation'],
+  ['STATIC ART', 'Static Art'],
+  ['FX/ANIMATION', 'FX/Animation'],
+  ['CONCEPT', 'Concept'],
+];
 
 /** Extract the type label from a task title (e.g. "Walk cycle - CONCEPT" → "Concept") */
 export function extractTaskTypeLabel(title: string): string | null {
   const upper = title.toUpperCase();
-  for (const suffix of KNOWN_SUFFIXES) {
+  for (const [suffix, label] of SUFFIX_LABELS) {
     if (upper.endsWith(` - ${suffix}`)) {
-      // Title-case the suffix
-      return suffix
-        .split(/[\s/]+/)
-        .map(w => w.charAt(0) + w.slice(1).toLowerCase())
-        .join('/');
+      return label;
     }
   }
   return null;
@@ -32,7 +33,7 @@ export function extractTaskTypeLabel(title: string): string | null {
 export interface ChainLink {
   id: string;
   title: string;
-  typeLabel: string; // "Concept", "Static Art", "Concept : Fx/Animation", "Fx/Animation", or truncated title
+  typeLabel: string; // "Concept", "Static Art", "Concept - FX/Animation", "FX/Animation", or truncated title
   isComplete: boolean;
   isCurrent: boolean;
   listName?: string;

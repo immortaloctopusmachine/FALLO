@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
-import type { TimelineData, BlockType, EventType } from '@/types';
+import type { TimelineData } from '@/types';
 
 // GET /api/timeline/projects/[projectId] - Lazy-load full timeline data for one project
 export async function GET(
@@ -13,37 +13,35 @@ export async function GET(
 
     const { projectId } = await params;
 
-    const [board, blockTypes, eventTypes] = await Promise.all([
-      prisma.board.findFirst({
-        where: {
-          id: projectId,
-          isTemplate: false,
-        },
-        include: {
-          team: {
-            select: {
-              id: true,
-              name: true,
-              color: true,
-            },
+    const board = await prisma.board.findFirst({
+      where: {
+        id: projectId,
+        isTemplate: false,
+      },
+      include: {
+        team: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
           },
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                  userCompanyRoles: {
-                    include: {
-                      companyRole: {
-                        select: {
-                          id: true,
-                          name: true,
-                          color: true,
-                          position: true,
-                        },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+                userCompanyRoles: {
+                  include: {
+                    companyRole: {
+                      select: {
+                        id: true,
+                        name: true,
+                        color: true,
+                        position: true,
                       },
                     },
                   },
@@ -51,46 +49,40 @@ export async function GET(
               },
             },
           },
-          weeklyAvailability: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
+        },
+        weeklyAvailability: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
               },
             },
-          },
-          timelineBlocks: {
-            include: {
-              blockType: true,
-              list: {
-                select: {
-                  id: true,
-                  name: true,
-                  phase: true,
-                },
-              },
-            },
-            orderBy: { startDate: 'asc' },
-          },
-          timelineEvents: {
-            include: {
-              eventType: true,
-            },
-            orderBy: { startDate: 'asc' },
           },
         },
-      }),
-      prisma.blockType.findMany({
-        orderBy: { position: 'asc' },
-      }),
-      prisma.eventType.findMany({
-        orderBy: { position: 'asc' },
-      }),
-    ]);
+        timelineBlocks: {
+          include: {
+            blockType: true,
+            list: {
+              select: {
+                id: true,
+                name: true,
+                phase: true,
+              },
+            },
+          },
+          orderBy: { startDate: 'asc' },
+        },
+        timelineEvents: {
+          include: {
+            eventType: true,
+          },
+          orderBy: { startDate: 'asc' },
+        },
+      },
+    });
 
     if (!board) {
       return ApiErrors.notFound('Project');
@@ -188,25 +180,6 @@ export async function GET(
 
       metricsByListId.set(task.listId, existing);
     }
-
-    const mappedBlockTypes: BlockType[] = blockTypes.map((bt) => ({
-      id: bt.id,
-      name: bt.name,
-      color: bt.color,
-      description: bt.description,
-      isDefault: bt.isDefault,
-      position: bt.position,
-    }));
-
-    const mappedEventTypes: EventType[] = eventTypes.map((et) => ({
-      id: et.id,
-      name: et.name,
-      color: et.color,
-      icon: et.icon,
-      description: et.description,
-      isDefault: et.isDefault,
-      position: et.position,
-    }));
 
     const settings = (board.settings as Record<string, unknown>) || {};
     const rawProjectRoleAssignments = Array.isArray(settings.projectRoleAssignments)
@@ -312,8 +285,6 @@ export async function GET(
           position: event.eventType.position,
         },
       })),
-      blockTypes: mappedBlockTypes,
-      eventTypes: mappedEventTypes,
     };
 
     return apiSuccess({ project });

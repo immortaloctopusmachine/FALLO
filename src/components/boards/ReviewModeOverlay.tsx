@@ -5,8 +5,10 @@ import { X, CheckSquare, BookOpen, Layers, FileText, ArrowLeft, Check, ListTodo,
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SimpleChecklist } from '@/components/cards/SimpleChecklist';
+import { TaskApprovals } from '@/components/cards/TaskApprovals';
+import { ReviewSubmissionComment } from '@/components/cards/ReviewSubmissionComment';
 import { ShieldCheck } from 'lucide-react';
-import type { Card, TaskCard, TaskCardData, Checklist, Attachment, BoardSettings } from '@/types';
+import type { Card, TaskCard, TaskCardData, Checklist, Attachment, Comment, BoardSettings, BoardMember } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface ReviewModeOverlayProps {
@@ -19,12 +21,8 @@ interface ReviewModeOverlayProps {
   allLists: { id: string; name: string }[];
   onCardMoved: (cardId: string, targetListId: string) => void;
   boardSettings?: BoardSettings;
-}
-
-interface CardDetail {
-  card: Card;
-  attachments: Attachment[];
-  checklists: Checklist[];
+  boardMembers?: BoardMember[];
+  currentUserId?: string;
 }
 
 const cardTypeConfig = {
@@ -44,25 +42,39 @@ export function ReviewModeOverlay({
   allLists,
   onCardMoved,
   boardSettings = {},
+  boardMembers = [],
+  currentUserId,
 }: ReviewModeOverlayProps) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [cardDetail, setCardDetail] = useState<CardDetail | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [totalAttachmentCount, setTotalAttachmentCount] = useState(0);
+  const [isLoadingExtras, setIsLoadingExtras] = useState(false);
+  const [isLoadingAllAttachments, setIsLoadingAllAttachments] = useState(false);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [movingCardId, setMovingCardId] = useState<string | null>(null);
   const [editableChecklists, setEditableChecklists] = useState<Checklist[]>([]);
+  const [latestReviewComment, setLatestReviewComment] = useState<Comment | null>(null);
+  // Track local taskData overrides for approvals (keyed by card ID)
+  const [taskDataOverrides, setTaskDataOverrides] = useState<Record<string, TaskCardData>>({});
+
+  // The selected card from the already-loaded cards prop — available instantly
+  const selectedCard = selectedCardId ? cards.find(c => c.id === selectedCardId) || null : null;
 
   // Target lists
   const todoList = allLists.find(l => l.name === 'To Do');
-  const todoAnimationList = allLists.find(l => l.name === 'To Do Animation');
+  const todoAnimationList = allLists.find(l =>
+    l.name === 'To Do FX/Animation' || l.name === 'To Do Animation'
+  );
   const doneList = allLists.find(l => l.name === 'Done');
 
   // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (selectedCardId) {
+        if (expandedImageUrl) {
+          setExpandedImageUrl(null);
+        } else if (selectedCardId) {
           setSelectedCardId(null);
-          setCardDetail(null);
         } else {
           onClose();
         }
@@ -70,59 +82,102 @@ export function ReviewModeOverlay({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedCardId, onClose]);
+  }, [selectedCardId, expandedImageUrl, onClose]);
 
-  // Fetch card detail when selected
+  // Fetch only attachments (latest 3, slim) + checklists when a card is selected
+  // (card info is already available from the cards prop — no need to re-fetch)
   useEffect(() => {
     if (!selectedCardId) {
-      setCardDetail(null);
+      setAttachments([]);
+      setEditableChecklists([]);
+      setTotalAttachmentCount(0);
+      setExpandedImageUrl(null);
+      setLatestReviewComment(null);
       return;
     }
 
-    const fetchDetail = async () => {
-      setIsLoadingDetail(true);
+    let cancelled = false;
+    const fetchExtras = async () => {
+      setIsLoadingExtras(true);
       try {
-        const [cardRes, attachRes, checkRes] = await Promise.all([
-          fetch(`/api/boards/${boardId}/cards/${selectedCardId}`),
-          fetch(`/api/boards/${boardId}/cards/${selectedCardId}/attachments`),
+        const [attachRes, checkRes, commentRes] = await Promise.all([
+          fetch(`/api/boards/${boardId}/cards/${selectedCardId}/attachments?limit=3&slim=true`),
           fetch(`/api/boards/${boardId}/cards/${selectedCardId}/checklists`),
+          fetch(`/api/boards/${boardId}/cards/${selectedCardId}/comments`),
         ]);
 
-        const [cardData, attachData, checkData] = await Promise.all([
-          cardRes.json(),
+        const [attachData, checkData, commentData] = await Promise.all([
           attachRes.json(),
           checkRes.json(),
+          commentRes.json(),
         ]);
 
-        if (cardData.success) {
+        if (!cancelled) {
+          if (attachData.success) {
+            setAttachments(attachData.data.items || []);
+            setTotalAttachmentCount(attachData.data.totalCount || 0);
+          } else {
+            setAttachments([]);
+            setTotalAttachmentCount(0);
+          }
           const checklists = checkData.success ? checkData.data : [];
-          setCardDetail({
-            card: cardData.data,
-            attachments: attachData.success ? attachData.data : [],
-            checklists,
-          });
           setEditableChecklists(checklists);
+
+          // Extract latest review_submission comment (comments arrive newest-first)
+          const allComments: Comment[] = commentData.success ? commentData.data : [];
+          const reviewComment = allComments.find((c: Comment) => c.type === 'review_submission');
+          setLatestReviewComment(reviewComment || null);
         }
       } catch (error) {
-        console.error('Failed to fetch card detail:', error);
+        console.error('Failed to fetch card extras:', error);
       } finally {
-        setIsLoadingDetail(false);
+        if (!cancelled) setIsLoadingExtras(false);
       }
     };
 
-    fetchDetail();
+    fetchExtras();
+    return () => { cancelled = true; };
   }, [selectedCardId, boardId]);
 
-  const handleMoveCard = useCallback(async (cardId: string, targetListId: string) => {
+  const handleShowAllAttachments = useCallback(async () => {
+    if (!selectedCardId || isLoadingAllAttachments) return;
+    setIsLoadingAllAttachments(true);
+    try {
+      const res = await fetch(`/api/boards/${boardId}/cards/${selectedCardId}/attachments?slim=true`);
+      const data = await res.json();
+      if (data.success) {
+        setAttachments(data.data);
+        setTotalAttachmentCount(data.data.length);
+      }
+    } catch (error) {
+      console.error('Failed to fetch all attachments:', error);
+    } finally {
+      setIsLoadingAllAttachments(false);
+    }
+  }, [selectedCardId, boardId, isLoadingAllAttachments]);
+
+  const handleMoveCard = useCallback((cardId: string, targetListId: string) => {
     setMovingCardId(cardId);
     onCardMoved(cardId, targetListId);
-    // Go back to grid after move
     setSelectedCardId(null);
-    setCardDetail(null);
     setMovingCardId(null);
   }, [onCardMoved]);
 
+  const handleApprovalChanged = useCallback((cardId: string, updatedTaskData: TaskCardData, autoMovedToDone?: boolean) => {
+    setTaskDataOverrides(prev => ({ ...prev, [cardId]: updatedTaskData }));
+    if (autoMovedToDone) {
+      // Card was auto-moved to Done by the API — go back to grid
+      setSelectedCardId(null);
+    }
+  }, []);
+
   if (!isOpen) return null;
+
+  // Helper to get effective taskData (with local overrides from approvals)
+  const getTaskData = (card: Card): TaskCardData | null => {
+    if (card.type !== 'TASK') return null;
+    return taskDataOverrides[card.id] || (card as TaskCard).taskData || null;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
@@ -130,7 +185,6 @@ export function ReviewModeOverlay({
       <div className="absolute inset-0 bg-black/70" onClick={() => {
         if (selectedCardId) {
           setSelectedCardId(null);
-          setCardDetail(null);
         } else {
           onClose();
         }
@@ -144,10 +198,7 @@ export function ReviewModeOverlay({
               variant="ghost"
               size="sm"
               className="text-white/70 hover:text-white hover:bg-white/10"
-              onClick={() => {
-                setSelectedCardId(null);
-                setCardDetail(null);
-              }}
+              onClick={() => setSelectedCardId(null)}
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
@@ -232,243 +283,321 @@ export function ReviewModeOverlay({
               })}
             </div>
           )
-        ) : (
+        ) : selectedCard ? (
           /* Detail View — 4-section layout */
           <div className="max-w-7xl mx-auto">
-            {isLoadingDetail || !cardDetail ? (
-              <div className="grid grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-96 animate-pulse rounded-lg bg-white/5" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-4 items-start">
-                {/* Section 1: Card Info */}
-                <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const config = cardTypeConfig[cardDetail.card.type];
-                      const Icon = config.icon;
-                      return (
-                        <>
-                          <div className={cn('flex h-7 w-7 items-center justify-center rounded', config.bg)}>
-                            <Icon className={cn('h-4 w-4', config.color)} />
-                          </div>
-                          <span className={cn('text-caption font-medium', config.color)}>
-                            {config.label}
-                          </span>
-                        </>
-                      );
-                    })()}
-                  </div>
-
-                  <h3 className="text-title font-semibold text-text-primary">
-                    {cardDetail.card.title}
-                  </h3>
-
-                  {cardDetail.card.description && (
-                    <p className="text-caption text-text-secondary line-clamp-6">
-                      {cardDetail.card.description}
-                    </p>
-                  )}
-
-                  {/* Story points */}
-                  {cardDetail.card.type === 'TASK' && (cardDetail.card as TaskCard).taskData?.storyPoints && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-tiny text-text-tertiary">Story Points:</span>
-                      <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
-                        {(cardDetail.card as TaskCard).taskData.storyPoints}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Assignees */}
-                  {cardDetail.card.type === 'TASK' && (cardDetail.card as TaskCard).assignees && (cardDetail.card as TaskCard).assignees!.length > 0 && (
-                    <div className="space-y-1.5">
-                      <span className="text-tiny text-text-tertiary">Assignees</span>
-                      <div className="space-y-1">
-                        {(cardDetail.card as TaskCard).assignees!.map((a) => (
-                          <div key={a.id} className="flex items-center gap-2">
-                            <Avatar className="h-5 w-5">
-                              <AvatarImage src={a.user.image || undefined} />
-                              <AvatarFallback className="text-[8px]">
-                                {(a.user.name || a.user.email)[0].toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-caption text-text-secondary">
-                              {a.user.name || a.user.email}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+            <div className="grid grid-cols-4 gap-4 items-start">
+              {/* Section 1: Card Info — renders instantly from cards prop */}
+              <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const config = cardTypeConfig[selectedCard.type];
+                    const Icon = config.icon;
+                    return (
+                      <>
+                        <div className={cn('flex h-7 w-7 items-center justify-center rounded', config.bg)}>
+                          <Icon className={cn('h-4 w-4', config.color)} />
+                        </div>
+                        <span className={cn('text-caption font-medium', config.color)}>
+                          {config.label}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
 
-                {/* Section 2: Attachments */}
-                <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Paperclip className="h-4 w-4 text-text-tertiary" />
-                    <h4 className="text-body font-semibold text-text-primary">
-                      Attachments ({cardDetail.attachments.length})
-                    </h4>
-                  </div>
+                <h3 className="text-title font-semibold text-text-primary">
+                  {selectedCard.title}
+                </h3>
 
-                  {cardDetail.attachments.length === 0 ? (
-                    <p className="text-caption text-text-tertiary py-4 text-center">
-                      No attachments
-                    </p>
-                  ) : (
-                    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                      {cardDetail.attachments.map((att) => {
-                        const isImage = att.type.startsWith('image/');
-                        return (
-                          <a
-                            key={att.id}
-                            href={att.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block rounded-md border border-border overflow-hidden hover:border-purple-500/30 transition-colors"
-                          >
-                            {isImage ? (
-                              <div className="relative aspect-video bg-surface-hover">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={att.url}
-                                  alt={att.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 p-2 bg-surface-hover">
-                                <FileText className="h-4 w-4 text-text-tertiary shrink-0" />
-                                <span className="text-caption text-text-secondary truncate">
-                                  {att.name}
-                                </span>
-                              </div>
-                            )}
-                            <div className="px-2 py-1.5">
-                              <span className="text-tiny text-text-tertiary truncate block">
+                {selectedCard.description && (
+                  <p className="text-caption text-text-secondary line-clamp-6">
+                    {selectedCard.description}
+                  </p>
+                )}
+
+                {/* Story points */}
+                {selectedCard.type === 'TASK' && (selectedCard as TaskCard).taskData?.storyPoints && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-tiny text-text-tertiary">Story Points:</span>
+                    <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
+                      {(selectedCard as TaskCard).taskData.storyPoints}
+                    </span>
+                  </div>
+                )}
+
+                {/* Assignees */}
+                {selectedCard.type === 'TASK' && (selectedCard as TaskCard).assignees && (selectedCard as TaskCard).assignees!.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-tiny text-text-tertiary">Assignees</span>
+                    <div className="space-y-1">
+                      {(selectedCard as TaskCard).assignees!.map((a) => (
+                        <div key={a.id} className="flex items-center gap-2">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={a.user.image || undefined} />
+                            <AvatarFallback className="text-[8px]">
+                              {(a.user.name || a.user.email)[0].toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-caption text-text-secondary">
+                            {a.user.name || a.user.email}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Latest review comment */}
+                {latestReviewComment && (
+                  <div className="pt-2 border-t border-border">
+                    <ReviewSubmissionComment comment={latestReviewComment} />
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Attachments */}
+              <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-text-tertiary" />
+                  <h4 className="text-body font-semibold text-text-primary">
+                    Attachments{!isLoadingExtras ? ` (${totalAttachmentCount})` : ''}
+                  </h4>
+                </div>
+
+                {isLoadingExtras ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-20 animate-pulse rounded-md bg-surface-hover" />
+                    ))}
+                  </div>
+                ) : attachments.length === 0 ? (
+                  <p className="text-caption text-text-tertiary py-4 text-center">
+                    No attachments
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                    {attachments.map((att) => {
+                      const isImage = att.type.startsWith('image/');
+                      return (
+                        <button
+                          key={att.id}
+                          onClick={() => {
+                            if (isImage) {
+                              setExpandedImageUrl(att.url);
+                            } else {
+                              window.open(att.url, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          className="block w-full rounded-md border border-border overflow-hidden hover:border-purple-500/30 transition-colors text-left"
+                        >
+                          {isImage ? (
+                            <div className="relative h-24 bg-surface-hover">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                loading="lazy"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 p-2 bg-surface-hover">
+                              <FileText className="h-4 w-4 text-text-tertiary shrink-0" />
+                              <span className="text-caption text-text-secondary truncate">
                                 {att.name}
                               </span>
                             </div>
-                          </a>
-                        );
-                      })}
-                    </div>
-                  )}
+                          )}
+                          <div className="px-2 py-1.5">
+                            <span className="text-tiny text-text-tertiary truncate block">
+                              {att.name}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+
+                    {/* Show all button when there are more attachments */}
+                    {attachments.length < totalAttachmentCount && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-text-tertiary"
+                        onClick={handleShowAllAttachments}
+                        disabled={isLoadingAllAttachments}
+                      >
+                        {isLoadingAllAttachments
+                          ? 'Loading...'
+                          : `Show all ${totalAttachmentCount} attachments`}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Feedback/Tweaks */}
+              <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="h-4 w-4 text-text-tertiary" />
+                  <h4 className="text-body font-semibold text-text-primary">
+                    Feedback / Tweaks
+                  </h4>
                 </div>
 
-                {/* Section 3: Feedback/Tweaks */}
-                <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="h-4 w-4 text-text-tertiary" />
-                    <h4 className="text-body font-semibold text-text-primary">
-                      Feedback / Tweaks
-                    </h4>
+                {isLoadingExtras ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-6 animate-pulse rounded bg-surface-hover" />
+                    ))}
                   </div>
-
+                ) : (
                   <SimpleChecklist
                     checklists={editableChecklists}
                     boardId={boardId}
-                    cardId={cardDetail.card.id}
+                    cardId={selectedCard.id}
                     type="feedback"
                     onUpdate={(updated) => setEditableChecklists(updated)}
                   />
-                </div>
+                )}
+              </div>
 
-                {/* Section 4: Actions */}
-                <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
-                  <h4 className="text-body font-semibold text-text-primary">Actions</h4>
+              {/* Section 4: Actions */}
+              <div className="rounded-lg bg-surface border border-border p-4 space-y-3">
+                <h4 className="text-body font-semibold text-text-primary">Actions</h4>
 
-                  {/* Check if card is fully approved by both PO and Lead */}
-                  {(() => {
-                    const td = cardDetail.card.type === 'TASK'
-                      ? (cardDetail.card as TaskCard).taskData as TaskCardData
-                      : null;
-                    const fullyApproved = td?.approvedByPo && td?.approvedByLead;
-
-                    if (fullyApproved) {
-                      return (
-                        <div className="rounded-md border border-green-500/30 bg-green-500/10 p-3 space-y-1.5">
-                          <div className="flex items-center gap-2 text-green-400 font-medium text-caption">
-                            <ShieldCheck className="h-4 w-4" />
-                            Fully Approved
-                          </div>
-                          <p className="text-tiny text-text-secondary">
-                            Both PO and Lead have approved this task. It will be auto-moved to Done.
-                          </p>
-                          {doneList && (
-                            <Button
-                              size="sm"
-                              className="w-full justify-start bg-green-600 hover:bg-green-700 text-white mt-2"
-                              onClick={() => handleMoveCard(cardDetail.card.id, doneList.id)}
-                            >
-                              <Check className="h-4 w-4 mr-2" />
-                              Move to Done Now
-                            </Button>
-                          )}
-                        </div>
-                      );
+                {/* PO / Lead Approvals */}
+                {selectedCard.type === 'TASK' && getTaskData(selectedCard) && (
+                  <TaskApprovals
+                    boardId={boardId}
+                    cardId={selectedCard.id}
+                    taskData={getTaskData(selectedCard)!}
+                    boardSettings={boardSettings}
+                    boardMembers={boardMembers}
+                    currentUserId={currentUserId}
+                    onApprovalChanged={(updatedTaskData, autoMovedToDone) =>
+                      handleApprovalChanged(selectedCard.id, updatedTaskData, autoMovedToDone)
                     }
+                  />
+                )}
 
+                {/* Move actions / fully-approved state */}
+                {(() => {
+                  const td = getTaskData(selectedCard);
+                  const fullyApproved = td?.approvedByPo && td?.approvedByLead;
+
+                  if (fullyApproved) {
                     return (
-                      <div className="space-y-2">
+                      <div className="rounded-md border border-green-500/30 bg-green-500/10 p-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-green-400 font-medium text-caption">
+                          <ShieldCheck className="h-4 w-4" />
+                          Fully Approved
+                        </div>
+                        <p className="text-tiny text-text-secondary">
+                          Both PO and Lead have approved this task. It will be auto-moved to Done.
+                        </p>
                         {doneList && (
                           <Button
-                            className="w-full justify-start bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => handleMoveCard(cardDetail.card.id, doneList.id)}
+                            size="sm"
+                            className="w-full justify-start bg-green-600 hover:bg-green-700 text-white mt-2"
+                            onClick={() => handleMoveCard(selectedCard.id, doneList.id)}
                           >
                             <Check className="h-4 w-4 mr-2" />
-                            Move to Done
-                          </Button>
-                        )}
-
-                        {todoList && (
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start"
-                            onClick={() => handleMoveCard(cardDetail.card.id, todoList.id)}
-                          >
-                            <ListTodo className="h-4 w-4 mr-2" />
-                            Move to To Do
-                          </Button>
-                        )}
-
-                        {todoAnimationList && (
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start"
-                            onClick={() => handleMoveCard(cardDetail.card.id, todoAnimationList.id)}
-                          >
-                            <Clapperboard className="h-4 w-4 mr-2" />
-                            Move to To Do Animation
+                            Move to Done Now
                           </Button>
                         )}
                       </div>
                     );
-                  })()}
+                  }
 
-                  <div className="pt-2 border-t border-border">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-text-tertiary"
-                      onClick={() => {
-                        setSelectedCardId(null);
-                        setCardDetail(null);
-                      }}
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Back to grid
-                    </Button>
-                  </div>
-                </div>
+                  return (
+                    <div className="space-y-2">
+                      {doneList && (
+                        <Button
+                          className="w-full justify-start bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => handleMoveCard(selectedCard.id, doneList.id)}
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          Move to Done
+                        </Button>
+                      )}
+
+                      {todoList && (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => handleMoveCard(selectedCard.id, todoList.id)}
+                        >
+                          <ListTodo className="h-4 w-4 mr-2" />
+                          Move to To Do
+                        </Button>
+                      )}
+
+                      {todoAnimationList && (
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start"
+                          onClick={() => handleMoveCard(selectedCard.id, todoAnimationList.id)}
+                        >
+                          <Clapperboard className="h-4 w-4 mr-2" />
+                          Move to To Do FX/Animation
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
+
               </div>
-            )}
+            </div>
+
+            {/* Back to grid — centered below all sections */}
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-text-tertiary"
+                onClick={() => setSelectedCardId(null)}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to grid
+              </Button>
+            </div>
           </div>
-        )}
+        ) : null}
       </div>
+
+      {/* Full-resolution image lightbox */}
+      {expandedImageUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 cursor-zoom-out"
+          onClick={() => setExpandedImageUrl(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={expandedImageUrl}
+            alt="Full resolution"
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-4 right-4 text-white/70 hover:text-white hover:bg-white/10"
+            onClick={() => setExpandedImageUrl(null)}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+          <a
+            href={expandedImageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-4 right-4 text-tiny text-white/50 hover:text-white/80 underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Open original
+          </a>
+        </div>
+      )}
     </div>
   );
 }

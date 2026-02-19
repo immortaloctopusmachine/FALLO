@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, LayoutGrid, Layers, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +41,7 @@ async function parseApiResponse(response: Response) {
 
 export function CreateBoardDialog() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -87,15 +89,15 @@ export function CreateBoardDialog() {
         if (data.success && data.data?.templates) {
           const templates = data.data.templates as CoreProjectTemplate[];
           setCoreTemplates(templates);
-          if (!selectedCoreTemplateId && templates.length > 0) {
-            setSelectedCoreTemplateId(templates[0].id);
-            setUseBlankTemplate(false);
+          if (templates.length > 0) {
+            setSelectedCoreTemplateId((prev) => prev || templates[0].id);
+            setUseBlankTemplate((prev) => (prev ? false : prev));
           }
         }
       })
       .catch(console.error)
       .finally(() => setIsLoadingCoreTemplates(false));
-  }, [open, selectedCoreTemplateId]);
+  }, [open]);
 
   const handleSelectProjectTemplate = (templateId: string) => {
     setSelectedProjectTemplate(templateId);
@@ -132,7 +134,7 @@ export function CreateBoardDialog() {
         });
       } else {
         // Create new board with core template (or blank)
-        response = await fetch('/api/boards', {
+        response = await fetch('/api/boards?response=minimal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -157,8 +159,8 @@ export function CreateBoardDialog() {
       setSelectedCoreTemplateId(coreTemplates[0]?.id || '');
       setUseBlankTemplate(false);
       setSelectedProjectTemplate(null);
+      await queryClient.invalidateQueries({ queryKey: ['boards'] });
       router.push(`/boards/${data.data.id}`);
-      router.refresh();
     } catch {
       setError('An error occurred. Please try again.');
     } finally {

@@ -166,7 +166,7 @@ export function TaskApprovals({
   };
 
   return (
-    <div className="space-y-1.5 border-b border-border px-6 py-3">
+    <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-caption font-medium text-text-secondary mb-1.5">
         <ShieldCheck className="h-3.5 w-3.5" />
         Approvals

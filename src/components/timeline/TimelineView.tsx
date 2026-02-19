@@ -662,8 +662,10 @@ export function TimelineView({
     centerTimelineOnDate(today);
   }, [centerTimelineOnDate]);
 
-  const handleTimelineWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    const element = e.currentTarget;
+  const handleTimelineWheel = useCallback((e: WheelEvent) => {
+    const element = timelineScrollRef.current;
+    if (!element) return;
+
     const canScrollHorizontally = element.scrollWidth > element.clientWidth;
     if (!canScrollHorizontally) return;
 
@@ -681,6 +683,18 @@ export function TimelineView({
     element.scrollLeft += e.deltaY;
     e.preventDefault();
   }, []);
+
+  useEffect(() => {
+    const element = timelineScrollRef.current;
+    if (!element) return;
+
+    const onWheel = (event: WheelEvent) => handleTimelineWheel(event);
+    element.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      element.removeEventListener('wheel', onWheel);
+    };
+  }, [handleTimelineWheel]);
 
   const handleTimelineScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setTimelineScrollTop(e.currentTarget.scrollTop);
@@ -1654,7 +1668,6 @@ export function TimelineView({
         <div
           className="flex-1 overflow-auto"
           ref={timelineScrollRef}
-          onWheel={handleTimelineWheel}
           onScroll={handleTimelineScroll}
         >
           <div

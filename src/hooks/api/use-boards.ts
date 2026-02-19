@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type { BoardSettings } from '@/types';
+
+const LIST_STALE_TIME = 5 * 60 * 1000; // 5 minutes for list views
 
 // Matches the shape returned by GET /api/boards
 interface BoardListItem {
@@ -56,13 +58,17 @@ export function useBoards() {
   return useQuery({
     queryKey: ['boards'],
     queryFn: () => apiFetch<BoardListItem[]>('/api/boards'),
+    staleTime: LIST_STALE_TIME,
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useArchivedBoards() {
+export function useArchivedBoards(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['boards', 'archived'],
     queryFn: () => apiFetch<ArchivedBoardItem[]>('/api/boards?archived=true'),
+    staleTime: LIST_STALE_TIME,
+    enabled: options?.enabled ?? true,
   });
 }
 

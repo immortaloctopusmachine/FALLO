@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import { BoardHeader } from './BoardHeader';
 import { BoardView } from './BoardView';
 import { BoardSettingsModal } from './BoardSettingsModal';
@@ -44,7 +43,6 @@ export function BoardViewWrapper({
   isLoadingFullData = false,
   onLoadFullData,
 }: BoardViewWrapperProps) {
-  const router = useRouter();
   const [board, setBoard] = useState(initialBoard);
   const [viewMode, setViewMode] = useState<BoardViewMode>('tasks');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -54,11 +52,30 @@ export function BoardViewWrapper({
     setBoard(initialBoard);
   }, [initialBoard]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void import('./views/PlanningView');
+      void import('@/components/spine-tracker');
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const prefetchPlanningData = useCallback(() => {
+    if (!hasFullData && !isLoadingFullData && onLoadFullData) {
+      void onLoadFullData();
+    }
+  }, [hasFullData, isLoadingFullData, onLoadFullData]);
+
+  const prefetchSpineView = useCallback(() => {
+    void import('@/components/spine-tracker');
+  }, []);
+
   const handleViewModeChange = async (mode: BoardViewMode) => {
     setViewMode(mode);
 
-    if (mode === 'planning' && !hasFullData && onLoadFullData) {
-      await onLoadFullData();
+    if (mode === 'planning') {
+      prefetchPlanningData();
     }
   };
 
@@ -78,9 +95,6 @@ export function BoardViewWrapper({
       ...prev,
       settings: newSettings,
     }));
-
-    // Refresh to pick up any computed changes
-    router.refresh();
   };
 
   const bgStyle = getBoardBackgroundStyle(board.settings);
@@ -99,6 +113,8 @@ export function BoardViewWrapper({
         }))}
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
+        onPlanningPrefetch={prefetchPlanningData}
+        onSpinePrefetch={prefetchSpineView}
         onSettingsClick={() => setSettingsOpen(true)}
         onMembersClick={() => setMembersOpen(true)}
         showSettings={isAdmin}

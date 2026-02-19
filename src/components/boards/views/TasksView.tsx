@@ -33,7 +33,6 @@ import { ReviewModeOverlay } from '@/components/boards/ReviewModeOverlay';
 import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatDisplayDate, getBusinessDaysBetween } from '@/lib/date-utils';
-import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
 import { fireDoneConfetti } from '@/lib/confetti';
 
 interface TasksViewProps {
@@ -93,8 +92,8 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   const [newListName, setNewListName] = useState('');
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const [chartExpanded, setChartExpanded] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(true);
   const [pendingReviewMove, setPendingReviewMove] = useState<{
     card: Card;
     sourceListId: string;
@@ -126,22 +125,6 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   }, [board.lists]);
 
   const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
-
-  // Compute dependency chain map for all task cards
-  const chainMap = useMemo(() => {
-    const map = new Map<string, ChainLink[]>();
-    for (const card of allCards) {
-      if (card.type !== 'TASK') continue;
-      if (map.has(card.id)) continue; // Already part of a computed chain
-      const chain = buildDependencyChain(card.id, allCards);
-      if (chain) {
-        for (const link of chain) {
-          map.set(link.id, chain);
-        }
-      }
-    }
-    return map;
-  }, [allCards]);
 
   // Apply quick filters
   const filteredLists = useMemo(() => {
@@ -241,7 +224,6 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   const projectLinks = useMemo<SidebarLink[]>(() => {
     const links: SidebarLink[] = [
       { label: 'Project Page', url: `/projects/${board.id}`, isInternal: true },
-      { label: 'Spine Tracker', url: `/boards/${board.id}?view=spine`, isInternal: true },
     ];
 
     if (settings.projectLinks?.oneDrive) {
@@ -447,24 +429,23 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   };
 
   // Review submission dialog callbacks
-  const handleReviewSubmitted = async () => {
+  const handleReviewSubmitted = () => {
     if (!pendingReviewMove) return;
-    try {
-      await mutations.reorderCard({
-        cardId: pendingReviewMove.card.id,
-        sourceListId: pendingReviewMove.sourceListId,
-        destinationListId: pendingReviewMove.destinationListId,
-        newPosition: pendingReviewMove.newPosition,
-      });
-    } catch (error) {
-      console.error('Failed to move card:', error);
-      if (boardSnapshotRef.current) {
-        setBoard(boardSnapshotRef.current);
-      }
-      toast.error('Failed to move card');
-    }
-    boardSnapshotRef.current = null;
+    // Close the dialog immediately — the card is already visually in place
+    // from the optimistic drag. Fire the reorder API call in the background.
+    const move = pendingReviewMove;
     setPendingReviewMove(null);
+    boardSnapshotRef.current = null;
+
+    mutations.reorderCard({
+      cardId: move.card.id,
+      sourceListId: move.sourceListId,
+      destinationListId: move.destinationListId,
+      newPosition: move.newPosition,
+    }).catch((error) => {
+      console.error('Failed to move card:', error);
+      toast.error('Failed to move card');
+    });
   };
 
   const handleReviewCancelled = () => {
@@ -840,7 +821,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onCardClick={handleCardClick}
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
-                chainMap={chainMap}
+
               />
             ))}
           </div>
@@ -915,7 +896,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
                 listColor={list.color}
-                chainMap={chainMap}
+
                 extraHeaderActions={isReviewList ? (
                   <Button
                     variant="ghost"
@@ -1036,6 +1017,8 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
           onCardMoved={handleReviewModeCardMoved}
           boardSettings={settings}
+          boardMembers={board.members}
+          currentUserId={currentUserId}
         />
       )}
     </div>

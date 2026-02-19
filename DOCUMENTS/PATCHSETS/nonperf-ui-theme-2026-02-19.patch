@@ -1,0 +1,515 @@
+diff --git a/src/app/(dashboard)/settings/modules/page.tsx b/src/app/(dashboard)/settings/modules/page.tsx
+index 0c320a1..78415df 100644
+--- a/src/app/(dashboard)/settings/modules/page.tsx
++++ b/src/app/(dashboard)/settings/modules/page.tsx
+@@ -32,12 +32,12 @@ const MANUAL_EPIC = '__manual__';
+ 
+ // Cold-to-warm color mapping for story point buttons
+ const SP_COLORS: Record<number, { bg: string; bgSelected: string; text: string; border: string }> = {
+-  1:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   bgSelected: 'bg-blue-500',   text: 'text-blue-700 dark:text-blue-300',   border: 'border-blue-200 dark:border-blue-800' },
+-  2:  { bg: 'bg-cyan-50 dark:bg-cyan-950/30',    bgSelected: 'bg-cyan-500',   text: 'text-cyan-700 dark:text-cyan-300',   border: 'border-cyan-200 dark:border-cyan-800' },
+-  3:  { bg: 'bg-green-50 dark:bg-green-950/30',   bgSelected: 'bg-green-500',  text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
+-  5:  { bg: 'bg-yellow-50 dark:bg-yellow-950/30', bgSelected: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
+-  8:  { bg: 'bg-orange-50 dark:bg-orange-950/30', bgSelected: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
+-  13: { bg: 'bg-red-50 dark:bg-red-950/30',       bgSelected: 'bg-red-500',    text: 'text-red-700 dark:text-red-300',     border: 'border-red-200 dark:border-red-800' },
++  1:  { bg: 'bg-blue-50 dark:bg-blue-950/30',   bgSelected: 'bg-blue-700',   text: 'text-blue-700 dark:text-blue-300',   border: 'border-blue-200 dark:border-blue-800' },
++  2:  { bg: 'bg-cyan-50 dark:bg-cyan-950/30',    bgSelected: 'bg-cyan-700',   text: 'text-cyan-700 dark:text-cyan-300',   border: 'border-cyan-200 dark:border-cyan-800' },
++  3:  { bg: 'bg-green-50 dark:bg-green-950/30',   bgSelected: 'bg-green-700',  text: 'text-green-700 dark:text-green-300', border: 'border-green-200 dark:border-green-800' },
++  5:  { bg: 'bg-yellow-50 dark:bg-yellow-950/30', bgSelected: 'bg-amber-700', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-800' },
++  8:  { bg: 'bg-orange-50 dark:bg-orange-950/30', bgSelected: 'bg-orange-700', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
++  13: { bg: 'bg-red-50 dark:bg-red-950/30',       bgSelected: 'bg-red-700',    text: 'text-red-700 dark:text-red-300',     border: 'border-red-200 dark:border-red-800' },
+   21: { bg: 'bg-rose-50 dark:bg-rose-950/30',     bgSelected: 'bg-rose-600',   text: 'text-rose-700 dark:text-rose-300',   border: 'border-rose-200 dark:border-rose-800' },
+ };
+ type ImageTarget = 'userStory' | string;
+@@ -483,6 +483,10 @@ export default function ModulesSettingsPage() {
+         </p>
+       </div>
+ 
++      <div className="grid gap-6 xl:grid-cols-[1fr,340px] items-start">
++      {/* Left: Form */}
++      <div className="space-y-6 min-w-0">
++
+       <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+         <h3 className="text-body font-semibold">Module Header</h3>
+         <div className="grid gap-3 md:grid-cols-2">
+@@ -918,7 +922,10 @@ export default function ModulesSettingsPage() {
+         </Button>
+       </div>
+ 
+-      <div className="rounded-lg border border-border overflow-hidden">
++      </div>{/* end left column */}
++
++      {/* Right: Saved Modules */}
++      <div className="rounded-lg border border-border overflow-hidden xl:sticky xl:top-4 h-fit">
+         <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-surface">
+           <h3 className="font-medium">Saved Modules</h3>
+           <span className="text-caption text-text-tertiary">{modules.length}</span>
+@@ -927,21 +934,20 @@ export default function ModulesSettingsPage() {
+         {modules.length === 0 ? (
+           <div className="p-8 text-center text-text-secondary">No modules created yet.</div>
+         ) : (
+-          <div className="divide-y divide-border">
++          <div className="divide-y divide-border max-h-[calc(100vh-12rem)] overflow-y-auto">
+             {modules.map((module) => (
+-              <div key={module.id} className="p-4 bg-surface flex items-start justify-between gap-4">
+-                <div className="space-y-1">
+-                  <div className="font-medium text-text-primary">{module.name} ({module.symbol})</div>
+-                  {module.description && <div className="text-caption text-text-secondary">{module.description}</div>}
+-                  <div className="text-caption text-text-secondary">Epic: {module.epicName}</div>
+-                  <div className="text-caption text-text-tertiary">Tasks: {module.taskTemplates.length}</div>
++              <div key={module.id} className="p-3 bg-surface flex items-start justify-between gap-2">
++                <div className="space-y-0.5 min-w-0">
++                  <div className="font-medium text-body text-text-primary truncate">{module.name} ({module.symbol})</div>
++                  {module.description && <div className="text-caption text-text-secondary truncate">{module.description}</div>}
++                  <div className="text-caption text-text-tertiary">Epic: {module.epicName} � {module.taskTemplates.length} tasks</div>
+                 </div>
+-                <div className="flex items-center gap-1">
++                <div className="flex items-center gap-0.5 shrink-0">
+                   <Button size="sm" variant="ghost" onClick={() => handleEdit(module)}>
+-                    <Pencil className="h-4 w-4" />
++                    <Pencil className="h-3.5 w-3.5" />
+                   </Button>
+                   <Button size="sm" variant="ghost" onClick={() => handleDelete(module.id)}>
+-                    <Trash2 className="h-4 w-4" />
++                    <Trash2 className="h-3.5 w-3.5" />
+                   </Button>
+                 </div>
+               </div>
+@@ -949,6 +955,8 @@ export default function ModulesSettingsPage() {
+           </div>
+         )}
+       </div>
++
++      </div>{/* end grid */}
+     </div>
+   );
+ }
+diff --git a/src/components/settings/SpineModulesSettingsClient.tsx b/src/components/settings/SpineModulesSettingsClient.tsx
+index 3b0db7c..cdcdf13 100644
+--- a/src/components/settings/SpineModulesSettingsClient.tsx
++++ b/src/components/settings/SpineModulesSettingsClient.tsx
+@@ -223,6 +223,8 @@ export function SpineModulesSettingsClient() {
+         </p>
+       </div>
+ 
++      <div className="grid gap-6 xl:grid-cols-[1fr,340px] items-start">
++      {/* Left: Form */}
+       <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+           <Input
+@@ -351,7 +353,8 @@ export function SpineModulesSettingsClient() {
+         </div>
+       </div>
+ 
+-      <div className="rounded-lg border border-border overflow-hidden">
++      {/* Right: Saved Spine Modules */}
++      <div className="rounded-lg border border-border overflow-hidden xl:sticky xl:top-4 h-fit">
+         <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
+           <h3 className="font-medium">Saved Spine Modules</h3>
+           <span className="text-caption text-text-secondary">{modules.length}</span>
+@@ -362,31 +365,28 @@ export function SpineModulesSettingsClient() {
+         ) : modules.length === 0 ? (
+           <div className="p-8 text-center text-text-secondary">No Spine modules configured yet.</div>
+         ) : (
+-          <div className="divide-y divide-border">
++          <div className="divide-y divide-border max-h-[calc(100vh-12rem)] overflow-y-auto">
+             {modules.map((module) => (
+-              <div key={module.id} className="flex items-start justify-between gap-4 bg-surface p-4">
+-                <div className="space-y-1">
++              <div key={module.id} className="flex items-start justify-between gap-2 bg-surface p-3">
++                <div className="space-y-0.5 min-w-0">
+                   <div className="flex items-center gap-2">
+-                    <Bone className="h-4 w-4 text-text-tertiary" />
+-                    <span className="font-medium text-text-primary">{module.skeletonName}</span>
++                    <Bone className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
++                    <span className="font-medium text-body text-text-primary truncate">{module.skeletonName}</span>
+                   </div>
+-                  <div className="text-caption text-text-secondary">
+-                    Group: {module.group} - Status: {module.status} - Z: {module.zOrder}
++                  <div className="text-caption text-text-secondary truncate">
++                    {module.group} � {module.status} � Z:{module.zOrder}
+                   </div>
+-                  {module.description ? (
+-                    <div className="text-caption text-text-secondary">{module.description}</div>
+-                  ) : null}
+                   <div className="text-caption text-text-tertiary">
+-                    {module.animations.length} anim - {module.skins.length} skins - {module.events.length} events
++                    {module.animations.length} anim � {module.skins.length} skins � {module.events.length} events
+                   </div>
+                 </div>
+ 
+-                <div className="flex items-center gap-1">
++                <div className="flex items-center gap-0.5 shrink-0">
+                   <Button size="sm" variant="ghost" onClick={() => setForm(toForm(module))}>
+-                    <Pencil className="h-4 w-4" />
++                    <Pencil className="h-3.5 w-3.5" />
+                   </Button>
+                   <Button size="sm" variant="ghost" onClick={() => handleDelete(module.id)} disabled={isSaving}>
+-                    <Trash2 className="h-4 w-4" />
++                    <Trash2 className="h-3.5 w-3.5" />
+                   </Button>
+                 </div>
+               </div>
+@@ -394,6 +394,8 @@ export function SpineModulesSettingsClient() {
+           </div>
+         )}
+       </div>
++
++      </div>{/* end grid */}
+     </div>
+   );
+ }
+diff --git a/src/components/shared/GlobalNav.tsx b/src/components/shared/GlobalNav.tsx
+index dfb7edc..a199dac 100644
+--- a/src/components/shared/GlobalNav.tsx
++++ b/src/components/shared/GlobalNav.tsx
+@@ -15,6 +15,7 @@ import {
+   Palette,
+   Moon,
+   Sun,
++  Sparkles,
+ } from 'lucide-react';
+ import { cn } from '@/lib/utils';
+ import {
+@@ -45,27 +46,28 @@ const navItems = [
+ 
+ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
+   const pathname = usePathname();
+-  const [theme, setTheme] = useState<'dark' | 'slate' | 'light'>('slate');
++  const [theme, setTheme] = useState<'dark' | 'slate' | 'light' | 'sparkle'>('slate');
+ 
+-  const applyTheme = (nextTheme: 'dark' | 'slate' | 'light') => {
++  const applyTheme = (nextTheme: 'dark' | 'slate' | 'light' | 'sparkle') => {
+     const root = document.documentElement;
+-    root.classList.remove('dark', 'slate');
++    root.classList.remove('dark', 'slate', 'sparkle');
+     if (nextTheme === 'dark') root.classList.add('dark');
+     if (nextTheme === 'slate') root.classList.add('slate');
++    if (nextTheme === 'sparkle') root.classList.add('sparkle');
+   };
+ 
+   useEffect(() => {
+     if (typeof window === 'undefined') return;
+     const storedTheme = window.localStorage.getItem('ui.theme');
+     const nextTheme =
+-      storedTheme === 'light' || storedTheme === 'slate' || storedTheme === 'dark'
++      storedTheme === 'light' || storedTheme === 'slate' || storedTheme === 'dark' || storedTheme === 'sparkle'
+         ? storedTheme
+         : 'slate';
+     setTheme(nextTheme);
+     applyTheme(nextTheme);
+   }, []);
+ 
+-  const setSkin = (nextTheme: 'dark' | 'slate' | 'light') => {
++  const setSkin = (nextTheme: 'dark' | 'slate' | 'light' | 'sparkle') => {
+     setTheme(nextTheme);
+     if (typeof window !== 'undefined') {
+       applyTheme(nextTheme);
+@@ -100,7 +102,9 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
+                     : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
+                 )}
+               >
+-                <Icon className="h-4 w-4" />
++                <span className="sparkle-icon-chip" aria-hidden="true">
++                  <Icon className="h-4 w-4 sparkle-icon-glyph" />
++                </span>
+                 {item.label}
+               </Link>
+             );
+@@ -119,15 +123,16 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
+                 title="Choose skin"
+                 aria-label="Choose skin"
+               >
+-                {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'slate' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
++                {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'slate' ? <Palette className="h-4 w-4" /> : theme === 'sparkle' ? <Sparkles className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+               </button>
+             </DropdownMenuTrigger>
+             <DropdownMenuContent align="end" className="w-40">
+               <DropdownMenuLabel>Skin</DropdownMenuLabel>
+-              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as 'dark' | 'slate' | 'light')}>
++              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as 'dark' | 'slate' | 'light' | 'sparkle')}>
+                 <DropdownMenuRadioItem value="dark">Dark (Noir)</DropdownMenuRadioItem>
+                 <DropdownMenuRadioItem value="slate">Slate</DropdownMenuRadioItem>
+                 <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
++                <DropdownMenuRadioItem value="sparkle">Sparkle</DropdownMenuRadioItem>
+               </DropdownMenuRadioGroup>
+             </DropdownMenuContent>
+           </DropdownMenu>
+diff --git a/src/components/ui/alert-dialog.tsx b/src/components/ui/alert-dialog.tsx
+index 57760f2..04e37dc 100644
+--- a/src/components/ui/alert-dialog.tsx
++++ b/src/components/ui/alert-dialog.tsx
+@@ -36,7 +36,7 @@ const AlertDialogContent = React.forwardRef<
+     <AlertDialogPrimitive.Content
+       ref={ref}
+       className={cn(
+-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
++        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg max-h-[calc(100vh-4rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-lg",
+         className
+       )}
+       {...props}
+diff --git a/src/components/ui/dialog.tsx b/src/components/ui/dialog.tsx
+index 98b125d..91e3d1c 100644
+--- a/src/components/ui/dialog.tsx
++++ b/src/components/ui/dialog.tsx
+@@ -38,7 +38,7 @@ const DialogContent = React.forwardRef<
+     <DialogPrimitive.Content
+       ref={ref}
+       className={cn(
+-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-modal translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-surface p-6 shadow-modal duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-modal',
++        'ui-dialog-content fixed left-[50%] top-[50%] z-50 grid w-full max-w-modal max-h-[calc(100vh-4rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border border-border bg-surface p-6 shadow-modal duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-modal',
+         className
+       )}
+       {...props}
+diff --git a/src/styles/globals.css b/src/styles/globals.css
+index ed77c00..327d5fb 100644
+--- a/src/styles/globals.css
++++ b/src/styles/globals.css
+@@ -137,6 +137,50 @@
+     --board-gradient-red: linear-gradient(135deg, #7F1D1D 0%, #B91C1C 50%, #F87171 100%);
+   }
+ 
++  .sparkle {
++    /* Sparkle: glossy pink UI with pastel rainbow accents */
++    --background: #FFD6EA;
++    --surface: #FFE9F4;
++    --surface-raised: #FFF4FA;
++    --surface-subtle: #FFDCEB;
++    --surface-active: #FFC8E2;
++    --surface-hover: rgba(255, 92, 166, 0.12);
++    --border: #F5A5CC;
++    --border-subtle: #FBC8DF;
++    --border-hover: #EC7BB5;
++
++    --text-primary: #5A2140;
++    --text-secondary: #874A67;
++    --text-tertiary: #B97A98;
++    --text-inverse: #FFF6FB;
++
++    --card-task: #59A7FF;
++    --card-task-bg: rgba(89, 167, 255, 0.16);
++    --card-task-border: rgba(89, 167, 255, 0.35);
++    --card-story: #38D29F;
++    --card-story-bg: rgba(56, 210, 159, 0.15);
++    --card-story-border: rgba(56, 210, 159, 0.34);
++    --card-epic: #E45CC6;
++    --card-epic-bg: rgba(228, 92, 198, 0.16);
++    --card-epic-border: rgba(228, 92, 198, 0.36);
++    --card-utility: #9A7390;
++    --card-utility-bg: rgba(154, 115, 144, 0.15);
++    --card-utility-border: rgba(154, 115, 144, 0.3);
++
++    --success: #36C68D;
++    --warning: #F6A447;
++    --error: #F04E89;
++    --info: #5F8FFF;
++
++    --board-gradient-purple: linear-gradient(135deg, #F4C8FF 0%, #E6B8FF 45%, #B5A8FF 100%);
++    --board-gradient-yellow: linear-gradient(135deg, #FFE9A8 0%, #FFD083 45%, #FFB36B 100%);
++    --board-gradient-blue: linear-gradient(135deg, #BFE9FF 0%, #9FD5FF 45%, #78C0FF 100%);
++    --board-gradient-green: linear-gradient(135deg, #CBF9DF 0%, #A8F0CB 45%, #7EE6B4 100%);
++    --board-gradient-pink: linear-gradient(135deg, #FFD9EE 0%, #FFB8DE 45%, #FF8DC5 100%);
++    --board-gradient-teal: linear-gradient(135deg, #C5F8F0 0%, #9AEFDF 45%, #64E5CE 100%);
++    --board-gradient-red: linear-gradient(135deg, #FFD1DC 0%, #FFB0C5 45%, #FF88AD 100%);
++  }
++
+   * {
+     @apply border-border;
+   }
+@@ -155,9 +199,196 @@
+     pointer-events: none;
+     z-index: 1000;
+   }
++
++  .sparkle body {
++    font-family: "Trebuchet MS", "Verdana", "Tahoma", sans-serif;
++  }
+ }
+ 
+ @layer components {
++  /* Sparkle skin retro chrome */
++  .sparkle {
++    --sparkle-panel-top: #fff4fb;
++    --sparkle-panel-bottom: #ffd8ea;
++    --sparkle-hard-shadow: rgba(175, 61, 120, 0.28);
++  }
++
++  .sparkle main {
++    background-image:
++      radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 38%),
++      repeating-linear-gradient(
++        -45deg,
++        rgba(255, 255, 255, 0.1) 0px,
++        rgba(255, 255, 255, 0.1) 2px,
++        rgba(255, 255, 255, 0) 2px,
++        rgba(255, 255, 255, 0) 8px
++      );
++  }
++
++  .sparkle header {
++    background: linear-gradient(180deg, #ffeef7 0%, #ffd9ea 100%);
++    border-bottom-color: #ef94be;
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.9),
++      inset 0 -1px 0 rgba(223, 115, 169, 0.28);
++  }
++
++  .sparkle nav a {
++    border: 1px solid transparent;
++  }
++
++  .sparkle nav a:hover {
++    border-color: #e88fb9;
++  }
++
++  .sparkle nav a.bg-primary\/10 {
++    border-color: #da6ea8;
++    background:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)),
++      linear-gradient(135deg, rgba(255, 206, 231, 0.86), rgba(217, 239, 255, 0.78));
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.95),
++      inset 0 -1px 0 rgba(212, 91, 154, 0.3);
++  }
++
++  .sparkle button,
++  .sparkle [role='button'],
++  .sparkle [role='combobox'],
++  .sparkle input,
++  .sparkle textarea {
++    border-color: #e98ab7;
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.95),
++      inset 0 -1px 0 rgba(221, 103, 163, 0.24),
++      0 1px 0 rgba(255, 255, 255, 0.7);
++  }
++
++  .sparkle button:not([class*='bg-']),
++  .sparkle [role='button']:not([class*='bg-']),
++  .sparkle [role='combobox'] {
++    background:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0)),
++      linear-gradient(180deg, var(--sparkle-panel-top), var(--sparkle-panel-bottom));
++  }
++
++  .sparkle button:not([class*='bg-']):hover,
++  .sparkle [role='button']:not([class*='bg-']):hover,
++  .sparkle [role='combobox']:hover {
++    background-image:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0)),
++      linear-gradient(180deg, #fff8fd, #ffd9ea);
++    border-color: #df6ca8;
++  }
++
++  .sparkle button:not([class*='bg-']):active,
++  .sparkle [role='button']:not([class*='bg-']):active,
++  .sparkle [role='combobox'][data-state='open'] {
++    box-shadow:
++      inset 0 2px 4px rgba(168, 55, 114, 0.3),
++      inset 0 1px 0 rgba(255, 255, 255, 0.6);
++    transform: none;
++  }
++
++  .sparkle input,
++  .sparkle textarea {
++    background:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0)),
++      linear-gradient(180deg, #fffafc, #ffe8f2);
++  }
++
++  .sparkle .card-base {
++    border-color: #ea9bc1;
++    background-image:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0)),
++      linear-gradient(135deg, rgba(255, 194, 225, 0.32), rgba(255, 240, 248, 0.26));
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.95),
++      inset 0 -1px 0 rgba(221, 103, 163, 0.2),
++      0 3px 10px rgba(201, 77, 145, 0.15);
++    position: relative;
++  }
++
++  .sparkle .card-base::after {
++    content: '';
++    position: absolute;
++    top: 1px;
++    right: 8px;
++    width: 24px;
++    height: 10px;
++    border-radius: 99px;
++    background: linear-gradient(90deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
++    pointer-events: none;
++  }
++
++  .sparkle .badge {
++    border: 1px solid #eca3c8;
++    background: linear-gradient(180deg, #fff5fb 0%, #ffdfee 100%);
++    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
++  }
++
++  .sparkle [data-radix-popper-content-wrapper] > * {
++    border-color: #e88fba;
++    background-image:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0)),
++      linear-gradient(145deg, #ffe7f3, #ffd5e8);
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.95),
++      0 10px 24px rgba(190, 69, 133, 0.2);
++  }
++
++  .sparkle [data-radix-popper-content-wrapper] [role='menuitemradio'][data-highlighted],
++  .sparkle [data-radix-popper-content-wrapper] [role='menuitem'][data-highlighted],
++  .sparkle [data-radix-popper-content-wrapper] [role='option'][data-highlighted] {
++    background: linear-gradient(90deg, rgba(255, 203, 227, 0.78), rgba(221, 241, 255, 0.72));
++    color: #5a2140;
++  }
++
++  .sparkle .ui-dialog-content {
++    top: 50% !important;
++    left: 50% !important;
++    transform: translate(-50%, -50%) !important;
++    max-height: calc(100vh - 4rem);
++    border-color: #e889b7;
++    background-image:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0)),
++      linear-gradient(145deg, #ffebf5, #ffd9eb);
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.95),
++      0 22px 46px rgba(181, 62, 125, 0.25);
++  }
++
++  .sparkle .ui-dialog-content[data-state='open'],
++  .sparkle .ui-dialog-content[data-state='closed'] {
++    animation: none !important;
++  }
++
++  .sparkle .sparkle-icon-chip {
++    display: inline-flex;
++    align-items: center;
++    justify-content: center;
++    width: 18px;
++    height: 18px;
++    border-radius: 5px;
++    border: 1px solid #dc6aa7;
++    background:
++      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0)),
++      linear-gradient(140deg, #ffc3df, #d6ecff 52%, #fff2b8);
++    box-shadow:
++      inset 0 1px 0 rgba(255, 255, 255, 0.95),
++      0 1px 2px var(--sparkle-hard-shadow);
++  }
++
++  .sparkle .sparkle-icon-glyph {
++    color: #7b2a54;
++    stroke-width: 2.2;
++    filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.55));
++  }
++
++  .sparkle button .sparkle-icon-glyph,
++  .sparkle [role='button'] .sparkle-icon-glyph {
++    color: #6f1f49;
++  }
++
+   /* Card base styles */
+   .card-base {
+     @apply bg-surface border border-border-subtle rounded-card p-card;

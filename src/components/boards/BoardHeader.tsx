@@ -22,6 +22,8 @@ interface BoardHeaderProps {
   members: BoardHeaderMember[];
   viewMode?: BoardViewMode;
   onViewModeChange?: (mode: BoardViewMode) => void;
+  onPlanningPrefetch?: () => void;
+  onSpinePrefetch?: () => void;
   onSettingsClick?: () => void;
   onMembersClick?: () => void;
   showSettings?: boolean;
@@ -34,6 +36,8 @@ export function BoardHeader({
   members,
   viewMode = 'tasks',
   onViewModeChange,
+  onPlanningPrefetch,
+  onSpinePrefetch,
   onSettingsClick,
   onMembersClick,
   showSettings = true,
@@ -69,6 +73,8 @@ export function BoardHeader({
           </button>
           <button
             onClick={() => onViewModeChange('planning')}
+            onMouseEnter={onPlanningPrefetch}
+            onFocus={onPlanningPrefetch}
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-caption font-medium transition-colors',
               viewMode === 'planning'
@@ -81,6 +87,8 @@ export function BoardHeader({
           </button>
           <button
             onClick={() => onViewModeChange('spine')}
+            onMouseEnter={onSpinePrefetch}
+            onFocus={onSpinePrefetch}
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-caption font-medium transition-colors',
               viewMode === 'spine'

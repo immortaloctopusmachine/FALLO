@@ -58,7 +58,18 @@
       "Bash(git reset:*)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "Bash(git stash pop:*)"
+      "Bash(git stash pop:*)",
+      "Bash(winget install:*)",
+      "Bash(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\":*)",
+      "Bash(find:*)",
+      "Bash(node check-permissions.js:*)",
+      "Bash(del c:project-plannerproject-plannercheck-permissions.js)",
+      "Bash(npm run test:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm info:*)",
+      "Bash(npm view:*)",
+      "Bash(npx fix-react2shell-next@latest:*)",
+      "Bash(npx next lint:*)"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",

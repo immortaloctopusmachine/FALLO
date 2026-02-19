@@ -123,6 +123,35 @@ export function BoardDetailClient({
     setHasFullData(true);
   }, [fullData]);
 
+  useEffect(() => {
+    if (!lightData || hasFullData || isFetchingFullData) return;
+
+    const prefetch = () => {
+      if (hasFullData || isFetchingFullData) return;
+      void refetchFullBoard();
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleHandle = (
+        window as Window & {
+          requestIdleCallback: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+          cancelIdleCallback: (handle: number) => void;
+        }
+      ).requestIdleCallback(() => prefetch(), { timeout: 1200 });
+
+      return () => {
+        (
+          window as Window & {
+            cancelIdleCallback: (handle: number) => void;
+          }
+        ).cancelIdleCallback(idleHandle);
+      };
+    }
+
+    const timeoutHandle = globalThis.setTimeout(() => prefetch(), 400);
+    return () => globalThis.clearTimeout(timeoutHandle);
+  }, [lightData, hasFullData, isFetchingFullData, refetchFullBoard]);
+
   const loadFullData = useCallback(async () => {
     if (hasFullData || isFetchingFullData) return;
     await refetchFullBoard();

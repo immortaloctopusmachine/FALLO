@@ -111,3 +111,39 @@ Currently, project pages fetch from `/api/boards/[boardId]` and `/api/boards?pro
   - `npm run lint`: pass (warnings only)
   - `npm test`: pass (113 tests)
 - Residual lint warnings are unrelated to this pass and mostly about `<img>` usage and minor unused variables.
+
+---
+
+## 2026-02-19 Performance Stabilization Follow-Up
+
+Status: In progress (tracked separately from feature-specific docs)
+
+### Scope
+
+- API and data-path latency reductions for:
+  - Project creation/clone
+  - Board load/switching
+  - Linked task creation
+  - Timeline/settings heavy fetch paths
+- DB index additions for hot filter/sort patterns.
+- Runtime DB connection mode hardening (`DATABASE_URL` vs `DIRECT_URL` by runtime type).
+
+### Artifacts
+
+- Runbook: `DOCUMENTS/PERFORMANCE_RUNBOOK.md`
+- Perf-only patchset: `DOCUMENTS/PATCHSETS/performance-stabilization-2026-02-19.patch`
+- UI/theme patchset: `DOCUMENTS/PATCHSETS/nonperf-ui-theme-2026-02-19.patch`
+
+### Progress Snapshot (2026-02-19)
+
+- [x] Project creation API returns minimal payload with deferred hydration.
+- [x] Team member loading in project creation uses picker-scoped endpoints and local cache.
+- [x] Board view switching uses predictive prefetch (hover + idle warmup).
+- [x] Settings route switching prefetches likely pages after navigation render.
+- [x] Project detail now uses `GET /api/boards/:id?scope=project` (reduced payload vs full board scope).
+- [x] Project/team user pickers use `GET /api/users?scope=picker` instead of full users payload.
+- [ ] Continue narrowing remaining non-picker `/api/users` fetches where full metadata is not required.
+
+### Why this is separate
+
+`FEATURE_QUALITY_REVIEW.md` and `FEATURE_QUALITY_REVIEW_IMPLEMENTATION_PLAN.md` are feature-specific documents. The performance work is cross-cutting platform/runtime debt, so it is tracked in tech debt + runbook docs.

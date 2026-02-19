@@ -68,7 +68,7 @@ export async function POST(
     const wasInProgress = sourceList && isInProgressList(sourceList.name);
     const isNowInProgress = destList && isInProgressList(destList.name);
 
-    // Use a transaction to update positions
+    // Use a transaction to update positions (timeout increased: card moves + position cleanup + review cycle transitions)
     await prisma.$transaction(async (tx) => {
       // If moving to a different list
       if (sourceListId !== destinationListId) {
@@ -150,7 +150,7 @@ export async function POST(
           data: { position: newPosition },
         });
       }
-    });
+    }, { timeout: 15000 });
 
     // Handle time tracking when moving between lists
     if (sourceListId !== destinationListId) {
@@ -267,7 +267,8 @@ export async function POST(
 
     return apiSuccess(null);
   } catch (error) {
-    console.error('Failed to reorder cards:', error);
-    return ApiErrors.internal('Failed to reorder cards');
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error('Failed to reorder cards:', detail, error);
+    return ApiErrors.internal(`Failed to reorder cards: ${detail}`);
   }
 }

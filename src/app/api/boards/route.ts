@@ -5,60 +5,35 @@ import { parseBoardArchivedOnlyAt, parseProjectArchivedAt } from '@/lib/project-
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
 import { getPhaseFromBlockType } from '@/lib/constants';
-import { ensureWeeklySnapshot } from '@/lib/weekly-progress';
 import type { BoardTemplateType, ListViewType, ListPhase, BoardSettings } from '@/types';
 
 const CORE_TEMPLATE_TASK_LISTS = BOARD_TEMPLATES.STANDARD_SLOT.taskLists;
 
-async function findBlockTypeForList(list: {
-  name: string;
-  phase: string | null;
-  color: string | null;
-}) {
-  const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
-  const listNameLower = list.name.toLowerCase();
+import type { BlockType as PrismaBlockType } from '@prisma/client';
+type BlockType = PrismaBlockType;
 
-  let blockType = null;
+function matchBlockTypeForList(
+  allBlockTypes: BlockType[],
+  list: { name: string; phase: string | null },
+): BlockType | null {
+  const searchTerms = list.phase ? PHASE_SEARCH_TERMS[list.phase as keyof typeof PHASE_SEARCH_TERMS] : null;
 
   if (searchTerms) {
     for (const term of searchTerms) {
-      blockType = await prisma.blockType.findFirst({
-        where: { name: { contains: term, mode: 'insensitive' } },
-      });
-      if (blockType) break;
+      const match = allBlockTypes.find(bt => bt.name.toLowerCase().includes(term.toLowerCase()));
+      if (match) return match;
     }
   }
 
-  if (!blockType) {
-    const nameParts = listNameLower.split(/[\s\/\-]+/);
-    for (const part of nameParts) {
-      if (part.length > 2) {
-        blockType = await prisma.blockType.findFirst({
-          where: { name: { contains: part, mode: 'insensitive' } },
-        });
-        if (blockType) break;
-      }
+  const nameParts = list.name.toLowerCase().split(/[\s\/\-]+/);
+  for (const part of nameParts) {
+    if (part.length > 2) {
+      const match = allBlockTypes.find(bt => bt.name.toLowerCase().includes(part));
+      if (match) return match;
     }
   }
 
-  if (!blockType) {
-    blockType = await prisma.blockType.findFirst({
-      where: { isDefault: true },
-    });
-  }
-
-  if (!blockType) {
-    blockType = await prisma.blockType.create({
-      data: {
-        name: list.name,
-        color: list.color || '#6B7280',
-        isDefault: false,
-        position: 0,
-      },
-    });
-  }
-
-  return blockType;
+  return allBlockTypes.find(bt => bt.isDefault) ?? null;
 }
 
 // GET /api/boards - Get all boards for current user
@@ -75,6 +50,30 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const archived = searchParams.get('archived') === 'true';
     const projects = searchParams.get('projects') === 'true';
+    const templates = searchParams.get('templates') === 'true';
+
+    if (templates) {
+      const templateBoards = await prisma.board.findMany({
+        where: {
+          isTemplate: true,
+          archivedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          isTemplate: true,
+          settings: true,
+          lists: {
+            orderBy: { position: 'asc' },
+            select: { id: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      return apiSuccess(templateBoards);
+    }
 
     if (projects) {
       // Projects are filtered by settings.projectArchivedAt (project-level archive state),
@@ -83,12 +82,20 @@ export async function GET(request: Request) {
         where: {
           isTemplate: false,
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          archivedAt: true,
+          settings: true,
           team: {
             select: { id: true, name: true, color: true },
           },
           members: {
-            include: {
+            select: {
+              id: true,
+              userId: true,
+              permission: true,
               user: {
                 select: {
                   id: true,
@@ -101,27 +108,40 @@ export async function GET(request: Request) {
           },
           weeklyProgress: {
             orderBy: { weekStartDate: 'desc' },
-            take: 12,
+            take: 6,
+            select: {
+              id: true,
+              weekStartDate: true,
+              totalStoryPoints: true,
+              completedPoints: true,
+              tasksCompleted: true,
+              tasksTotal: true,
+            },
           },
         },
         orderBy: { name: 'asc' },
       });
 
-      const filteredBoards = boards.filter((board) => {
+      const activeBoards: typeof boards = [];
+      let archivedCount = 0;
+
+      for (const board of boards) {
         const isBoardArchivedOnly = Boolean(parseBoardArchivedOnlyAt(board.settings));
         const isProjectArchived = Boolean(parseProjectArchivedAt(board.settings))
           || (Boolean(board.archivedAt) && !isBoardArchivedOnly);
-        return archived ? isProjectArchived : !isProjectArchived;
-      });
-
-      // Populate weekly snapshots for non-archived projects (fire-and-forget).
-      if (!archived) {
-        await Promise.allSettled(
-          filteredBoards.map((b) => ensureWeeklySnapshot(b.id))
-        );
+        if (isProjectArchived) {
+          if (archived) activeBoards.push(board);
+          archivedCount++;
+        } else {
+          if (!archived) activeBoards.push(board);
+        }
       }
 
-      return apiSuccess(filteredBoards);
+      if (archived) {
+        return apiSuccess(activeBoards);
+      }
+
+      return apiSuccess({ projects: activeBoards, archivedCount });
     }
 
     if (archived) {
@@ -200,6 +220,9 @@ export async function POST(request: Request) {
   try {
     const { session, response } = await requireAuth();
     if (response) return response;
+
+    const { searchParams } = new URL(request.url);
+    const minimalResponse = searchParams.get('response') === 'minimal';
 
     const body = await request.json();
     const {
@@ -377,43 +400,67 @@ export async function POST(request: Request) {
         }));
     }
 
-    const board = await prisma.board.create({
-      data: {
-        name: name.trim(),
-        description: description?.trim() || null,
-        settings: settings as object,
-        teamId: teamId || null,
-        members: {
-          create: [
-            {
-              userId: session.user.id,
-              permission: 'ADMIN',
+    const board = minimalResponse
+      ? await prisma.board.create({
+          data: {
+            name: name.trim(),
+            description: description?.trim() || null,
+            settings: settings as object,
+            teamId: teamId || null,
+            members: {
+              create: [
+                {
+                  userId: session.user.id,
+                  permission: 'ADMIN',
+                },
+                ...membersToAdd,
+              ],
             },
-            ...membersToAdd,
-          ],
-        },
-        lists: {
-          create: listsToCreate,
-        },
-      },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
+            lists: {
+              create: listsToCreate,
             },
           },
-        },
-        lists: {
-          orderBy: { position: 'asc' },
-        },
-      },
-    });
+          select: {
+            id: true,
+          },
+        })
+      : await prisma.board.create({
+          data: {
+            name: name.trim(),
+            description: description?.trim() || null,
+            settings: settings as object,
+            teamId: teamId || null,
+            members: {
+              create: [
+                {
+                  userId: session.user.id,
+                  permission: 'ADMIN',
+                },
+                ...membersToAdd,
+              ],
+            },
+            lists: {
+              create: listsToCreate,
+            },
+          },
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                  },
+                },
+              },
+            },
+            lists: {
+              orderBy: { position: 'asc' },
+            },
+          },
+        });
 
     // If start date is provided and we have planning lists with dates, create timeline blocks
     if (startDate && (coreTemplate || templateType !== 'BLANK')) {
@@ -427,50 +474,67 @@ export async function POST(request: Request) {
         orderBy: { position: 'asc' },
       });
 
-      // Create timeline blocks for each planning list
+      // Pre-fetch all block types once (instead of N+1 queries per list)
+      const allBlockTypes = await prisma.blockType.findMany();
+
+      // Resolve block type for each planning list (in-memory matching)
+      const resolvedBlockTypes: BlockType[] = [];
       for (let i = 0; i < planningLists.length; i++) {
         const list = planningLists[i];
         const explicitBlockTypeId = coreTemplate?.blocks[i]?.blockTypeId;
-        const blockType = explicitBlockTypeId
-          ? await prisma.blockType.findUnique({ where: { id: explicitBlockTypeId } }) ??
-            await findBlockTypeForList(list)
-          : await findBlockTypeForList(list);
+        let blockType: BlockType | null = null;
 
-        // Create timeline block
-        await prisma.timelineBlock.create({
-          data: {
+        if (explicitBlockTypeId) {
+          blockType = allBlockTypes.find(bt => bt.id === explicitBlockTypeId) ?? null;
+        }
+        if (!blockType) {
+          blockType = matchBlockTypeForList(allBlockTypes, list);
+        }
+        if (!blockType) {
+          // Create a new block type only if no match found at all
+          blockType = await prisma.blockType.create({
+            data: { name: list.name, color: list.color || '#6B7280', isDefault: false, position: 0 },
+          });
+          allBlockTypes.push(blockType);
+        }
+        resolvedBlockTypes.push(blockType);
+      }
+
+      if (planningLists.length > 0) {
+        await prisma.timelineBlock.createMany({
+          data: planningLists.map((list, i) => ({
             boardId: board.id,
-            blockTypeId: blockType.id,
+            blockTypeId: resolvedBlockTypes[i].id,
             listId: list.id,
             startDate: list.startDate!,
             endDate: list.endDate!,
             position: i + 1,
-          },
+          })),
         });
       }
 
       if (coreTemplate && coreTemplate.events.length > 0) {
         const firstDate = snapToMonday(new Date(startDate as string));
         const useLegacyIndexOffset = coreTemplate.events.every((event) => (event as { unitOffset?: number }).unitOffset === 0);
-        for (let i = 0; i < coreTemplate.events.length; i++) {
-          const templateEvent = coreTemplate.events[i];
-          const explicitUnitOffset = Math.max(
-            0,
-            Math.floor((templateEvent as { unitOffset?: number }).unitOffset ?? 0)
-          );
-          const unitOffset = useLegacyIndexOffset ? i * 5 : explicitUnitOffset;
-          const eventDate = addBusinessDays(firstDate, unitOffset);
 
-          await prisma.timelineEvent.create({
-            data: {
+        await prisma.timelineEvent.createMany({
+          data: coreTemplate.events.map((templateEvent, i) => {
+            const explicitUnitOffset = Math.max(
+              0,
+              Math.floor((templateEvent as { unitOffset?: number }).unitOffset ?? 0)
+            );
+            const unitOffset = useLegacyIndexOffset ? i * 5 : explicitUnitOffset;
+            const eventDate = addBusinessDays(firstDate, unitOffset);
+
+            return {
               boardId: board.id,
               eventTypeId: templateEvent.eventTypeId,
               title: templateEvent.title?.trim() || templateEvent.eventType.name,
               startDate: eventDate,
               endDate: eventDate,
-            },
-          });
-        }
+            };
+          }),
+        });
       }
 
       // Update board settings with lastDayAnimationTweaks
@@ -488,7 +552,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return apiSuccess(board, 201);
+    return apiSuccess(minimalResponse ? { id: board.id } : board, 201);
   } catch (error) {
     console.error('Failed to create board:', error);
     return ApiErrors.internal('Failed to create board');

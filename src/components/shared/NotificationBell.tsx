@@ -53,14 +53,35 @@ export function NotificationBell() {
     }
   }, []);
 
-  // Poll every 30 seconds + fetch on focus
+  // Poll every 60s (paused when tab is hidden) + fetch on focus/visibility
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (!intervalId) intervalId = setInterval(fetchNotifications, 60_000);
+    };
+    const stopPolling = () => {
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stopPolling();
+      } else {
+        fetchNotifications();
+        startPolling();
+      }
+    };
     const handleFocus = () => fetchNotifications();
+
+    if (document.visibilityState !== 'hidden') startPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
+
     return () => {
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
   }, [fetchNotifications]);

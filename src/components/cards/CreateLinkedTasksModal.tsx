@@ -138,30 +138,25 @@ export function CreateLinkedTasksModal({
     }
 
     setIsCreating(true);
-    const createdCards: Card[] = [];
 
     try {
-      let previousTaskId: string | null = null;
-
-      for (let i = 0; i < LINKED_TASK_PRESETS.length; i++) {
-        const preset = LINKED_TASK_PRESETS[i];
+      // Build all card definitions for batch creation (single API call)
+      const cardDefs = LINKED_TASK_PRESETS.map((preset, i) => {
         const task = tasks[i];
-
         const isStaged = task.destinationMode === 'STAGED';
         const listId = isStaged ? task.stagingPlanningListId : task.listId;
 
-        const body: Record<string, unknown> = {
+        return {
           title: effectiveTitles[i].trim(),
-          type: 'TASK',
           listId,
           description: task.description.trim() || null,
           color: preset.color,
           assigneeIds: task.assigneeId ? [task.assigneeId] : [],
           tagIds: task.tagId ? [task.tagId] : [],
+          dependsOnPrevious: i > 0,
           taskData: {
             linkedUserStoryId: userStoryId,
             storyPoints: task.storyPoints,
-            dependsOnTaskId: previousTaskId,
           },
           taskDestination: {
             mode: task.destinationMode,
@@ -170,30 +165,24 @@ export function CreateLinkedTasksModal({
             releaseTargetListId: task.releaseTargetListId,
           },
         };
+      });
 
-        const card = await apiFetch<Card>(
-          `/api/boards/${boardId}/cards`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          }
-        );
-        createdCards.push(card);
-        previousTaskId = card.id;
-      }
+      const createdCards = await apiFetch<Card[]>(
+        `/api/boards/${boardId}/cards/batch`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards: cardDefs }),
+        }
+      );
 
       onTasksCreated(createdCards);
       toast.success(`${LINKED_TASK_PRESETS.length} linked tasks created`);
       onClose();
     } catch (error) {
       console.error('Failed to create linked tasks:', error);
-      const message = error instanceof Error ? error.message : 'Failed to create some tasks';
+      const message = error instanceof Error ? error.message : 'Failed to create tasks';
       toast.error(message);
-      // Still notify about any that were created
-      if (createdCards.length > 0) {
-        onTasksCreated(createdCards);
-      }
     } finally {
       setIsCreating(false);
     }

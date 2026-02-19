@@ -17,6 +17,9 @@ import { ReviewSubmissionComment } from './ReviewSubmissionComment';
 import type { Comment, Attachment, BoardMember } from '@/types';
 import { cn } from '@/lib/utils';
 
+// Module-level cache: show cached data instantly when reopening same card
+const commentCache = new Map<string, Comment[]>();
+
 interface MentionSuggestion {
   type: 'attachment' | 'user';
   id: string;
@@ -39,12 +42,15 @@ export function CommentsSection({
   attachments = [],
   onAttachmentClick,
 }: CommentsSectionProps) {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const cacheKey = `${boardId}:${cardId}`;
+  const [comments, setComments] = useState<Comment[]>(
+    () => commentCache.get(cacheKey) || []
+  );
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(!commentCache.has(cacheKey));
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
 
   // Mention autocomplete state
@@ -56,28 +62,28 @@ export function CommentsSection({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionPickerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch comments
+  // Fetch comments — show cached data instantly, background refresh
   useEffect(() => {
-    const fetchComments = async () => {
-      try {
-        setIsFetching(true);
-        const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/comments`);
-        if (!response.ok) {
-          console.warn(`Failed to fetch comments: ${response.status}`);
-          return;
-        }
-        const data = await response.json();
-        if (data.success) {
-          setComments(data.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch comments:', error);
-      } finally {
-        setIsFetching(false);
-      }
-    };
+    const key = `${boardId}:${cardId}`;
+    const hasCached = commentCache.has(key);
+    if (!hasCached) setIsFetching(true);
 
-    fetchComments();
+    fetch(`/api/boards/${boardId}/cards/${cardId}/comments`)
+      .then(res => {
+        if (!res.ok) {
+          console.warn(`Failed to fetch comments: ${res.status}`);
+          return null;
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data?.success) {
+          setComments(data.data);
+          commentCache.set(key, data.data);
+        }
+      })
+      .catch(error => console.error('Failed to fetch comments:', error))
+      .finally(() => setIsFetching(false));
   }, [boardId, cardId]);
 
   // Fetch board members for @mentions
@@ -149,7 +155,7 @@ export function CommentsSection({
 
       const data = await response.json();
       if (data.success) {
-        setComments([...comments, data.data]);
+        setComments([data.data, ...comments]);
         setNewComment('');
       }
     } catch (error) {

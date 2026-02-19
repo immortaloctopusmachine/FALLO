@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import type { BoardSettings, WeeklyProgress } from '@/types';
 
@@ -26,19 +26,30 @@ interface ProjectListItem {
   weeklyProgress: WeeklyProgress[];
 }
 
+interface ProjectsResponse {
+  projects: ProjectListItem[];
+  archivedCount: number;
+}
+
+const PROJECTS_STALE_TIME = 5 * 60 * 1000; // 5 minutes
+
 export function useProjects() {
   return useQuery({
     queryKey: ['projects'],
-    queryFn: () => apiFetch<ProjectListItem[]>('/api/boards?projects=true'),
+    queryFn: () => apiFetch<ProjectsResponse>('/api/boards?projects=true'),
+    staleTime: PROJECTS_STALE_TIME,
+    placeholderData: keepPreviousData,
   });
 }
 
-export function useArchivedProjects() {
+export function useArchivedProjects(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['projects', 'archived'],
     queryFn: () => apiFetch<ProjectListItem[]>('/api/boards?projects=true&archived=true'),
+    staleTime: PROJECTS_STALE_TIME,
+    enabled: options?.enabled ?? true,
   });
 }
 
 // Re-export the type for use in client components
-export type { ProjectListItem };
+export type { ProjectListItem, ProjectsResponse };

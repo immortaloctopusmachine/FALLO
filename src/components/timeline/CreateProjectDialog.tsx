@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Layers, FileText, Calendar, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,7 +29,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { snapToMonday } from '@/lib/list-templates';
 import { formatDateInput } from '@/lib/date-utils';
-import type { Team, CoreProjectTemplate } from '@/types';
+import type {
+  Team,
+  CoreProjectTemplate,
+  TimelineData,
+  TimelineArchivedProjectSummary,
+  BlockType,
+  EventType,
+} from '@/types';
 import { cn } from '@/lib/utils';
 
 // Check if a date is Monday
@@ -54,6 +61,15 @@ interface ProjectTemplate {
   name: string;
   description: string | null;
   listCount: number;
+}
+
+interface TimelineQueryData {
+  projects: TimelineData[];
+  archivedProjects: TimelineArchivedProjectSummary[];
+  teams: Team[];
+  users: { id: string; name: string | null; email: string; image: string | null }[];
+  blockTypes: BlockType[];
+  eventTypes: EventType[];
 }
 
 interface CreateProjectDialogProps {
@@ -82,7 +98,7 @@ export function CreateProjectDialog({
   defaultStartDate,
   teams,
 }: CreateProjectDialogProps) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
@@ -101,6 +117,12 @@ export function CreateProjectDialog({
   const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
   const [allUsers, setAllUsers] = useState<SelectedMember[]>([]);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingTeamMembers, setIsLoadingTeamMembers] = useState(false);
+  const [teamMembersCache, setTeamMembersCache] = useState<Record<string, SelectedMember[]>>({});
+  const [teamLoadStatus, setTeamLoadStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  const [teamLoadMessage, setTeamLoadMessage] = useState<string | null>(null);
+  const teamMemberRequestIdRef = useRef(0);
 
   // Set default start date when provided (snap to Monday)
   useEffect(() => {
@@ -126,6 +148,10 @@ export function CreateProjectDialog({
       setSelectedCoreTemplateId(coreTemplates[0]?.id || '');
       setSelectedProjectTemplate(null);
       setSelectedMembers([]);
+      setIsLoadingUsers(false);
+      setIsLoadingTeamMembers(false);
+      setTeamLoadStatus('idle');
+      setTeamLoadMessage(null);
       setError(null);
     }
   }, [isOpen, defaultStartDate, coreTemplates]);
@@ -133,7 +159,8 @@ export function CreateProjectDialog({
   // Fetch all users when dialog opens
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/users')
+      setIsLoadingUsers(true);
+      fetch('/api/users?scope=picker')
         .then(res => res.json())
         .then(data => {
           if (data.success && data.data) {
@@ -156,7 +183,8 @@ export function CreateProjectDialog({
             );
           }
         })
-        .catch(console.error);
+        .catch(console.error)
+        .finally(() => setIsLoadingUsers(false));
     }
   }, [isOpen]);
 
@@ -195,51 +223,109 @@ export function CreateProjectDialog({
         if (data.success && data.data?.templates) {
           const templates = data.data.templates as CoreProjectTemplate[];
           setCoreTemplates(templates);
-          if (!selectedCoreTemplateId && templates.length > 0) {
-            setSelectedCoreTemplateId(templates[0].id);
+          if (templates.length > 0) {
+            setSelectedCoreTemplateId((prev) => prev || templates[0].id);
           }
         }
       })
       .catch(console.error)
       .finally(() => setIsLoadingCoreTemplates(false));
-  }, [isOpen, selectedCoreTemplateId]);
+  }, [isOpen]);
 
   // When team changes, auto-populate with team members
   const handleTeamChange = async (teamId: string) => {
     setSelectedTeamId(teamId);
+    setMemberRoleAssignments({});
+    const selectedTeamName = teams.find((team) => team.id === teamId)?.name || 'team';
 
     if (!teamId) {
       setSelectedMembers([]);
+      setIsLoadingTeamMembers(false);
+      setTeamLoadStatus('idle');
+      setTeamLoadMessage(null);
       return;
     }
 
+    const cachedMembers = teamMembersCache[teamId];
+    if (cachedMembers) {
+      setSelectedMembers(cachedMembers);
+      setIsLoadingTeamMembers(false);
+      setTeamLoadStatus('loaded');
+      setTeamLoadMessage(
+        `Loaded ${cachedMembers.length} team member${cachedMembers.length === 1 ? '' : 's'} for ${selectedTeamName}.`
+      );
+      return;
+    }
+
+    setSelectedMembers([]);
+    setIsLoadingTeamMembers(true);
+    setTeamLoadStatus('loading');
+    setTeamLoadMessage(`Loading team members for ${selectedTeamName}...`);
+    const requestId = ++teamMemberRequestIdRef.current;
+
     try {
-      const response = await fetch(`/api/teams/${teamId}/members`);
+      const response = await fetch(`/api/teams/${teamId}/members?scope=ids`);
       const data = await response.json();
+      if (requestId !== teamMemberRequestIdRef.current) return;
+
       if (data.success && data.data) {
-        const teamMembers: SelectedMember[] = data.data.map(
-          (m: {
-            user: {
-              id: string;
-              name: string | null;
-              email: string;
-              image: string | null;
-              userCompanyRoles?: { companyRole: { id: string; name: string; color: string | null } }[];
-            };
-          }) => ({
-            id: m.user.id,
-            name: m.user.name,
-            email: m.user.email,
-            image: m.user.image,
-            companyRoles: (m.user.userCompanyRoles || []).map(
-              (ucr: { companyRole: { id: string; name: string; color: string | null } }) => ucr.companyRole
-            ),
-          })
-        );
+        const memberIds = (data.data as { userId: string }[]).map((member) => member.userId);
+        const usersById = new Map(allUsers.map((user) => [user.id, user]));
+        let teamMembers = memberIds
+          .map((memberId) => usersById.get(memberId))
+          .filter((member): member is SelectedMember => Boolean(member));
+
+        if (teamMembers.length !== memberIds.length) {
+          const fallbackResponse = await fetch(`/api/teams/${teamId}/members?scope=picker`);
+          const fallbackData = await fallbackResponse.json();
+          if (requestId !== teamMemberRequestIdRef.current) return;
+
+          if (fallbackData.success && fallbackData.data) {
+            teamMembers = fallbackData.data.map(
+              (m: {
+                user: {
+                  id: string;
+                  name: string | null;
+                  email: string;
+                  image: string | null;
+                  userCompanyRoles?: { companyRole: { id: string; name: string; color: string | null } }[];
+                };
+              }) => ({
+                id: m.user.id,
+                name: m.user.name,
+                email: m.user.email,
+                image: m.user.image,
+                companyRoles: (m.user.userCompanyRoles || []).map(
+                  (ucr: { companyRole: { id: string; name: string; color: string | null } }) => ucr.companyRole
+                ),
+              })
+            );
+          }
+        }
+
         setSelectedMembers(teamMembers);
+        setTeamMembersCache((prev) => ({
+          ...prev,
+          [teamId]: teamMembers,
+        }));
+        setTeamLoadStatus('loaded');
+        setTeamLoadMessage(
+          `Loaded ${teamMembers.length} team member${teamMembers.length === 1 ? '' : 's'} for ${selectedTeamName}.`
+        );
+      } else {
+        setTeamLoadStatus('error');
+        setTeamLoadMessage(`Failed to load team members for ${selectedTeamName}.`);
       }
     } catch (err) {
       console.error('Failed to fetch team members:', err);
+      if (requestId === teamMemberRequestIdRef.current) {
+        setTeamLoadStatus('error');
+        setTeamLoadMessage(`Failed to load team members for ${selectedTeamName}.`);
+      }
+    } finally {
+      if (requestId === teamMemberRequestIdRef.current) {
+        setIsLoadingTeamMembers(false);
+      }
     }
   };
 
@@ -263,6 +349,94 @@ export function CreateProjectDialog({
   const handleSelectCoreTemplate = (templateId: string) => {
     setSelectedCoreTemplateId(templateId);
     setSelectedProjectTemplate(null);
+  };
+
+  const upsertTimelineProject = (project: TimelineData) => {
+    queryClient.setQueryData<TimelineQueryData | undefined>(['timeline'], (previous) => {
+      if (!previous) return previous;
+
+      const projects = [
+        ...previous.projects.filter((existingProject) => existingProject.board.id !== project.board.id),
+        project,
+      ].sort((a, b) => a.board.name.localeCompare(b.board.name));
+
+      return {
+        ...previous,
+        projects,
+      };
+    });
+  };
+
+  const buildOptimisticTimelineProject = (projectId: string): TimelineData => {
+    const selectedTeam = teams.find((team) => team.id === selectedTeamId) || null;
+
+    const projectRoleAssignments = Object.entries(memberRoleAssignments)
+      .filter(([, roleId]) => roleId)
+      .flatMap(([userId, roleId]) => {
+        const member = selectedMembers.find((m) => m.id === userId);
+        const role = member?.companyRoles.find((r) => r.id === roleId);
+        if (!member || !role) return [];
+
+        return [
+          {
+            id: `${projectId}-${userId}-${roleId}`,
+            roleId,
+            roleName: role.name,
+            roleColor: role.color || null,
+            userId,
+          },
+        ];
+      });
+
+    return {
+      board: {
+        id: projectId,
+        name: name.trim(),
+        productionTitle: productionTitle.trim() || null,
+        description: null,
+        teamId: selectedTeam?.id || null,
+        team: selectedTeam
+          ? {
+              id: selectedTeam.id,
+              name: selectedTeam.name,
+              color: selectedTeam.color,
+            }
+          : null,
+        members: selectedMembers.map((member) => ({
+          id: member.id,
+          name: member.name,
+          email: member.email,
+          image: member.image,
+          userCompanyRoles: member.companyRoles.map((role) => ({
+            companyRole: {
+              id: role.id,
+              name: role.name,
+              color: role.color,
+              position: 0,
+            },
+          })),
+        })),
+        projectRoleAssignments,
+      },
+      blocks: [],
+      events: [],
+      availability: [],
+    };
+  };
+
+  const hydrateTimelineCache = async (projectId: string) => {
+    try {
+      const response = await fetch(`/api/timeline/projects/${projectId}`);
+      const payload = (await response.json()) as {
+        success?: boolean;
+        data?: { project?: TimelineData };
+      };
+      const createdProject = payload.success ? payload.data?.project : null;
+      if (!createdProject) return;
+      upsertTimelineProject(createdProject);
+    } catch (error) {
+      console.error('Failed to hydrate timeline cache after project creation:', error);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -329,7 +503,7 @@ export function CreateProjectDialog({
         });
       } else {
         // Create new board with list template
-        response = await fetch('/api/boards', {
+        response = await fetch('/api/boards?response=minimal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -350,8 +524,12 @@ export function CreateProjectDialog({
         return;
       }
 
+      upsertTimelineProject(buildOptimisticTimelineProject(data.data.id));
+      void hydrateTimelineCache(data.data.id);
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['boards'] });
       onClose();
-      router.refresh();
     } catch {
       setError('An error occurred. Please try again.');
     } finally {
@@ -361,7 +539,7 @@ export function CreateProjectDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
           <DialogDescription>
@@ -454,7 +632,13 @@ export function CreateProjectDialog({
               {/* Add user */}
               <Popover open={addUserOpen} onOpenChange={setAddUserOpen}>
                 <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" size="sm" className="w-full justify-start">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={isLoadingTeamMembers || isLoadingUsers}
+                  >
                     <UserPlus className="mr-2 h-4 w-4" />
                     <span className="text-text-tertiary">Add user...</span>
                   </Button>
@@ -489,7 +673,16 @@ export function CreateProjectDialog({
                 </PopoverContent>
               </Popover>
 
-              {selectedMembers.length === 0 && (
+              {teamLoadStatus === 'loading' && (
+                <p className="text-caption text-text-tertiary">{teamLoadMessage || 'Loading team members...'}</p>
+              )}
+              {teamLoadStatus === 'loaded' && (
+                <p className="text-caption text-success">{teamLoadMessage}</p>
+              )}
+              {teamLoadStatus === 'error' && (
+                <p className="text-caption text-error">{teamLoadMessage || 'Failed to load team members.'}</p>
+              )}
+              {teamLoadStatus === 'idle' && selectedMembers.length === 0 && (
                 <p className="text-caption text-text-tertiary">
                   Select a team to auto-populate, or add manually.
                 </p>
@@ -601,7 +794,7 @@ export function CreateProjectDialog({
                   );
                 })}
             </div>
-            {isLoadingCoreTemplates && (
+            {isLoadingCoreTemplates && coreTemplates.length === 0 && (
               <div className="text-caption text-text-tertiary">Loading core templates...</div>
             )}
             {!isLoadingCoreTemplates && coreTemplates.length === 0 && (
@@ -650,7 +843,7 @@ export function CreateProjectDialog({
                 </div>
               </div>
             )}
-            {isLoadingTemplates && (
+            {isLoadingTemplates && projectTemplates.length === 0 && (
               <div className="text-caption text-text-tertiary">Loading templates...</div>
             )}
           </div>

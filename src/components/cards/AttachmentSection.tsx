@@ -40,6 +40,9 @@ interface AttachmentSectionProps {
   onSetAsHeader?: (url: string) => void;
 }
 
+// Module-level cache: show cached data instantly when reopening same card
+const attachmentCache = new Map<string, AttachmentWithComments[]>();
+
 const FILE_ICONS: Record<string, typeof File> = {
   'image/': FileImage,
   'video/': FileVideo,
@@ -73,38 +76,42 @@ export function AttachmentSection({
   featureImageUrl,
   onSetAsHeader,
 }: AttachmentSectionProps) {
-  const [attachments, setAttachments] = useState<AttachmentWithComments[]>([]);
+  const cacheKey = `${boardId}:${cardId}`;
+  const [attachments, setAttachments] = useState<AttachmentWithComments[]>(
+    () => attachmentCache.get(cacheKey) || []
+  );
   const [isUploading, setIsUploading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(!attachmentCache.has(cacheKey));
   const [expandedAttachment, setExpandedAttachment] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [editingAttachmentId, setEditingAttachmentId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const [headerPromptUrl, setHeaderPromptUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchAttachments = useCallback(async () => {
-    try {
-      setIsFetching(true);
-      const response = await fetch(`/api/boards/${boardId}/cards/${cardId}/attachments`);
-      const data = await response.json();
-      if (data.success) {
-        setAttachments(data.data);
-        onAttachmentCountChange?.(data.data.length);
-        onAttachmentsChange?.(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch attachments:', error);
-    } finally {
-      setIsFetching(false);
-    }
-  }, [boardId, cardId, onAttachmentCountChange, onAttachmentsChange]);
-
+  // Fetch attachments — only show loading spinner if no cached data
   useEffect(() => {
-    fetchAttachments();
-  }, [fetchAttachments]);
+    const key = `${boardId}:${cardId}`;
+    const hasCached = attachmentCache.has(key);
+    if (!hasCached) setIsFetching(true);
+
+    fetch(`/api/boards/${boardId}/cards/${cardId}/attachments`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setAttachments(data.data);
+          attachmentCache.set(key, data.data);
+          onAttachmentCountChange?.(data.data.length);
+          onAttachmentsChange?.(data.data);
+        }
+      })
+      .catch(error => console.error('Failed to fetch attachments:', error))
+      .finally(() => setIsFetching(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId, cardId]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -146,10 +153,17 @@ export function AttachmentSection({
 
         const attachmentData = await attachmentResponse.json();
         if (attachmentData.success) {
-          const newAttachments = [attachmentData.data, ...attachments];
-          setAttachments(newAttachments);
-          onAttachmentCountChange?.(newAttachments.length);
-          onAttachmentsChange?.(newAttachments);
+          setAttachments(prev => {
+            const updated = [attachmentData.data, ...prev];
+            onAttachmentCountChange?.(updated.length);
+            onAttachmentsChange?.(updated);
+            return updated;
+          });
+
+          // Prompt to set as header if it's an image and no header is set
+          if (isImageType(uploadData.data.type) && !featureImageUrl && onSetAsHeader) {
+            setHeaderPromptUrl(uploadData.data.url);
+          }
         }
       }
     } catch (error) {
@@ -162,22 +176,20 @@ export function AttachmentSection({
     }
   };
 
-  const handleDelete = async (attachmentId: string) => {
-    try {
-      const response = await fetch(
-        `/api/boards/${boardId}/cards/${cardId}/attachments/${attachmentId}`,
-        { method: 'DELETE' }
-      );
+  const handleDelete = (attachmentId: string) => {
+    // Optimistic: remove from UI immediately
+    setAttachments(prev => {
+      const updated = prev.filter(a => a.id !== attachmentId);
+      onAttachmentCountChange?.(updated.length);
+      onAttachmentsChange?.(updated);
+      return updated;
+    });
 
-      if (response.ok) {
-        const newAttachments = attachments.filter((a) => a.id !== attachmentId);
-        setAttachments(newAttachments);
-        onAttachmentCountChange?.(newAttachments.length);
-        onAttachmentsChange?.(newAttachments);
-      }
-    } catch (error) {
-      console.error('Failed to delete attachment:', error);
-    }
+    // Fire-and-forget
+    fetch(
+      `/api/boards/${boardId}/cards/${cardId}/attachments/${attachmentId}`,
+      { method: 'DELETE' }
+    ).catch(error => console.error('Failed to delete attachment:', error));
   };
 
   const startRenaming = (attachment: AttachmentWithComments) => {
@@ -292,6 +304,35 @@ export function AttachmentSection({
           )}
         </Button>
       </div>
+
+      {/* Header image prompt */}
+      {headerPromptUrl && onSetAsHeader && (
+        <div className="flex items-center gap-2 rounded-md border border-card-task/30 bg-card-task/5 px-3 py-2">
+          <ImageIcon className="h-4 w-4 shrink-0 text-card-task" />
+          <span className="flex-1 text-caption text-text-secondary">
+            Set as header image?
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-tiny text-card-task hover:bg-card-task/10"
+            onClick={() => {
+              onSetAsHeader(headerPromptUrl);
+              setHeaderPromptUrl(null);
+            }}
+          >
+            Yes
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-tiny text-text-tertiary"
+            onClick={() => setHeaderPromptUrl(null)}
+          >
+            No
+          </Button>
+        </div>
+      )}
 
       {/* Attachments List */}
       {attachments.length > 0 && (

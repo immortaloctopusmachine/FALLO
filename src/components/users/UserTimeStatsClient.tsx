@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Clock, Calendar, TrendingUp, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, Calendar, TrendingUp, Loader2, Briefcase, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -53,6 +53,9 @@ interface TimeStats {
   thisWeekFormatted: string;
   thisMonthMs: number;
   thisMonthFormatted: string;
+  effectiveWorkDays: number;
+  daysWithLogs: number;
+  avgHoursPerDay: number;
   timeByPhase: PhaseTime[];
 }
 
@@ -224,7 +227,7 @@ export function UserTimeStatsClient({
         ) : (
           <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="rounded-lg border border-border bg-surface p-4">
                 <div className="flex items-center justify-between pb-2">
                   <span className="text-caption font-medium text-text-secondary">
@@ -271,6 +274,36 @@ export function UserTimeStatsClient({
                 </div>
                 <p className="text-caption text-text-tertiary mt-1">
                   Current month
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <div className="flex items-center justify-between pb-2">
+                  <span className="text-caption font-medium text-text-secondary">
+                    Work Days
+                  </span>
+                  <Briefcase className="h-4 w-4 text-text-tertiary" />
+                </div>
+                <div className="text-2xl font-bold">
+                  {stats?.effectiveWorkDays ?? 0}
+                </div>
+                <p className="text-caption text-text-tertiary mt-1">
+                  Effective days (8h = 1 day)
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <div className="flex items-center justify-between pb-2">
+                  <span className="text-caption font-medium text-text-secondary">
+                    Avg Hours/Day
+                  </span>
+                  <BarChart3 className="h-4 w-4 text-text-tertiary" />
+                </div>
+                <div className="text-2xl font-bold">
+                  {stats?.avgHoursPerDay ?? 0}h
+                </div>
+                <p className="text-caption text-text-tertiary mt-1">
+                  Across {stats?.daysWithLogs ?? 0} active days
                 </p>
               </div>
             </div>

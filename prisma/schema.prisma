@@ -435,6 +435,7 @@ model Board {
   spineTrackerData SpineTrackerData?
 
   @@index([teamId])
+  @@index([isTemplate, archivedAt, name])
   @@map("boards")
 }
 
@@ -500,6 +501,7 @@ model BoardMember {
   board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
   @@unique([userId, boardId])
+  @@index([boardId])
   @@map("board_members")
 }
 
@@ -529,6 +531,7 @@ model List {
   timeLogs      TimeLog[]
 
   @@index([boardId])
+  @@index([boardId, position])
   @@index([viewType])
   @@map("lists")
 }
@@ -571,6 +574,7 @@ model Card {
   timeLogs TimeLog[]
 
   @@index([listId])
+  @@index([listId, archivedAt, position])
   @@index([parentId])
   @@index([type])
   @@map("cards")
@@ -664,6 +668,7 @@ model CardUser {
   card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cardId])
+  @@index([cardId])
   @@map("card_users")
 }
 
@@ -797,6 +802,7 @@ model TimelineBlock {
   list   List?   @relation(fields: [listId], references: [id])
 
   @@index([boardId])
+  @@index([boardId, position])
   @@map("timeline_blocks")
 }
 
@@ -836,6 +842,7 @@ model TimelineEvent {
   eventType   EventType @relation(fields: [eventTypeId], references: [id])
 
   @@index([boardId])
+  @@index([boardId, startDate])
   @@map("timeline_events")
 }
 
