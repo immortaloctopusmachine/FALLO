@@ -190,17 +190,42 @@ export function HomePageClient() {
   const hasEvaluatorRole = data.user.evaluatorRoles.length > 0;
 
   return (
-    <div className="flex-1 overflow-auto p-6">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <div className="rounded-lg border border-border bg-surface p-5">
-          <h1 className="text-heading font-semibold">Welcome back, {viewerName}</h1>
-          <p className="mt-1 text-body text-text-secondary">
+    <div className="home-page flex-1 overflow-auto p-6">
+      <div className="home-shell mx-auto w-full max-w-7xl space-y-6">
+        <div className="home-hero rounded-lg border border-border bg-surface p-5">
+          <h1 className="home-hero-title text-heading font-semibold">Welcome back, {viewerName}</h1>
+          <p className="home-hero-subtitle mt-1 text-body text-text-secondary">
             Personalized overview of your tasks, boards, reviews, and notifications.
           </p>
+          <div className="home-hero-actions mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href="/boards"
+              className="home-cta home-cta-primary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Open Boards
+            </Link>
+            {hasEvaluatorRole && (
+              <Link
+                href="/timeline"
+                className="home-cta home-cta-secondary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+              >
+                <Calendar className="h-4 w-4" />
+                Open Timeline
+              </Link>
+            )}
+            <Link
+              href="/projects"
+              className="home-cta home-cta-secondary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+            >
+              <FolderKanban className="h-4 w-4" />
+              Open Projects
+            </Link>
+          </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-lg border border-border bg-surface p-4">
+        <div className="home-stats-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">My Open Tasks</span>
               <ListChecks className="h-4 w-4 text-text-tertiary" />
@@ -209,7 +234,7 @@ export function HomePageClient() {
             <div className="mt-1 text-caption text-text-tertiary">{data.stats.dueSoonCount} due soon</div>
           </div>
 
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">My Boards</span>
               <LayoutGrid className="h-4 w-4 text-text-tertiary" />
@@ -218,7 +243,7 @@ export function HomePageClient() {
             <div className="mt-1 text-caption text-text-tertiary">{data.stats.myProjectCount} active projects</div>
           </div>
 
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">Pending Reviews</span>
               <CheckCircle2 className="h-4 w-4 text-text-tertiary" />
@@ -229,7 +254,7 @@ export function HomePageClient() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">Unread Notifications</span>
               <Bell className="h-4 w-4 text-text-tertiary" />
@@ -241,35 +266,9 @@ export function HomePageClient() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/boards"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
-          >
-            <LayoutGrid className="h-4 w-4" />
-            Open Boards
-          </Link>
-          {hasEvaluatorRole && (
-            <Link
-              href="/timeline"
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
-            >
-              <Calendar className="h-4 w-4" />
-              Open Timeline
-            </Link>
-          )}
-          <Link
-            href="/projects"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
-          >
-            <FolderKanban className="h-4 w-4" />
-            Open Projects
-          </Link>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-          <section className="rounded-lg border border-border bg-surface">
-            <header className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="home-content-grid grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+          <section className="home-panel rounded-lg border border-border bg-surface">
+            <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
               <h2 className="font-medium">My Tasks</h2>
               <span className="text-caption text-text-tertiary">{data.myTasks.length}</span>
             </header>
@@ -284,7 +283,7 @@ export function HomePageClient() {
                     key={task.id}
                     href={`/boards/${task.boardId}`}
                     onMouseEnter={() => prefetchBoard(task.boardId)}
-                    className="block px-4 py-3 hover:bg-surface-hover"
+                    className="home-list-row block px-4 py-3 hover:bg-surface-hover"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -307,7 +306,7 @@ export function HomePageClient() {
                           </span>
                         )}
                         {task.storyPoints !== null && (
-                          <span className="rounded bg-surface-hover px-2 py-0.5 text-caption text-text-tertiary">
+                          <span className="home-badge-inline rounded bg-surface-hover px-2 py-0.5 text-caption text-text-tertiary">
                             {task.storyPoints} SP
                           </span>
                         )}
@@ -326,8 +325,8 @@ export function HomePageClient() {
 
           <div className="space-y-6">
             {hasEvaluatorRole && (
-              <section className="rounded-lg border border-border bg-surface">
-                <header className="flex items-center justify-between border-b border-border px-4 py-3">
+              <section className="home-panel rounded-lg border border-border bg-surface">
+                <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
                   <h2 className="font-medium">Pending Reviews</h2>
                   <span className="text-caption text-text-tertiary">{data.pendingEvaluations.length}</span>
                 </header>
@@ -342,7 +341,7 @@ export function HomePageClient() {
                         key={item.id}
                         href={`/boards/${item.boardId}`}
                         onMouseEnter={() => prefetchBoard(item.boardId)}
-                        className="block px-4 py-3 hover:bg-surface-hover"
+                        className="home-list-row block px-4 py-3 hover:bg-surface-hover"
                       >
                         <div className="truncate text-body font-medium text-text-primary">{item.cardTitle}</div>
                         <div className="mt-0.5 text-caption text-text-secondary">
@@ -355,8 +354,8 @@ export function HomePageClient() {
               </section>
             )}
 
-            <section className="rounded-lg border border-border bg-surface">
-              <header className="flex items-center justify-between border-b border-border px-4 py-3">
+            <section className="home-panel rounded-lg border border-border bg-surface">
+              <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
                 <h2 className="font-medium">Notifications</h2>
                 <span className="text-caption text-text-tertiary">{data.notifications.length}</span>
               </header>
@@ -368,8 +367,8 @@ export function HomePageClient() {
                     <div
                       key={notification.id}
                       className={cn(
-                        'px-4 py-3',
-                        !notification.read && 'bg-primary/5'
+                        'home-list-row px-4 py-3',
+                        !notification.read && 'home-unread-row bg-primary/5'
                       )}
                     >
                       <div className="truncate text-body font-medium text-text-primary">{notification.title}</div>
@@ -385,8 +384,8 @@ export function HomePageClient() {
               )}
             </section>
 
-            <section className="rounded-lg border border-border bg-surface">
-              <header className="flex items-center justify-between border-b border-border px-4 py-3">
+            <section className="home-panel rounded-lg border border-border bg-surface">
+              <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
                 <h2 className="font-medium">My Boards</h2>
                 <span className="text-caption text-text-tertiary">{data.myBoards.length}</span>
               </header>
@@ -399,7 +398,7 @@ export function HomePageClient() {
                       key={board.id}
                       href={`/boards/${board.id}`}
                       onMouseEnter={() => prefetchBoard(board.id)}
-                      className="block px-4 py-3 hover:bg-surface-hover"
+                      className="home-list-row block px-4 py-3 hover:bg-surface-hover"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -408,7 +407,7 @@ export function HomePageClient() {
                             {board.team?.name || 'No team'} - {board.memberCount} members
                           </div>
                         </div>
-                        <span className="rounded bg-surface-hover px-2 py-0.5 text-caption text-text-tertiary">
+                        <span className="home-badge-inline rounded bg-surface-hover px-2 py-0.5 text-caption text-text-tertiary">
                           {board.permission}
                         </span>
                       </div>

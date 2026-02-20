@@ -580,6 +580,9 @@
     font-size: 0.76rem;
     font-weight: 700;
     min-height: 2.2rem;
+    gap: 0;
+    padding-left: 0.68rem;
+    padding-right: 0.68rem;
   }
 
   .douala .global-top-header nav a.global-nav-item:hover {
@@ -593,6 +596,35 @@
     background: linear-gradient(180deg, var(--douala-red-bright), var(--douala-red));
     color: #FFF9EF;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+
+  .douala .global-top-header .global-nav-item .sparkle-icon-chip {
+    display: none;
+  }
+
+  .douala .global-nav-actions > .text-body.text-text-secondary {
+    display: none;
+  }
+
+  .douala .global-skin-trigger {
+    min-width: 5.4rem;
+    border-color: rgba(255, 140, 140, 0.72);
+    background: linear-gradient(180deg, var(--douala-red-bright), var(--douala-red));
+    color: #FFF9EF;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .douala .global-skin-trigger:hover {
+    border-color: rgba(255, 181, 181, 0.82);
+    background: linear-gradient(180deg, #FF6060, #DE2A2A);
+    color: #FFFDF8;
+  }
+
+  .douala .global-skin-trigger .text-tiny {
+    font-size: 0.64rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
   }
 
   .douala .sparkle-icon-chip {
@@ -765,6 +797,164 @@
   .douala main > * {
     position: relative;
     z-index: 1;
+  }
+
+  .douala .home-hero {
+    position: relative;
+    overflow: hidden;
+    border-color: rgba(255, 210, 74, 0.42);
+    background:
+      linear-gradient(180deg, rgba(43, 105, 201, 0.96) 0%, rgba(18, 57, 122, 0.98) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 8px 20px rgba(4, 12, 34, 0.34);
+  }
+
+  .douala .home-hero::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 8px;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        90deg,
+        var(--douala-red) 0%,
+        var(--douala-red) 42%,
+        rgba(255, 255, 255, 0.92) 42%,
+        rgba(255, 255, 255, 0.92) 58%,
+        var(--douala-gold) 58%,
+        var(--douala-gold) 100%
+      );
+  }
+
+  .douala .home-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.42;
+    background:
+      radial-gradient(circle at 86% 22%, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0) 38%);
+  }
+
+  .douala .home-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .douala .home-hero-title {
+    color: var(--douala-gold-bright);
+    font-size: 1.82rem;
+    line-height: 1.06;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .douala .home-hero-subtitle {
+    color: #FFF4D6;
+    max-width: 56ch;
+  }
+
+  .douala .home-hero-actions .home-cta {
+    min-height: 2.5rem;
+    border-width: 1px;
+    font-weight: 700;
+    letter-spacing: 0.035em;
+    text-transform: uppercase;
+  }
+
+  .douala .home-hero-actions .home-cta svg {
+    width: 0.92rem;
+    height: 0.92rem;
+  }
+
+  .douala .home-hero-actions .home-cta-primary {
+    border-color: rgba(255, 150, 150, 0.8);
+    background: linear-gradient(180deg, #FF6060, #DE2A2A);
+    color: #FFFDF6;
+  }
+
+  .douala .home-hero-actions .home-cta-primary:hover {
+    background: linear-gradient(180deg, #FF7171, #EA3030);
+  }
+
+  .douala .home-hero-actions .home-cta-secondary {
+    border-color: rgba(255, 232, 141, 0.44);
+    background: linear-gradient(180deg, rgba(45, 110, 219, 0.92), rgba(18, 49, 106, 0.98));
+    color: #FFF6DE;
+  }
+
+  .douala .home-hero-actions .home-cta-secondary:hover {
+    border-color: rgba(255, 232, 141, 0.62);
+    background: linear-gradient(180deg, rgba(58, 123, 235, 0.96), rgba(23, 59, 126, 1));
+  }
+
+  .douala .home-stats-grid .home-stat-card {
+    border-color: rgba(255, 210, 74, 0.34);
+    background:
+      linear-gradient(180deg, rgba(31, 76, 157, 0.9) 0%, rgba(13, 38, 90, 0.96) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 4px 14px rgba(4, 12, 34, 0.32);
+  }
+
+  .douala .home-stats-grid .home-stat-card:nth-child(2n) {
+    background:
+      linear-gradient(180deg, rgba(35, 88, 178, 0.9) 0%, rgba(16, 44, 102, 0.96) 100%);
+  }
+
+  .douala .home-stats-grid .home-stat-card .text-caption {
+    color: #FFE7A4;
+  }
+
+  .douala .home-stats-grid .home-stat-card .text-2xl {
+    color: #FFFDF6;
+  }
+
+  .douala .home-panel {
+    border-color: rgba(255, 210, 74, 0.32);
+    background:
+      linear-gradient(180deg, rgba(25, 64, 133, 0.92) 0%, rgba(10, 31, 73, 0.97) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 6px 16px rgba(4, 11, 30, 0.34);
+  }
+
+  .douala .home-panel-header {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+      linear-gradient(180deg, rgba(35, 83, 169, 0.78), rgba(19, 47, 104, 0.88));
+    border-bottom-color: rgba(255, 210, 74, 0.28);
+  }
+
+  .douala .home-panel-header h2 {
+    color: var(--douala-gold-bright);
+    font-size: 0.86rem;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .douala .home-list-row {
+    transition: background-color 0.12s ease;
+  }
+
+  .douala .home-list-row:hover {
+    background: rgba(255, 210, 74, 0.1);
+  }
+
+  .douala .home-unread-row {
+    background: rgba(231, 45, 45, 0.14);
+  }
+
+  .douala .home-badge-inline {
+    border: 1px solid rgba(255, 210, 74, 0.3);
+    background: rgba(8, 22, 56, 0.52);
+    color: #FFE9B0;
   }
 
   /* Retro Market skin: warm paper, heavy ink borders, rainbow strip accents */

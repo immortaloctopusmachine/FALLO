@@ -178,7 +178,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   return (
     <header className="global-top-header border-b border-border bg-surface px-6 py-4">
       <div className="flex items-center justify-between">
-        <nav className="flex items-center gap-1">
+        <nav className="global-nav-links flex items-center gap-1">
           <Link
             href="/home"
             className="mr-2 inline-flex h-8 items-center justify-center rounded-md px-1"
@@ -236,7 +236,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
             );
           })}
         </nav>
-        <div className="flex items-center gap-4">
+        <div className="global-nav-actions flex items-center gap-4">
           <NotificationBell />
           <span className="text-body text-text-secondary">
             {userName || userEmail}
@@ -245,7 +245,10 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
+                className={cn(
+                  'global-skin-trigger inline-flex items-center justify-center rounded-md border border-border text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors',
+                  isDoualaTheme ? 'h-9 gap-1 px-3' : 'h-8 w-8'
+                )}
                 title="Choose skin"
                 aria-label="Choose skin"
               >
@@ -257,6 +260,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                   customSrc={getConfiguredSkinIconPath(theme, activeSkinAssets, themeToggleIcon.iconName)}
                   className="h-4 w-4"
                 />
+                {isDoualaTheme && <span className="text-tiny tracking-wide">Skin</span>}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
