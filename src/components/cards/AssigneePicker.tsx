@@ -18,6 +18,7 @@ interface AssigneePickerProps {
   assignees: CardAssignee[];
   boardId: string;
   cardId: string;
+  boardMembers?: BoardMember[];
   onUpdate: (assignees: CardAssignee[]) => void;
 }
 
@@ -25,10 +26,15 @@ export function AssigneePicker({
   assignees,
   boardId,
   cardId,
+  boardMembers: preloadedBoardMembers = [],
   onUpdate,
 }: AssigneePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>(preloadedBoardMembers);
+
+  useEffect(() => {
+    setBoardMembers(preloadedBoardMembers);
+  }, [preloadedBoardMembers]);
 
   useEffect(() => {
     const fetchBoardMembers = async () => {
@@ -43,10 +49,10 @@ export function AssigneePicker({
       }
     };
 
-    if (isOpen) {
+    if (isOpen && boardMembers.length === 0) {
       fetchBoardMembers();
     }
-  }, [isOpen, boardId]);
+  }, [isOpen, boardId, boardMembers.length]);
 
   const handleAssign = async (userId: string) => {
     const member = boardMembers.find((m) => m.userId === userId);

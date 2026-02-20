@@ -81,6 +81,15 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
 
   const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
 
+  // Pre-compute review list IDs so drag handlers avoid repeated toLowerCase checks.
+  const reviewListIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const list of board.lists) {
+      if (list.name.toLowerCase().includes('review')) ids.add(list.id);
+    }
+    return ids;
+  }, [board.lists]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const activeData = active.data.current;
@@ -152,7 +161,7 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
     });
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (!activeCard || !activeCardListId) {
@@ -213,10 +222,8 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
     }
 
     // Check if moving to a review list (and not already from a review list)
-    const destList = board.lists.find(l => l.id === destinationListId);
-    const srcList = board.lists.find(l => l.id === sourceListId);
-    const isMovingToReview = destList && destList.name.toLowerCase().includes('review');
-    const isFromReview = srcList && srcList.name.toLowerCase().includes('review');
+    const isMovingToReview = reviewListIds.has(destinationListId);
+    const isFromReview = reviewListIds.has(sourceListId);
 
     if (isMovingToReview && !isFromReview) {
       // Defer persist — show review submission dialog first
@@ -231,46 +238,41 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
       return;
     }
 
-    // Persist to server
-    try {
-      await mutations.reorderCard({
-        cardId: activeCard.id,
-        sourceListId,
-        destinationListId,
-        newPosition,
-      });
-    } catch (error) {
-      console.error('Failed to reorder card:', error);
-      if (boardSnapshotRef.current) {
-        setBoard(boardSnapshotRef.current);
-      }
-      toast.error('Failed to move card');
-    }
-
+    const movedCardId = activeCard.id;
     boardSnapshotRef.current = null;
     setActiveCard(null);
     setActiveCardListId(null);
+
+    // Persist in background so drag feels instant.
+    mutations.reorderCard({
+      cardId: movedCardId,
+      sourceListId,
+      destinationListId,
+      newPosition,
+    }).catch((error) => {
+      console.error('Failed to reorder card:', error);
+      toast.error('Failed to move card');
+      mutations.invalidateBoard();
+    });
   };
 
   // Review submission dialog callbacks
-  const handleReviewSubmitted = async () => {
+  const handleReviewSubmitted = () => {
     if (!pendingReviewMove) return;
-    try {
-      await mutations.reorderCard({
-        cardId: pendingReviewMove.card.id,
-        sourceListId: pendingReviewMove.sourceListId,
-        destinationListId: pendingReviewMove.destinationListId,
-        newPosition: pendingReviewMove.newPosition,
-      });
-    } catch (error) {
-      console.error('Failed to move card:', error);
-      if (boardSnapshotRef.current) {
-        setBoard(boardSnapshotRef.current);
-      }
-      toast.error('Failed to move card');
-    }
+    const move = pendingReviewMove;
     boardSnapshotRef.current = null;
     setPendingReviewMove(null);
+
+    mutations.reorderCard({
+      cardId: move.card.id,
+      sourceListId: move.sourceListId,
+      destinationListId: move.destinationListId,
+      newPosition: move.newPosition,
+    }).catch((error) => {
+      console.error('Failed to move card:', error);
+      toast.error('Failed to move card');
+      mutations.invalidateBoard();
+    });
   };
 
   const handleReviewCancelled = () => {
@@ -282,7 +284,7 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
   };
 
   // Review mode card moved handler
-  const handleReviewModeCardMoved = async (cardId: string, targetListId: string) => {
+  const handleReviewModeCardMoved = (cardId: string, targetListId: string) => {
     if (!reviewModeListId) return;
 
     // Optimistic update
@@ -304,17 +306,16 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
       return { ...prev, lists: newLists };
     });
 
-    try {
-      await mutations.reorderCard({
-        cardId,
-        sourceListId: reviewModeListId,
-        destinationListId: targetListId,
-        newPosition: 0,
-      });
-    } catch (error) {
+    mutations.reorderCard({
+      cardId,
+      sourceListId: reviewModeListId,
+      destinationListId: targetListId,
+      newPosition: 0,
+    }).catch((error) => {
       console.error('Failed to move card:', error);
       toast.error('Failed to move card');
-    }
+      mutations.invalidateBoard();
+    });
   };
 
   // Custom collision detection that prefers cards but falls back to lists
@@ -547,7 +548,7 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
     >
       <div className="flex h-full gap-4 overflow-x-auto p-4">
         {board.lists.map((list) => {
-          const isReviewList = list.name.toLowerCase().includes('review');
+          const isReviewList = reviewListIds.has(list.id);
           return (
           <SortableContext
             key={list.id}
@@ -647,6 +648,7 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
         canViewQualitySummaries={canViewQualitySummaries}
+        boardMembers={board.members}
         allCards={allCards}
       />
 

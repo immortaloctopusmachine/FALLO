@@ -70,6 +70,7 @@ interface ListProps {
   renderSecondaryCardActions?: (card: Card) => ReactNode;
   extraHeaderActions?: ReactNode;
   useTwoRowHeaderActions?: boolean; // Move add/actions icons to a second header row
+  onCardHover?: (card: Card) => void; // Prefetch card details on hover
 }
 
 // Get subtle tint style based on list name — uses backgroundImage so it layers on top of bg-surface
@@ -129,6 +130,7 @@ export function List({
   renderSecondaryCardActions,
   extraHeaderActions,
   useTwoRowHeaderActions = false,
+  onCardHover,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -440,12 +442,15 @@ export function List({
         data-list-cards-scroll="true"
       >
         {cards.map((card) => (
-          <CardCompact
+          <div
             key={card.id}
-            card={card}
-            onClick={() => onCardClick(card)}
-
-          />
+            onMouseEnter={onCardHover ? () => onCardHover(card) : undefined}
+          >
+            <CardCompact
+              card={card}
+              onClick={() => onCardClick(card)}
+            />
+          </div>
         ))}
 
         {/* Empty state drop zone */}
@@ -475,7 +480,11 @@ export function List({
 
               <div className="space-y-2">
                 {secondaryCards.map((card) => (
-                  <div key={`secondary-${card.id}`} className="space-y-1">
+                  <div
+                    key={`secondary-${card.id}`}
+                    className="space-y-1"
+                    onMouseEnter={onCardHover ? () => onCardHover(card) : undefined}
+                  >
                     <CardCompact
                       card={card}
                       onClick={() => onCardClick(card)}

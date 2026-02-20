@@ -38,6 +38,7 @@ interface AttachmentSectionProps {
   highlightAttachmentId?: string | null;
   featureImageUrl?: string | null;
   onSetAsHeader?: (url: string) => void;
+  initialAttachments?: AttachmentWithComments[];  // Pre-fetched via hover prefetch
 }
 
 // Module-level cache: show cached data instantly when reopening same card
@@ -75,13 +76,15 @@ export function AttachmentSection({
   highlightAttachmentId,
   featureImageUrl,
   onSetAsHeader,
+  initialAttachments,
 }: AttachmentSectionProps) {
   const cacheKey = `${boardId}:${cardId}`;
+  const hasSeedData = initialAttachments !== undefined || attachmentCache.has(cacheKey);
   const [attachments, setAttachments] = useState<AttachmentWithComments[]>(
-    () => attachmentCache.get(cacheKey) || []
+    () => initialAttachments ?? attachmentCache.get(cacheKey) ?? []
   );
   const [isUploading, setIsUploading] = useState(false);
-  const [isFetching, setIsFetching] = useState(!attachmentCache.has(cacheKey));
+  const [isFetching, setIsFetching] = useState(!hasSeedData);
   const [expandedAttachment, setExpandedAttachment] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
@@ -92,11 +95,25 @@ export function AttachmentSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch attachments — only show loading spinner if no cached data
+  // Seed from prefetched data when it arrives after mount
+  const prevInitialRef = useRef(initialAttachments);
+  useEffect(() => {
+    if (initialAttachments && initialAttachments !== prevInitialRef.current) {
+      setAttachments(initialAttachments);
+      attachmentCache.set(`${boardId}:${cardId}`, initialAttachments);
+      onAttachmentCountChange?.(initialAttachments.length);
+      onAttachmentsChange?.(initialAttachments);
+      setIsFetching(false);
+    }
+    prevInitialRef.current = initialAttachments;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAttachments]);
+
+  // Fetch attachments — show cached/prefetched data instantly, background refresh
   useEffect(() => {
     const key = `${boardId}:${cardId}`;
-    const hasCached = attachmentCache.has(key);
-    if (!hasCached) setIsFetching(true);
+    const hasSeed = initialAttachments !== undefined || attachmentCache.has(key);
+    if (!hasSeed) setIsFetching(true);
 
     fetch(`/api/boards/${boardId}/cards/${cardId}/attachments`)
       .then(res => res.json())

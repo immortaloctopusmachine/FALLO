@@ -150,26 +150,28 @@ export async function GET(request: Request) {
         where: {
           archivedAt: { not: null },
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          isTemplate: true,
+          settings: true,
           members: {
-            include: {
+            select: {
+              id: true,
+              userId: true,
+              permission: true,
               user: {
                 select: {
                   id: true,
                   name: true,
-                  email: true,
                   image: true,
                 },
               },
             },
           },
           lists: {
-            orderBy: { position: 'asc' },
-            include: {
-              _count: {
-                select: { cards: true },
-              },
-            },
+            select: { id: true },
           },
         },
         orderBy: { archivedAt: 'desc' },
@@ -183,26 +185,28 @@ export async function GET(request: Request) {
       where: {
         archivedAt: null,
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isTemplate: true,
+        settings: true,
         members: {
-          include: {
+          select: {
+            id: true,
+            userId: true,
+            permission: true,
             user: {
               select: {
                 id: true,
                 name: true,
-                email: true,
                 image: true,
               },
             },
           },
         },
         lists: {
-          orderBy: { position: 'asc' },
-          include: {
-            _count: {
-              select: { cards: true },
-            },
-          },
+          select: { id: true },
         },
       },
       orderBy: { updatedAt: 'desc' },

@@ -25,6 +25,129 @@ import {
 
 const AUTO_SAVE_DELAY = 1500; // ms
 
+interface SpineTaskOption {
+  id: string;
+  title: string;
+  listName: string;
+}
+
+interface SpineTrackerSessionCacheEntry {
+  state: SpineTrackerState;
+  version: number;
+  saveStatus: Exclude<SaveStatus, 'loading'>;
+  selectedSkeletonId: string | null;
+  editMode: boolean;
+  searchQuery: string;
+  collapsedGroups: string[];
+  spineModules: SpineSkeletonModule[];
+  availableTaskOptions: SpineTaskOption[];
+  finalAssetsPath: string | null;
+  showGenericSkeletons: boolean;
+}
+
+const SPINE_TRACKER_SESSION_SCHEMA_VERSION = 1;
+const SPINE_TRACKER_SESSION_STORAGE_KEY_PREFIX = 'spine-tracker-session:';
+
+// Keep per-board Spine UI/data session in memory so switching board tabs can
+// restore instantly even if the component remounts.
+const spineTrackerSessionCache = new Map<string, SpineTrackerSessionCacheEntry>();
+
+function getSessionStorageKey(boardId: string): string {
+  return `${SPINE_TRACKER_SESSION_STORAGE_KEY_PREFIX}${boardId}`;
+}
+
+function stripPreviewImagesFromState(state: SpineTrackerState): SpineTrackerState {
+  return {
+    ...state,
+    skeletons: state.skeletons.map((skeleton) => ({
+      ...skeleton,
+      // Keep session payload small enough for sessionStorage.
+      previewImageDataUrl: null,
+    })),
+  };
+}
+
+function readSessionFromStorage(boardId: string): SpineTrackerSessionCacheEntry | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(getSessionStorageKey(boardId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as {
+      schemaVersion?: number;
+      session?: Partial<SpineTrackerSessionCacheEntry>;
+    };
+
+    if (parsed.schemaVersion !== SPINE_TRACKER_SESSION_SCHEMA_VERSION || !parsed.session) {
+      return null;
+    }
+
+    const session = parsed.session;
+    if (!session.state) {
+      return null;
+    }
+
+    const rawSaveStatus = session.saveStatus as SaveStatus | undefined;
+    const normalizedSaveStatus: Exclude<SaveStatus, 'loading'> =
+      rawSaveStatus && rawSaveStatus !== 'loading'
+        ? (rawSaveStatus as Exclude<SaveStatus, 'loading'>)
+        : 'saved';
+
+    return {
+      state: normalizeLoadedState(session.state),
+      version: typeof session.version === 'number' ? session.version : 1,
+      saveStatus: normalizedSaveStatus,
+      selectedSkeletonId:
+        typeof session.selectedSkeletonId === 'string' ? session.selectedSkeletonId : null,
+      editMode: Boolean(session.editMode),
+      searchQuery: typeof session.searchQuery === 'string' ? session.searchQuery : '',
+      collapsedGroups: Array.isArray(session.collapsedGroups) ? session.collapsedGroups : [],
+      spineModules: Array.isArray(session.spineModules) ? session.spineModules : [],
+      availableTaskOptions: Array.isArray(session.availableTaskOptions)
+        ? session.availableTaskOptions
+        : [],
+      finalAssetsPath: session.finalAssetsPath ?? null,
+      showGenericSkeletons: Boolean(session.showGenericSkeletons),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getCachedSession(boardId: string): SpineTrackerSessionCacheEntry | null {
+  const inMemory = spineTrackerSessionCache.get(boardId);
+  if (inMemory) {
+    return inMemory;
+  }
+
+  const fromStorage = readSessionFromStorage(boardId);
+  if (fromStorage) {
+    spineTrackerSessionCache.set(boardId, fromStorage);
+  }
+
+  return fromStorage;
+}
+
+function writeSessionToStorage(boardId: string, session: SpineTrackerSessionCacheEntry) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(
+      getSessionStorageKey(boardId),
+      JSON.stringify({
+        schemaVersion: SPINE_TRACKER_SESSION_SCHEMA_VERSION,
+        session: {
+          ...session,
+          state: stripPreviewImagesFromState(session.state),
+        },
+      })
+    );
+  } catch {
+    // Ignore quota or serialization failures.
+  }
+}
+
 function mapLegacyStatus(value: string | undefined): SkeletonStatus {
   if (value === 'in_progress' || value === 'exported') {
     return 'ready_to_be_implemented';
@@ -87,25 +210,37 @@ interface UseSpineTrackerOptions {
   boardId: string;
 }
 
-interface SpineTaskOption {
-  id: string;
-  title: string;
-  listName: string;
-}
-
 export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
-  const [state, setState] = useState<SpineTrackerState>(createEmptyState());
-  const [version, setVersion] = useState(1);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('loading');
-  const [selectedSkeletonId, setSelectedSkeletonId] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [spineModules, setSpineModules] = useState<SpineSkeletonModule[]>([]);
-  const [availableTaskOptions, setAvailableTaskOptions] = useState<SpineTaskOption[]>([]);
-  const [finalAssetsPath, setFinalAssetsPath] = useState<string | null>(null);
+  const cachedSession = getCachedSession(boardId);
+
+  const [state, setState] = useState<SpineTrackerState>(
+    () => cachedSession?.state ?? createEmptyState()
+  );
+  const [version, setVersion] = useState(cachedSession?.version ?? 1);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(
+    cachedSession?.saveStatus ?? 'loading'
+  );
+  const [selectedSkeletonId, setSelectedSkeletonId] = useState<string | null>(
+    cachedSession?.selectedSkeletonId ?? null
+  );
+  const [editMode, setEditMode] = useState(cachedSession?.editMode ?? false);
+  const [searchQuery, setSearchQuery] = useState(cachedSession?.searchQuery ?? '');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(cachedSession?.collapsedGroups ?? [])
+  );
+  const [spineModules, setSpineModules] = useState<SpineSkeletonModule[]>(
+    () => cachedSession?.spineModules ?? []
+  );
+  const [availableTaskOptions, setAvailableTaskOptions] = useState<SpineTaskOption[]>(
+    () => cachedSession?.availableTaskOptions ?? []
+  );
+  const [finalAssetsPath, setFinalAssetsPath] = useState<string | null>(
+    cachedSession?.finalAssetsPath ?? null
+  );
   const [isUpdatingFinalAssetsPath, setIsUpdatingFinalAssetsPath] = useState(false);
-  const [showGenericSkeletons, setShowGenericSkeletons] = useState(false);
+  const [showGenericSkeletons, setShowGenericSkeletons] = useState(
+    cachedSession?.showGenericSkeletons ?? false
+  );
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
@@ -114,6 +249,39 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
   // Keep refs in sync
   stateRef.current = state;
   versionRef.current = version;
+
+  // Persist the current session snapshot for this board so it restores after remount.
+  useEffect(() => {
+    const sessionSnapshot: SpineTrackerSessionCacheEntry = {
+      state,
+      version,
+      saveStatus: saveStatus === 'loading' ? 'saved' : saveStatus,
+      selectedSkeletonId,
+      editMode,
+      searchQuery,
+      collapsedGroups: Array.from(collapsedGroups),
+      spineModules,
+      availableTaskOptions,
+      finalAssetsPath,
+      showGenericSkeletons,
+    };
+
+    spineTrackerSessionCache.set(boardId, sessionSnapshot);
+    writeSessionToStorage(boardId, sessionSnapshot);
+  }, [
+    boardId,
+    state,
+    version,
+    saveStatus,
+    selectedSkeletonId,
+    editMode,
+    searchQuery,
+    collapsedGroups,
+    spineModules,
+    availableTaskOptions,
+    finalAssetsPath,
+    showGenericSkeletons,
+  ]);
 
   // ============== API COMMUNICATION ==============
 
@@ -147,8 +315,10 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
     }
   }, [boardId]);
 
-  const fetchData = useCallback(async () => {
-    setSaveStatus('loading');
+  const fetchData = useCallback(async (options?: { background?: boolean }) => {
+    if (!options?.background) {
+      setSaveStatus('loading');
+    }
     try {
       const res = await fetch(`/api/boards/${boardId}/spine-tracker`);
       const json = await res.json();
@@ -157,9 +327,9 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
         setState(data);
         setVersion(json.data.version);
         setSaveStatus('saved');
-        // Collapse all groups initially
+        // Collapse all groups only on first-ever load when no UI collapse state exists.
         if (data.groupOrder) {
-          setCollapsedGroups(new Set(data.groupOrder));
+          setCollapsedGroups((prev) => (prev.size === 0 ? new Set(data.groupOrder) : prev));
         }
       } else {
         console.error('Failed to fetch spine tracker:', json.error);
@@ -205,12 +375,13 @@ export function useSpineTracker({ boardId }: UseSpineTrackerOptions) {
 
   // Load data on mount
   useEffect(() => {
-    fetchData();
+    const hasCachedSession = spineTrackerSessionCache.has(boardId);
+    void fetchData({ background: hasCachedSession });
     fetchSpineMeta();
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [fetchData, fetchSpineMeta]);
+  }, [boardId, fetchData, fetchSpineMeta]);
 
   // ============== STATE UPDATERS ==============
 

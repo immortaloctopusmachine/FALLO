@@ -21,6 +21,7 @@ import {
   Sun,
   Monitor,
   Gamepad2,
+  BarChart3,
   User,
   Users,
   Upload,
@@ -233,6 +234,7 @@ const THEME_LABELS: Record<UiTheme, string> = {
   douala: 'Douala',
   colordore: 'Colordore',
   pc98: 'PC-98',
+  retromarket: 'Retro Market',
 };
 
 const BACKGROUND_POSITION_OPTIONS = [
@@ -263,6 +265,7 @@ const ICON_FALLBACKS: Record<SkinIconName, LucideIcon> = {
   'toggle-douala': Flame,
   'toggle-colordore': Monitor,
   'toggle-pc98': Gamepad2,
+  'toggle-retromarket': BarChart3,
   'ornament-star': Star,
   'ornament-heart': Heart,
   'ornament-moon': Moon,

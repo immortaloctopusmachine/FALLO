@@ -25,7 +25,7 @@ import { TimeLogSection } from './TimeLogSection';
 import { CreateLinkedTasksModal } from './CreateLinkedTasksModal';
 import { CardQualityPanel } from './QualityReviewPanel';
 import { toast } from 'sonner';
-import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, BoardSettings, UserStoryFlag, UtilitySubtype, List, Attachment, TaskReleaseMode } from '@/types';
+import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, BoardSettings, UserStoryFlag, UtilitySubtype, List, Attachment, Comment, TaskReleaseMode } from '@/types';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
 import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
@@ -51,9 +51,12 @@ interface CardModalProps {
   isAdmin?: boolean;  // Whether current user is admin (for time log management)
   canViewQualitySummaries?: boolean;  // PO, Lead, Head of Art — can see Details/Quality tabs
   boardSettings?: BoardSettings;  // Board settings (for PO/Lead approvals)
+  boardMembers?: BoardMember[];  // Preloaded board members from board payload
   taskLists?: List[];  // Lists for TASKS view - used when creating linked tasks
   planningLists?: List[];  // Lists for PLANNING view - used when creating linked user stories
   allCards?: Card[];
+  prefetchedComments?: Comment[];  // Pre-fetched via hover prefetch
+  prefetchedAttachments?: (Attachment & { comments: Comment[] })[];  // Pre-fetched via hover prefetch
 }
 
 const cardTypeConfig = {
@@ -104,9 +107,12 @@ export function CardModal({
   isAdmin = false,
   canViewQualitySummaries = false,
   boardSettings = {},
+  boardMembers: initialBoardMembers = [],
   taskLists = [],
   planningLists = [],
   allCards = [],
+  prefetchedComments,
+  prefetchedAttachments,
 }: CardModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -136,7 +142,7 @@ export function CardModal({
   const [linkedEpic, setLinkedEpic] = useState<EpicCard | null>(null);
   const [isCreatingLinkedCard, setIsCreatingLinkedCard] = useState(false);
   const [isCreateLinkedTasksOpen, setIsCreateLinkedTasksOpen] = useState(false);
-  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>(initialBoardMembers);
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
   const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
   const [newLinkedTaskDestination, setNewLinkedTaskDestination] = useState<TaskReleaseMode>('IMMEDIATE');
@@ -390,9 +396,13 @@ export function CardModal({
     setActivePanelTab('details');
   }, [card?.id]);
 
+  useEffect(() => {
+    setBoardMembers(initialBoardMembers);
+  }, [initialBoardMembers]);
+
   const [availableTags, setAvailableTags] = useState<{ id: string; name: string }[]>([]);
 
-  // Fetch board members eagerly for TASK cards (approvals) or when linked tasks modal opens
+  // Fetch board members only when needed and not already preloaded by parent board payload.
   const needsMembers = (card?.type === 'TASK') || isCreateLinkedTasksOpen;
   useEffect(() => {
     if (needsMembers && boardMembers.length === 0) {
@@ -1256,14 +1266,16 @@ export function CardModal({
               <Label className="text-caption font-medium text-text-secondary">
                 Comments
               </Label>
-              <CommentsSection
-                boardId={boardId}
-                cardId={card.id}
-                currentUserId={currentUserId}
-                attachments={attachments}
-                onAttachmentClick={(attachment) => {
-                  // Highlight the attachment and scroll to it
-                  setHighlightedAttachmentId(attachment.id);
+                <CommentsSection
+                  boardId={boardId}
+                  cardId={card.id}
+                  currentUserId={currentUserId}
+                  attachments={attachments}
+                  boardMembers={boardMembers}
+                  initialComments={prefetchedComments}
+                  onAttachmentClick={(attachment) => {
+                    // Highlight the attachment and scroll to it
+                    setHighlightedAttachmentId(attachment.id);
                   // Scroll the attachment into view
                   const element = document.getElementById(`attachment-${attachment.id}`);
                   element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1304,6 +1316,7 @@ export function CardModal({
                 highlightAttachmentId={highlightedAttachmentId}
                 featureImageUrl={featureImage}
                 onSetAsHeader={(url) => setFeatureImage(url)}
+                initialAttachments={prefetchedAttachments}
               />
             </div>
           </div>
@@ -1323,6 +1336,7 @@ export function CardModal({
                   assignees={assignees}
                   boardId={boardId}
                   cardId={card.id}
+                  boardMembers={boardMembers}
                   onUpdate={handleAssigneesUpdate}
                 />
               </div>

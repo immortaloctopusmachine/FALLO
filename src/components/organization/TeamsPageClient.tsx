@@ -36,7 +36,7 @@ export function TeamsPageClient({ isAdmin }: TeamsPageClientProps) {
 
   return (
     <main className="p-6 flex-1">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between skin-backplate">
         <div>
           <h2 className="text-title font-medium text-text-secondary">
             All Teams ({teams.length})

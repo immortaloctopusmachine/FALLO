@@ -17,8 +17,19 @@ import { ReviewSubmissionComment } from './ReviewSubmissionComment';
 import type { Comment, Attachment, BoardMember } from '@/types';
 import { cn } from '@/lib/utils';
 
-// Module-level cache: show cached data instantly when reopening same card
+// Module-level LRU cache: show cached data instantly when reopening same card.
+// Capped at 30 entries to prevent memory growth in long sessions.
+const COMMENT_CACHE_MAX = 30;
 const commentCache = new Map<string, Comment[]>();
+function setCommentCache(key: string, value: Comment[]) {
+  commentCache.delete(key); // move to end (most-recent)
+  commentCache.set(key, value);
+  if (commentCache.size > COMMENT_CACHE_MAX) {
+    // delete oldest entry
+    const oldest = commentCache.keys().next().value;
+    if (oldest !== undefined) commentCache.delete(oldest);
+  }
+}
 
 interface MentionSuggestion {
   type: 'attachment' | 'user';
@@ -32,7 +43,9 @@ interface CommentsSectionProps {
   cardId: string;
   currentUserId?: string;
   attachments?: Attachment[];
+  boardMembers?: BoardMember[];
   onAttachmentClick?: (attachment: Attachment) => void;
+  initialComments?: Comment[];  // Pre-fetched via hover prefetch
 }
 
 export function CommentsSection({
@@ -40,18 +53,21 @@ export function CommentsSection({
   cardId,
   currentUserId,
   attachments = [],
+  boardMembers: preloadedBoardMembers = [],
   onAttachmentClick,
+  initialComments,
 }: CommentsSectionProps) {
   const cacheKey = `${boardId}:${cardId}`;
+  const hasSeedData = initialComments !== undefined || commentCache.has(cacheKey);
   const [comments, setComments] = useState<Comment[]>(
-    () => commentCache.get(cacheKey) || []
+    () => initialComments ?? commentCache.get(cacheKey) ?? []
   );
   const [newComment, setNewComment] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(!commentCache.has(cacheKey));
-  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([]);
+  const [isFetching, setIsFetching] = useState(!hasSeedData);
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>(preloadedBoardMembers);
 
   // Mention autocomplete state
   const [showMentionPicker, setShowMentionPicker] = useState(false);
@@ -61,12 +77,23 @@ export function CommentsSection({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionPickerRef = useRef<HTMLDivElement>(null);
+  const membersFetchPromiseRef = useRef<Promise<void> | null>(null);
 
-  // Fetch comments — show cached data instantly, background refresh
+  // Seed from prefetched data when it arrives after mount
+  const prevInitialRef = useRef(initialComments);
+  useEffect(() => {
+    if (initialComments && initialComments !== prevInitialRef.current) {
+      setComments(initialComments);
+      setIsFetching(false);
+    }
+    prevInitialRef.current = initialComments;
+  }, [initialComments]);
+
+  // Fetch comments — show cached/prefetched data instantly, background refresh
   useEffect(() => {
     const key = `${boardId}:${cardId}`;
-    const hasCached = commentCache.has(key);
-    if (!hasCached) setIsFetching(true);
+    const hasSeed = initialComments !== undefined || commentCache.has(key);
+    if (!hasSeed) setIsFetching(true);
 
     fetch(`/api/boards/${boardId}/cards/${cardId}/comments`)
       .then(res => {
@@ -79,31 +106,43 @@ export function CommentsSection({
       .then(data => {
         if (data?.success) {
           setComments(data.data);
-          commentCache.set(key, data.data);
+          setCommentCache(key, data.data);
         }
       })
       .catch(error => console.error('Failed to fetch comments:', error))
       .finally(() => setIsFetching(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, cardId]);
 
-  // Fetch board members for @mentions
+  // Keep member list in sync when parent already has board members loaded.
   useEffect(() => {
-    const fetchMembers = async () => {
-      try {
-        const response = await fetch(`/api/boards/${boardId}/members`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setBoardMembers(data.data);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch board members:', error);
-      }
-    };
+    setBoardMembers(preloadedBoardMembers);
+  }, [preloadedBoardMembers]);
 
-    fetchMembers();
-  }, [boardId]);
+  const ensureBoardMembers = useCallback(async () => {
+    if (boardMembers.length > 0) return;
+    if (membersFetchPromiseRef.current) {
+      await membersFetchPromiseRef.current;
+      return;
+    }
+
+    membersFetchPromiseRef.current = fetch(`/api/boards/${boardId}/members`)
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.success) {
+          setBoardMembers(data.data);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to fetch board members:', error);
+      })
+      .finally(() => {
+        membersFetchPromiseRef.current = null;
+      });
+
+    await membersFetchPromiseRef.current;
+  }, [boardId, boardMembers.length]);
 
   // Build mention suggestions based on query
   const mentionSuggestions = useMemo((): MentionSuggestion[] => {
@@ -155,7 +194,11 @@ export function CommentsSection({
 
       const data = await response.json();
       if (data.success) {
-        setComments([data.data, ...comments]);
+        setComments((prev) => {
+          const next = [data.data, ...prev];
+          setCommentCache(cacheKey, next);
+          return next;
+        });
         setNewComment('');
       }
     } catch (error) {
@@ -181,7 +224,11 @@ export function CommentsSection({
 
       const data = await response.json();
       if (data.success) {
-        setComments(comments.map((c) => (c.id === commentId ? data.data : c)));
+        setComments((prev) => {
+          const next = prev.map((c) => (c.id === commentId ? data.data : c));
+          setCommentCache(cacheKey, next);
+          return next;
+        });
         setEditingId(null);
         setEditContent('');
       }
@@ -200,7 +247,11 @@ export function CommentsSection({
       );
 
       if (response.ok) {
-        setComments(comments.filter((c) => c.id !== commentId));
+        setComments((prev) => {
+          const next = prev.filter((c) => c.id !== commentId);
+          setCommentCache(cacheKey, next);
+          return next;
+        });
       }
     } catch (error) {
       console.error('Failed to delete comment:', error);
@@ -296,6 +347,9 @@ export function CommentsSection({
         const hasSpace = /\s/.test(query.replace(/\[.*?\]/g, ''));
 
         if (!hasClosedBracket && !hasSpace) {
+          if (boardMembers.length === 0) {
+            void ensureBoardMembers();
+          }
           setMentionStartPos(lastAtIndex);
           // Remove leading [ if present (user started typing @[)
           setMentionQuery(query.replace(/^\[/, ''));

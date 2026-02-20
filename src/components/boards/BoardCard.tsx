@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api-client';
 import { Layers, FileText, MoreHorizontal, Copy, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -60,6 +61,15 @@ export function BoardCard({
   const bgStyle = settings ? getBoardBackgroundStyle(settings) : undefined;
   const canManage = isAdmin || isSuperAdmin;
   const canDelete = isArchived && canManage;
+
+  const prefetchBoardDetail = () => {
+    if (queryClient.getQueryData(['boards', id, 'light'])) return;
+    void queryClient.prefetchQuery({
+      queryKey: ['boards', id, 'light'],
+      queryFn: () => apiFetch(`/api/boards/${id}?scope=light`),
+      staleTime: 60_000,
+    });
+  };
 
   const invalidateBoardRelatedQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['boards'] });
@@ -250,6 +260,8 @@ export function BoardCard({
     >
       <Link
         href={`/boards/${id}`}
+        onMouseEnter={prefetchBoardDetail}
+        onFocus={prefetchBoardDetail}
         className={cn('block', bgStyle ? 'p-2' : 'p-4')}
       >
         {bgStyle ? (

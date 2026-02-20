@@ -60,6 +60,7 @@ export function BoardHeader({
       {onViewModeChange && (
         <div className="flex items-center gap-1 rounded-lg bg-surface-hover p-1">
           <button
+            type="button"
             onClick={() => onViewModeChange('tasks')}
             className={cn(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-caption font-medium transition-colors',
@@ -72,6 +73,7 @@ export function BoardHeader({
             Tasks
           </button>
           <button
+            type="button"
             onClick={() => onViewModeChange('planning')}
             onMouseEnter={onPlanningPrefetch}
             onFocus={onPlanningPrefetch}
@@ -86,6 +88,7 @@ export function BoardHeader({
             Planning
           </button>
           <button
+            type="button"
             onClick={() => onViewModeChange('spine')}
             onMouseEnter={onSpinePrefetch}
             onFocus={onSpinePrefetch}
@@ -104,6 +107,7 @@ export function BoardHeader({
 
       <div className="flex items-center gap-2">
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           className="h-8 px-2"
@@ -134,6 +138,7 @@ export function BoardHeader({
         </Button>
         {showSettings && (
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"

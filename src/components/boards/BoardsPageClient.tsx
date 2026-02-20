@@ -31,7 +31,7 @@ export function BoardsPageClient({ isAdmin: _isAdmin, isSuperAdmin = false, curr
   return (
     <main className="p-6 flex-1">
       {/* Regular Boards Section */}
-      <div className="mb-6">
+      <div className="mb-6 skin-backplate">
         <h2 className="text-title font-medium text-text-secondary">
           Your Boards ({regularBoards.length})
         </h2>

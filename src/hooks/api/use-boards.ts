@@ -18,13 +18,11 @@ interface BoardListItem {
     user: {
       id: string;
       name: string | null;
-      email: string;
       image: string | null;
     };
   }[];
   lists: {
     id: string;
-    _count: { cards: number };
   }[];
 }
 
@@ -42,13 +40,11 @@ interface ArchivedBoardItem {
     user: {
       id: string;
       name: string | null;
-      email: string;
       image: string | null;
     };
   }[];
   lists: {
     id: string;
-    _count: { cards: number };
   }[];
 }
 

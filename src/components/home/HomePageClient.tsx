@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Bell,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { HomeSkeleton } from '@/components/home/HomeSkeleton';
 
 interface HomeNotification {
   id: string;
@@ -124,27 +125,9 @@ function displayName(name: string | null, email: string): string {
   return email.split('@')[0] || 'there';
 }
 
-function HomeSkeleton() {
-  return (
-    <div className="flex-1 p-6">
-      <div className="mx-auto w-full max-w-7xl space-y-6">
-        <div className="h-10 w-72 animate-pulse rounded-md bg-surface-hover" />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, idx) => (
-            <div key={idx} className="h-24 animate-pulse rounded-lg border border-border bg-surface-hover" />
-          ))}
-        </div>
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-          <div className="h-[420px] animate-pulse rounded-lg border border-border bg-surface-hover" />
-          <div className="h-[420px] animate-pulse rounded-lg border border-border bg-surface-hover" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function HomePageClient() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['home'],
@@ -152,6 +135,8 @@ export function HomePageClient() {
     staleTime: 60_000,
   });
 
+  // Prefetch routes (Next.js RSC chunks) and heavy TanStack Query data
+  // so first navigation to timeline / board detail feels instant
   useEffect(() => {
     if (!data) return;
     const timer = window.setTimeout(() => {
@@ -170,10 +155,34 @@ export function HomePageClient() {
       for (const project of data.myProjects.slice(0, 1)) {
         router.prefetch(`/projects/${project.id}`);
       }
+
+      // Eagerly prefetch API data for the heaviest pages
+      void queryClient.prefetchQuery({
+        queryKey: ['timeline'],
+        queryFn: () => apiFetch('/api/timeline'),
+        staleTime: 5 * 60 * 1000,
+      });
+
+      for (const board of data.myBoards.slice(0, 2)) {
+        void queryClient.prefetchQuery({
+          queryKey: ['boards', board.id, 'light'],
+          queryFn: () => apiFetch(`/api/boards/${board.id}?scope=light`),
+          staleTime: 60_000,
+        });
+      }
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [data, router]);
+  }, [data, router, queryClient]);
+
+  const prefetchBoard = (boardId: string) => {
+    if (queryClient.getQueryData(['boards', boardId, 'light'])) return;
+    void queryClient.prefetchQuery({
+      queryKey: ['boards', boardId, 'light'],
+      queryFn: () => apiFetch(`/api/boards/${boardId}?scope=light`),
+      staleTime: 60_000,
+    });
+  };
 
   if (isLoading || !data) return <HomeSkeleton />;
 
@@ -274,6 +283,7 @@ export function HomePageClient() {
                   <Link
                     key={task.id}
                     href={`/boards/${task.boardId}`}
+                    onMouseEnter={() => prefetchBoard(task.boardId)}
                     className="block px-4 py-3 hover:bg-surface-hover"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -331,6 +341,7 @@ export function HomePageClient() {
                       <Link
                         key={item.id}
                         href={`/boards/${item.boardId}`}
+                        onMouseEnter={() => prefetchBoard(item.boardId)}
                         className="block px-4 py-3 hover:bg-surface-hover"
                       >
                         <div className="truncate text-body font-medium text-text-primary">{item.cardTitle}</div>
@@ -387,6 +398,7 @@ export function HomePageClient() {
                     <Link
                       key={board.id}
                       href={`/boards/${board.id}`}
+                      onMouseEnter={() => prefetchBoard(board.id)}
                       className="block px-4 py-3 hover:bg-surface-hover"
                     >
                       <div className="flex items-start justify-between gap-3">

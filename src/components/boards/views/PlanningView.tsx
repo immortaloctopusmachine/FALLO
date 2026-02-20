@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { toast } from 'sonner';
 import { useBoardMutations } from '@/hooks/api/use-board-mutations';
+import { useCardDetailPrefetch, useCardDetails } from '@/hooks/api/use-card-details';
 import {
   Plus,
   ChevronDown,
@@ -671,7 +672,7 @@ export function PlanningView({
     });
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (!activeCard || !activeCardListId) {
@@ -729,24 +730,21 @@ export function PlanningView({
       return;
     }
 
-    try {
-      await mutations.reorderCard({
-        cardId: activeCard.id,
-        sourceListId,
-        destinationListId,
-        newPosition,
-      });
-    } catch (error) {
-      console.error('Failed to reorder card:', error);
-      if (boardSnapshotRef.current) {
-        setBoard(boardSnapshotRef.current);
-      }
-      toast.error('Failed to move card');
-    }
-
+    const movedCardId = activeCard.id;
     boardSnapshotRef.current = null;
     setActiveCard(null);
     setActiveCardListId(null);
+
+    mutations.reorderCard({
+      cardId: movedCardId,
+      sourceListId,
+      destinationListId,
+      newPosition,
+    }).catch((error) => {
+      console.error('Failed to reorder card:', error);
+      toast.error('Failed to move card');
+      mutations.invalidateBoard();
+    });
   };
 
   const collisionDetection = useCallback((args: Parameters<typeof pointerWithin>[0]) => {
@@ -927,6 +925,16 @@ export function PlanningView({
       toast.error('Failed to create user story');
     }
   }, [setBoard, mutations]);
+
+  // Card detail prefetch on hover
+  const { prefetchCardDetails } = useCardDetailPrefetch(board.id);
+  const handleCardHover = useCallback((card: Card) => {
+    prefetchCardDetails(card.id, card.featureImage);
+  }, [prefetchCardDetails]);
+
+  // Consume prefetched card details for the open modal
+  const { comments: prefetchedComments, attachments: prefetchedAttachments } =
+    useCardDetails(board.id, selectedCard?.id);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -1538,6 +1546,7 @@ export function PlanningView({
             <div
               key={epic.id}
               onClick={() => handleCardClick(epic)}
+              onMouseEnter={() => handleCardHover(epic)}
               className="rounded-lg border border-border-subtle bg-background p-3 cursor-pointer hover:border-card-epic/50 transition-colors"
             >
               <div className="flex items-start justify-between gap-2">
@@ -1596,6 +1605,7 @@ export function PlanningView({
       onDeleteList={handleDeleteList}
       onDetachFromTimeline={handleDetachFromTimeline}
       cardTypeFilter="USER_STORY"
+      onCardHover={handleCardHover}
       listColor={list.color}
       showDateRange
       startDate={list.startDate}
@@ -1783,9 +1793,12 @@ export function PlanningView({
         onCardClick={setSelectedCard}
         currentUserId={currentUserId}
         canViewQualitySummaries={canViewQualitySummaries}
+        boardMembers={board.members}
         taskLists={taskLists}
         planningLists={planningLists}
         allCards={allCards}
+        prefetchedComments={prefetchedComments}
+        prefetchedAttachments={prefetchedAttachments}
       />
 
       <AddModuleToBoardModal

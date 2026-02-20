@@ -21,13 +21,16 @@ import {
   Flame,
   Monitor,
   Gamepad2,
+  BarChart3,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   applyThemeSkinCssVariables,
+  cacheSkinAssetsConfig,
   createDefaultSkinAssetsConfig,
   createDefaultThemeSkinAssets,
+  getCachedSkinAssetsConfig,
   getConfiguredSkinIconPath,
   isSupportedAssetPath,
   normalizeSkinAssetsConfig,
@@ -47,6 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from './NotificationBell';
 import { ThemeIcon } from './ThemeIcon';
+import { usePrefetchRoute } from '@/hooks/usePrefetchRoute';
 
 interface GlobalNavProps {
   userName?: string | null;
@@ -80,23 +84,28 @@ const themeToggleIcons: Record<UiTheme, { iconName: SkinIconName; fallback: Luci
   douala: { iconName: 'toggle-douala', fallback: Flame },
   colordore: { iconName: 'toggle-colordore', fallback: Monitor },
   pc98: { iconName: 'toggle-pc98', fallback: Gamepad2 },
+  retromarket: { iconName: 'toggle-retromarket', fallback: BarChart3 },
 };
 
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
+  const { prefetch } = usePrefetchRoute();
   const [theme, setTheme] = useState<UiTheme>('slate');
   const [logoHasError, setLogoHasError] = useState(false);
-  const [skinAssetsConfig, setSkinAssetsConfig] = useState<SkinAssetsConfig>(() => createDefaultSkinAssetsConfig());
+  const [skinAssetsConfig, setSkinAssetsConfig] = useState<SkinAssetsConfig>(
+    () => getCachedSkinAssetsConfig() ?? createDefaultSkinAssetsConfig()
+  );
 
   const applyTheme = (nextTheme: UiTheme) => {
     const root = document.documentElement;
-    root.classList.remove('dark', 'slate', 'sparkle', 'douala', 'colordore', 'pc98', 'commodore');
+    root.classList.remove('dark', 'slate', 'sparkle', 'douala', 'colordore', 'pc98', 'retromarket', 'commodore');
     if (nextTheme === 'dark') root.classList.add('dark');
     if (nextTheme === 'slate') root.classList.add('slate');
     if (nextTheme === 'sparkle') root.classList.add('sparkle');
     if (nextTheme === 'douala') root.classList.add('douala');
     if (nextTheme === 'colordore') root.classList.add('colordore');
     if (nextTheme === 'pc98') root.classList.add('pc98');
+    if (nextTheme === 'retromarket') root.classList.add('retromarket');
   };
 
   useEffect(() => {
@@ -113,11 +122,11 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
 
   const loadSkinAssetsConfig = useCallback(async () => {
     try {
-      const response = await fetch('/api/settings/skins', { cache: 'no-store' });
+      const response = await fetch('/api/settings/skins');
       const payload = await response.json();
       if (!payload?.success) return;
 
-      const nextConfig = normalizeSkinAssetsConfig(payload.data?.config);
+      const nextConfig = cacheSkinAssetsConfig(normalizeSkinAssetsConfig(payload.data?.config));
       setSkinAssetsConfig(nextConfig);
     } catch {
       // Keep defaults on fetch failure.
@@ -127,7 +136,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   useEffect(() => {
     void loadSkinAssetsConfig();
     return subscribeToSkinAssetsConfig((nextConfig) => {
-      setSkinAssetsConfig(nextConfig);
+      setSkinAssetsConfig(cacheSkinAssetsConfig(nextConfig));
     });
   }, [loadSkinAssetsConfig]);
 
@@ -164,6 +173,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const themeToggleIcon = themeToggleIcons[theme];
   const hasValidLogoPath = isSupportedAssetPath(activeSkinAssets.logoPath);
   const shouldShowCustomLogo = activeSkinAssets.logoEnabled && hasValidLogoPath && !logoHasError;
+  const isDoualaTheme = theme === 'douala';
 
   return (
     <header className="global-top-header border-b border-border bg-surface px-6 py-4">
@@ -185,8 +195,13 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 onError={() => setLogoHasError(true)}
               />
             ) : (
-              <span className="inline-flex h-12 w-16 items-center justify-center text-xl font-semibold leading-none text-text-secondary">
-                PP
+              <span
+                className={cn(
+                  'theme-logo-fallback inline-flex h-12 items-center justify-center text-xl font-semibold leading-none text-text-secondary',
+                  isDoualaTheme ? 'px-2 text-2xl font-black' : 'w-16'
+                )}
+              >
+                {isDoualaTheme ? 'FALLO' : 'PP'}
               </span>
             )}
           </Link>
@@ -197,8 +212,10 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                onMouseEnter={() => prefetch(item.href)}
+                onFocus={() => prefetch(item.href)}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-md text-body transition-colors',
+                  'global-nav-item flex items-center gap-2 px-3 py-1.5 rounded-md text-body transition-colors',
                   isActive
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
@@ -252,6 +269,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 <DropdownMenuRadioItem value="douala">Douala</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="colordore">Colordore</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="pc98">PC-98</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="retromarket">Retro Market</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>

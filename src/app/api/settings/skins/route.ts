@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
@@ -44,7 +45,14 @@ export async function GET() {
       updatedAt: settings?.updatedAt?.toISOString() ?? null,
     };
 
-    return apiSuccess(payload);
+    return NextResponse.json(
+      { success: true, data: payload },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+        },
+      }
+    );
   } catch (error) {
     console.error('Failed to fetch skin settings:', error);
     return ApiErrors.internal('Failed to fetch skin settings');

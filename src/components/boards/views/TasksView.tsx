@@ -23,6 +23,7 @@ import {
 import { Plus, ChevronRight, ChevronLeft, ExternalLink, Calendar, Link as LinkIcon, BarChart3, Filter, User, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoardMutations } from '@/hooks/api/use-board-mutations';
+import { useCardDetailPrefetch, useCardDetails } from '@/hooks/api/use-card-details';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { List } from '../List';
@@ -359,7 +360,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     });
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (!activeCard || !activeCardListId) {
@@ -435,29 +436,27 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       return;
     }
 
-    try {
-      await mutations.reorderCard({
-        cardId: activeCard.id,
-        sourceListId,
-        destinationListId,
-        newPosition,
-      });
+    const movedCardId = activeCard.id;
+    boardSnapshotRef.current = null;
+    setActiveCard(null);
+    setActiveCardListId(null);
+
+    mutations.reorderCard({
+      cardId: movedCardId,
+      sourceListId,
+      destinationListId,
+      newPosition,
+    }).then(() => {
       // Fire confetti when a card is moved to a Done list
       if (destList && (destList.phase === 'DONE' || destList.name.toLowerCase().includes('done')) &&
           !(srcList && (srcList.phase === 'DONE' || srcList.name.toLowerCase().includes('done')))) {
         fireDoneConfetti();
       }
-    } catch (error) {
+    }).catch((error) => {
       console.error('Failed to reorder card:', error);
-      if (boardSnapshotRef.current) {
-        setBoard(boardSnapshotRef.current);
-      }
       toast.error('Failed to move card');
-    }
-
-    boardSnapshotRef.current = null;
-    setActiveCard(null);
-    setActiveCardListId(null);
+      mutations.invalidateBoard();
+    });
   };
 
   // Review submission dialog callbacks
@@ -477,6 +476,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     }).catch((error) => {
       console.error('Failed to move card:', error);
       toast.error('Failed to move card');
+      mutations.invalidateBoard();
     });
   };
 
@@ -489,7 +489,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   };
 
   // Review mode card moved handler
-  const handleReviewModeCardMoved = async (cardId: string, targetListId: string) => {
+  const handleReviewModeCardMoved = (cardId: string, targetListId: string) => {
     if (!reviewModeListId) return;
 
     setBoard((prev) => {
@@ -510,22 +510,22 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       return { ...prev, lists: newLists };
     });
 
-    try {
-      await mutations.reorderCard({
-        cardId,
-        sourceListId: reviewModeListId,
-        destinationListId: targetListId,
-        newPosition: 0,
-      });
+    mutations.reorderCard({
+      cardId,
+      sourceListId: reviewModeListId,
+      destinationListId: targetListId,
+      newPosition: 0,
+    }).then(() => {
       // Fire confetti when card is moved to Done from review mode
       const targetList = board.lists.find(l => l.id === targetListId);
       if (targetList && (targetList.phase === 'DONE' || targetList.name.toLowerCase().includes('done'))) {
         fireDoneConfetti();
       }
-    } catch (error) {
+    }).catch((error) => {
       console.error('Failed to move card:', error);
       toast.error('Failed to move card');
-    }
+      mutations.invalidateBoard();
+    });
   };
 
   const collisionDetection = useCallback((args: Parameters<typeof pointerWithin>[0]) => {
@@ -612,6 +612,16 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       toast.error('Failed to create card');
     }
   }, [setBoard, mutations]);
+
+  // Card detail prefetch on hover
+  const { prefetchCardDetails } = useCardDetailPrefetch(board.id);
+  const handleCardHover = useCallback((card: Card) => {
+    prefetchCardDetails(card.id, card.featureImage);
+  }, [prefetchCardDetails]);
+
+  // Consume prefetched card details for the open modal
+  const { comments: prefetchedComments, attachments: prefetchedAttachments } =
+    useCardDetails(board.id, selectedCard?.id);
 
   const handleCardClick = useCallback((card: Card) => {
     setSelectedCard(card);
@@ -853,7 +863,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onCardClick={handleCardClick}
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
-
+                onCardHover={handleCardHover}
               />
             ))}
           </div>
@@ -928,7 +938,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
                 listColor={list.color}
-
+                onCardHover={handleCardHover}
                 extraHeaderActions={isReviewList ? (
                   <Button
                     variant="ghost"
@@ -1021,9 +1031,12 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         currentUserId={currentUserId}
         canViewQualitySummaries={canViewQualitySummaries}
         boardSettings={settings}
+        boardMembers={board.members}
         taskLists={taskLists}
         planningLists={planningLists}
         allCards={allCards}
+        prefetchedComments={prefetchedComments}
+        prefetchedAttachments={prefetchedAttachments}
       />
 
       {/* Review Submission Dialog */}

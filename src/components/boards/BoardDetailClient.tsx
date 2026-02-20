@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { BoardViewWrapper } from '@/components/boards/BoardViewWrapper';
 import { BoardSkeleton } from '@/components/boards/BoardSkeleton';
 import { useBoard } from '@/hooks/api/use-boards';
-import type { Board, Card, List, WeeklyProgress } from '@/types';
+import type { Board, WeeklyProgress } from '@/types';
 
 interface BoardDetailClientProps {
   boardId: string;
@@ -13,74 +13,23 @@ interface BoardDetailClientProps {
   canViewQualitySummaries?: boolean;
 }
 
+type BoardApiPayload = Board & { weeklyProgress?: WeeklyProgress[] };
+
 function mapBoardPayload(rawData: Record<string, unknown>): { board: Board; weeklyProgress: WeeklyProgress[] } {
-  const board: Board = {
-    id: rawData.id as string,
-    name: rawData.name as string,
-    description: rawData.description as string | null,
-    isTemplate: rawData.isTemplate as boolean,
-    settings: (rawData.settings || {}) as Board['settings'],
-    timelineBlocks: ((rawData.timelineBlocks as Record<string, unknown>[]) || []).map((block) => ({
-      id: block.id as string,
-      startDate: block.startDate as string,
-      endDate: block.endDate as string,
-      position: block.position as number,
-      blockType: {
-        id: (block.blockType as Record<string, unknown>).id as string,
-        name: (block.blockType as Record<string, unknown>).name as string,
-        color: (block.blockType as Record<string, unknown>).color as string,
-        description: ((block.blockType as Record<string, unknown>).description as string) || null,
-        isDefault: Boolean((block.blockType as Record<string, unknown>).isDefault),
-        position: Number((block.blockType as Record<string, unknown>).position || 0),
-      },
-    })),
-    createdAt: rawData.createdAt as string,
-    updatedAt: rawData.updatedAt as string,
-    archivedAt: (rawData.archivedAt as string) || null,
-    members: (rawData.members as Record<string, unknown>[]).map((m) => ({
-      id: m.id as string,
-      userId: m.userId as string,
-      user: {
-        id: (m.user as Record<string, unknown>).id as string,
-        email: (m.user as Record<string, unknown>).email as string,
-        name: (m.user as Record<string, unknown>).name as string | null,
-        image: (m.user as Record<string, unknown>).image as string | null,
-        permission: (m.user as Record<string, unknown>).permission as Board['members'][0]['user']['permission'],
-      },
-      permission: m.permission as Board['members'][0]['permission'],
-      joinedAt: m.joinedAt as string,
-    })),
-    lists: (rawData.lists as Record<string, unknown>[]).map((list) => ({
-      id: list.id as string,
-      name: list.name as string,
-      position: list.position as number,
-      boardId: list.boardId as string,
-      createdAt: list.createdAt as string,
-      updatedAt: list.updatedAt as string,
-      viewType: list.viewType as List['viewType'],
-      phase: (list.phase as List['phase']) || null,
-      color: (list.color as string) || null,
-      startDate: (list.startDate as string) || null,
-      endDate: (list.endDate as string) || null,
-      durationWeeks: (list.durationWeeks as number) || null,
-      durationDays: (list.durationDays as number) || null,
-      timelineBlockId: (list.timelineBlockId as string) || null,
-      timelineBlock: list.timelineBlock as List['timelineBlock'] || null,
-      cards: (list.cards as unknown[]) as Card[],
-    })) as List[],
+  // Keep payload mapping shallow to avoid cloning large card/list trees on every fetch.
+  const payload = rawData as unknown as Partial<BoardApiPayload>;
+  const board = {
+    ...payload,
+    settings: payload.settings ?? {},
+    members: payload.members ?? [],
+    lists: payload.lists ?? [],
+    timelineBlocks: payload.timelineBlocks ?? [],
+  } as Board;
+
+  return {
+    board,
+    weeklyProgress: payload.weeklyProgress ?? [],
   };
-
-  const weeklyProgress: WeeklyProgress[] = ((rawData.weeklyProgress as Record<string, unknown>[]) || []).map((wp) => ({
-    id: wp.id as string,
-    weekStartDate: wp.weekStartDate as string,
-    totalStoryPoints: wp.totalStoryPoints as number,
-    completedPoints: wp.completedPoints as number,
-    tasksCompleted: wp.tasksCompleted as number,
-    tasksTotal: wp.tasksTotal as number,
-    createdAt: wp.createdAt as string,
-  }));
-
-  return { board, weeklyProgress };
 }
 
 export function BoardDetailClient({
@@ -105,23 +54,9 @@ export function BoardDetailClient({
     [rawFullData]
   );
 
-  const [board, setBoard] = useState<Board | null>(null);
-  const [weeklyProgress, setWeeklyProgress] = useState<WeeklyProgress[]>([]);
-  const [hasFullData, setHasFullData] = useState(false);
-
-  useEffect(() => {
-    if (!lightData) return;
-    setBoard(lightData.board);
-    setWeeklyProgress(lightData.weeklyProgress);
-    setHasFullData(false);
-  }, [lightData]);
-
-  useEffect(() => {
-    if (!fullData) return;
-    setBoard(fullData.board);
-    setWeeklyProgress(fullData.weeklyProgress);
-    setHasFullData(true);
-  }, [fullData]);
+  const board = fullData?.board ?? lightData?.board ?? null;
+  const weeklyProgress = fullData?.weeklyProgress ?? lightData?.weeklyProgress ?? [];
+  const hasFullData = Boolean(fullData);
 
   useEffect(() => {
     if (!lightData || hasFullData || isFetchingFullData) return;

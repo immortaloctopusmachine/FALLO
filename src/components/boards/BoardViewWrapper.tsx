@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { BoardHeader } from './BoardHeader';
 import { BoardView } from './BoardView';
@@ -46,6 +46,7 @@ export function BoardViewWrapper({
 }: BoardViewWrapperProps) {
   const [board, setBoard] = useState(initialBoard);
   const [viewMode, setViewMode] = useState<BoardViewMode>('tasks');
+  const [hasMountedSpineTracker, setHasMountedSpineTracker] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const pendingViewSwitchRef = useRef<{ mode: BoardViewMode; startMs: number } | null>(null);
@@ -54,12 +55,24 @@ export function BoardViewWrapper({
     setBoard(initialBoard);
   }, [initialBoard]);
 
+  // If the board changes, reset the kept-alive Spine view to avoid cross-board state carryover.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    setHasMountedSpineTracker(false);
+  }, [initialBoard.id]);
+
+  useEffect(() => {
+    // Prefetch secondary view chunks when the browser is idle, not after a fixed delay.
+    const prefetch = () => {
       void import('./views/PlanningView');
       void import('@/components/spine-tracker');
-    }, 300);
+    };
 
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(prefetch);
+      return () => cancelIdleCallback(id);
+    }
+    // Fallback for Safari (no requestIdleCallback)
+    const timer = window.setTimeout(prefetch, 200);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -79,6 +92,9 @@ export function BoardViewWrapper({
 
     if (mode === 'planning') {
       prefetchPlanningData();
+    }
+    if (mode === 'spine') {
+      setHasMountedSpineTracker(true);
     }
   };
 
@@ -120,18 +136,24 @@ export function BoardViewWrapper({
 
   const bgStyle = getBoardBackgroundStyle(board.settings);
 
+  // Stabilize the members array so BoardHeader doesn't re-render on every board state change.
+  const headerMembers = useMemo(
+    () => board.members.map((member) => ({
+      id: member.user.id,
+      name: member.user.name,
+      email: member.user.email,
+      image: member.user.image,
+    })),
+    [board.members]
+  );
+
   return (
     <div className={cn("flex h-screen flex-col", !bgStyle && "bg-background")} style={bgStyle}>
       <BoardHeader
         name={board.name}
         settings={board.settings}
         memberCount={board.members.length}
-        members={board.members.map((member) => ({
-          id: member.user.id,
-          name: member.user.name,
-          email: member.user.email,
-          image: member.user.image,
-        }))}
+        members={headerMembers}
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         onPlanningPrefetch={prefetchPlanningData}
@@ -141,33 +163,45 @@ export function BoardViewWrapper({
         showSettings={isAdmin}
       />
       <div className="flex-1 overflow-hidden">
-        {viewMode === 'tasks' ? (
-          <TasksView
-            board={board}
-            currentUserId={currentUserId}
-            weeklyProgress={weeklyProgress}
-            canViewQualitySummaries={canViewQualitySummaries}
-          />
-        ) : viewMode === 'planning' ? (
-          isLoadingFullData && !hasFullData ? (
-            <div className="flex h-full items-center justify-center text-text-tertiary">
-              Loading planning data...
-            </div>
-          ) : (
-            <PlanningView
+        <div
+          className={cn('h-full', viewMode === 'spine' ? 'hidden' : 'block')}
+          aria-hidden={viewMode === 'spine'}
+        >
+          {viewMode === 'tasks' ? (
+            <TasksView
               board={board}
               currentUserId={currentUserId}
               weeklyProgress={weeklyProgress}
-              isAdmin={isAdmin}
               canViewQualitySummaries={canViewQualitySummaries}
             />
-          )
-        ) : viewMode === 'spine' ? (
-          <SpineTrackerView boardId={board.id} canEdit={canEditSpine} />
-        ) : (
-          // Fallback to original BoardView for legacy
-          <BoardView board={board} currentUserId={currentUserId} canViewQualitySummaries={canViewQualitySummaries} />
-        )}
+          ) : viewMode === 'planning' ? (
+            isLoadingFullData && !hasFullData ? (
+              <div className="flex h-full items-center justify-center text-text-tertiary">
+                Loading planning data...
+              </div>
+            ) : (
+              <PlanningView
+                board={board}
+                currentUserId={currentUserId}
+                weeklyProgress={weeklyProgress}
+                isAdmin={isAdmin}
+                canViewQualitySummaries={canViewQualitySummaries}
+              />
+            )
+          ) : viewMode === 'spine' ? null : (
+            // Fallback to original BoardView for legacy
+            <BoardView board={board} currentUserId={currentUserId} canViewQualitySummaries={canViewQualitySummaries} />
+          )}
+        </div>
+
+        <div
+          className={cn('h-full', viewMode === 'spine' ? 'block' : 'hidden')}
+          aria-hidden={viewMode !== 'spine'}
+        >
+          {(hasMountedSpineTracker || viewMode === 'spine') ? (
+            <SpineTrackerView boardId={board.id} canEdit={canEditSpine} />
+          ) : null}
+        </div>
       </div>
 
       {/* Settings Modal */}

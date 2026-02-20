@@ -1,4 +1,4 @@
-export const UI_THEMES = ['light', 'slate', 'dark', 'sparkle', 'douala', 'colordore', 'pc98'] as const;
+export const UI_THEMES = ['light', 'slate', 'dark', 'sparkle', 'douala', 'colordore', 'pc98', 'retromarket'] as const;
 export type UiTheme = (typeof UI_THEMES)[number];
 
 export const SKIN_ICON_NAMES = [
@@ -17,6 +17,7 @@ export const SKIN_ICON_NAMES = [
   'toggle-douala',
   'toggle-colordore',
   'toggle-pc98',
+  'toggle-retromarket',
   'ornament-star',
   'ornament-heart',
   'ornament-moon',
@@ -43,6 +44,9 @@ export type SkinAssetsConfig = Record<UiTheme, ThemeSkinAssets>;
 
 export const SKIN_ASSETS_EVENT = 'ui:skin-assets-changed';
 export const SKIN_SETTINGS_SCOPE = 'global';
+const SKIN_ASSETS_CACHE_KEY = 'ui.skin-assets.config.v1';
+
+let inMemorySkinAssetsConfig: SkinAssetsConfig | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -152,6 +156,7 @@ export function createDefaultSkinAssetsConfig(): SkinAssetsConfig {
     douala: createDefaultThemeSkinAssets('douala'),
     colordore: createDefaultThemeSkinAssets('colordore'),
     pc98: createDefaultThemeSkinAssets('pc98'),
+    retromarket: createDefaultThemeSkinAssets('retromarket'),
   };
 }
 
@@ -217,12 +222,47 @@ export function normalizeSkinAssetsConfig(value: unknown): SkinAssetsConfig {
     douala: normalizeThemeSkinAssets('douala', value.douala),
     colordore: normalizeThemeSkinAssets('colordore', value.colordore ?? value.commodore),
     pc98: normalizeThemeSkinAssets('pc98', value.pc98),
+    retromarket: normalizeThemeSkinAssets('retromarket', value.retromarket),
   };
+}
+
+export function getCachedSkinAssetsConfig(): SkinAssetsConfig | null {
+  if (inMemorySkinAssetsConfig) {
+    return inMemorySkinAssetsConfig;
+  }
+
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.localStorage.getItem(SKIN_ASSETS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeSkinAssetsConfig(parsed);
+    inMemorySkinAssetsConfig = normalized;
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheSkinAssetsConfig(config: SkinAssetsConfig): SkinAssetsConfig {
+  const normalized = normalizeSkinAssetsConfig(config);
+  inMemorySkinAssetsConfig = normalized;
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(SKIN_ASSETS_CACHE_KEY, JSON.stringify(normalized));
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }
+
+  return normalized;
 }
 
 export function broadcastSkinAssetsConfigChanged(config: SkinAssetsConfig): void {
   if (typeof window === 'undefined') return;
-  const normalized = normalizeSkinAssetsConfig(config);
+  const normalized = cacheSkinAssetsConfig(config);
   window.dispatchEvent(new CustomEvent(SKIN_ASSETS_EVENT, { detail: normalized }));
 }
 
@@ -296,11 +336,15 @@ export function applyThemeSkinCssVariables(theme: UiTheme, assets: ThemeSkinAsse
   const root = document.documentElement;
 
   if (assets.backgroundEnabled && assets.backgroundPath.trim()) {
+    root.classList.add('skin-bg-active');
+    root.style.setProperty('--skin-bg-display', 'block');
     root.style.setProperty('--skin-bg', toCssUrl(assets.backgroundPath));
     root.style.setProperty('--skin-bg-overlay', assets.backgroundOverlay.trim() || 'transparent');
     root.style.setProperty('--skin-bg-pos', assets.backgroundPosition.trim() || 'center');
     root.style.setProperty('--skin-bg-page-color', 'transparent');
   } else {
+    root.classList.remove('skin-bg-active');
+    root.style.setProperty('--skin-bg-display', 'none');
     root.style.setProperty('--skin-bg', 'none');
     root.style.setProperty('--skin-bg-overlay', 'transparent');
     root.style.setProperty('--skin-bg-pos', 'center');

@@ -10,6 +10,15 @@ import { createNotificationWithSlackDM } from '@/lib/notifications';
 import { resolveApprovers } from '@/lib/role-utils';
 import type { BoardSettings } from '@/types';
 
+function isServerlessRuntime(): boolean {
+  return Boolean(
+    process.env.VERCEL
+      || process.env.AWS_LAMBDA_FUNCTION_NAME
+      || process.env.NETLIFY
+      || process.env.CF_PAGES
+  );
+}
+
 // Helper to check if a list is an "in progress" list (for time tracking)
 function isInProgressList(listName: string): boolean {
   const lowerName = listName.toLowerCase();
@@ -20,6 +29,66 @@ function isInProgressList(listName: string): boolean {
     lowerName.includes('working') ||
     lowerName === 'wip'
   );
+}
+
+interface TimeTrackingSyncParams {
+  cardId: string;
+  userId: string;
+  destListId: string;
+  wasInProgress: boolean;
+  isNowInProgress: boolean;
+}
+
+async function syncTimeTrackingForMove({
+  cardId,
+  userId,
+  destListId,
+  wasInProgress,
+  isNowInProgress,
+}: TimeTrackingSyncParams): Promise<void> {
+  try {
+    if (wasInProgress && !isNowInProgress) {
+      // Card LEFT "In Progress" - stop any active time log
+      const activeLog = await prisma.timeLog.findFirst({
+        where: { cardId, userId, endTime: null },
+      });
+
+      if (activeLog) {
+        const endTime = new Date();
+        const durationMs = endTime.getTime() - new Date(activeLog.startTime).getTime();
+        await prisma.timeLog.update({
+          where: { id: activeLog.id },
+          data: { endTime, durationMs },
+        });
+      }
+      return;
+    }
+
+    if (!wasInProgress && isNowInProgress) {
+      // Card ENTERED "In Progress" - start a new time log
+      const card = await prisma.card.findUnique({
+        where: { id: cardId },
+        include: { assignees: { select: { userId: true } } },
+      });
+
+      const isAssigned = card?.assignees.some((a) => a.userId === userId);
+
+      if (isAssigned || !card?.assignees.length) {
+        // Close any existing open logs first
+        await prisma.timeLog.updateMany({
+          where: { cardId, userId, endTime: null },
+          data: { endTime: new Date() },
+        });
+
+        await prisma.timeLog.create({
+          data: { cardId, userId, listId: destListId, startTime: new Date() },
+        });
+      }
+    }
+  } catch (err) {
+    // Time tracking should never fail the reorder flow.
+    console.error('Failed to update time tracking:', err);
+  }
 }
 
 // POST /api/boards/[boardId]/cards/reorder - Reorder cards (for drag-drop)
@@ -43,10 +112,37 @@ export async function POST(
       return ApiErrors.validation('Missing required fields');
     }
 
-    // Verify lists belong to board
+    if (!Number.isInteger(newPosition) || newPosition < 0) {
+      return ApiErrors.validation('newPosition must be a non-negative integer');
+    }
+
+    // Resolve the current source list from DB to avoid stale client state and
+    // ensure the card belongs to this board.
+    const movingCard = await prisma.card.findFirst({
+      where: {
+        id: cardId,
+        list: { boardId },
+      },
+      select: {
+        id: true,
+        listId: true,
+      },
+    });
+
+    if (!movingCard) {
+      return ApiErrors.notFound('Card');
+    }
+
+    const resolvedSourceListId = movingCard.listId;
+    const involvedListIds =
+      resolvedSourceListId === destinationListId
+        ? [resolvedSourceListId]
+        : [resolvedSourceListId, destinationListId];
+
+    // Verify involved lists belong to board.
     const lists = await prisma.list.findMany({
       where: {
-        id: { in: [sourceListId, destinationListId] },
+        id: { in: involvedListIds },
         boardId,
       },
       select: {
@@ -57,12 +153,12 @@ export async function POST(
       },
     });
 
-    if (lists.length !== (sourceListId === destinationListId ? 1 : 2)) {
+    if (lists.length !== involvedListIds.length) {
       return ApiErrors.notFound('Lists');
     }
 
     // Check if we need to track time (only when moving between different lists)
-    const sourceList = lists.find((l) => l.id === sourceListId);
+    const sourceList = lists.find((l) => l.id === resolvedSourceListId);
     const destList = lists.find((l) => l.id === destinationListId) || sourceList;
 
     const wasInProgress = sourceList && isInProgressList(sourceList.name);
@@ -70,8 +166,22 @@ export async function POST(
 
     // Use a transaction to update positions (timeout increased: card moves + position cleanup + review cycle transitions)
     await prisma.$transaction(async (tx) => {
+      const currentCard = await tx.card.findFirst({
+        where: {
+          id: cardId,
+          list: { boardId },
+        },
+        select: {
+          id: true,
+          listId: true,
+          position: true,
+        },
+      });
+
+      if (!currentCard) throw new Error('Card not found');
+
       // If moving to a different list
-      if (sourceListId !== destinationListId) {
+      if (currentCard.listId !== destinationListId) {
         // Shift cards down in destination list
         await tx.card.updateMany({
           where: {
@@ -92,20 +202,16 @@ export async function POST(
           },
         });
 
-        // Clean up positions in source list
-        const sourceCards = await tx.card.findMany({
-          where: { listId: sourceListId },
-          orderBy: { position: 'asc' },
+        // Close the source gap in one query instead of per-row reindex writes.
+        await tx.card.updateMany({
+          where: {
+            listId: currentCard.listId,
+            position: { gt: currentCard.position },
+          },
+          data: {
+            position: { decrement: 1 },
+          },
         });
-
-        for (let i = 0; i < sourceCards.length; i++) {
-          if (sourceCards[i].position !== i) {
-            await tx.card.update({
-              where: { id: sourceCards[i].id },
-              data: { position: i },
-            });
-          }
-        }
 
         if (sourceList && destList) {
           await handleCardListTransition(tx, {
@@ -116,16 +222,13 @@ export async function POST(
         }
       } else {
         // Moving within the same list
-        const card = await tx.card.findUnique({ where: { id: cardId } });
-        if (!card) throw new Error('Card not found');
-
-        const oldPosition = card.position;
+        const oldPosition = currentCard.position;
 
         if (oldPosition < newPosition) {
           // Moving down: shift cards up
           await tx.card.updateMany({
             where: {
-              listId: sourceListId,
+              listId: currentCard.listId,
               position: { gt: oldPosition, lte: newPosition },
             },
             data: {
@@ -136,7 +239,7 @@ export async function POST(
           // Moving up: shift cards down
           await tx.card.updateMany({
             where: {
-              listId: sourceListId,
+              listId: currentCard.listId,
               position: { gte: newPosition, lt: oldPosition },
             },
             data: {
@@ -152,74 +255,31 @@ export async function POST(
       }
     }, { timeout: 15000 });
 
-    // Handle time tracking when moving between lists
-    if (sourceListId !== destinationListId) {
-      // Card moved to a new list - check time tracking
-      if (wasInProgress && !isNowInProgress) {
-        // Card LEFT "In Progress" - stop any active time log
-        const activeLog = await prisma.timeLog.findFirst({
-          where: {
-            cardId,
-            userId: session.user.id,
-            endTime: null,
-          },
-        });
+    // Time tracking consistency matters for reporting. On serverless runtimes we
+    // await completion to avoid dropped post-response work; long-lived runtimes
+    // still run it in the background to keep drag-drop snappy.
+    if (
+      resolvedSourceListId !== destinationListId
+      && (wasInProgress || isNowInProgress)
+      && destList
+    ) {
+      const syncTimeTrackingPromise = syncTimeTrackingForMove({
+        cardId,
+        userId: session.user.id,
+        destListId: destList.id,
+        wasInProgress: Boolean(wasInProgress),
+        isNowInProgress: Boolean(isNowInProgress),
+      });
 
-        if (activeLog) {
-          const endTime = new Date();
-          const durationMs = endTime.getTime() - new Date(activeLog.startTime).getTime();
-
-          await prisma.timeLog.update({
-            where: { id: activeLog.id },
-            data: {
-              endTime,
-              durationMs,
-            },
-          });
-        }
-      } else if (!wasInProgress && isNowInProgress && destList) {
-        // Card ENTERED "In Progress" - start a new time log
-        // Only start if user is assigned to the card or is the one moving it
-        const card = await prisma.card.findUnique({
-          where: { id: cardId },
-          include: {
-            assignees: {
-              select: { userId: true },
-            },
-          },
-        });
-
-        const isAssigned = card?.assignees.some((a) => a.userId === session.user.id);
-
-        // Start tracking if user is assigned or if no one is assigned
-        if (isAssigned || !card?.assignees.length) {
-          // Close any existing open logs first
-          await prisma.timeLog.updateMany({
-            where: {
-              cardId,
-              userId: session.user.id,
-              endTime: null,
-            },
-            data: {
-              endTime: new Date(),
-            },
-          });
-
-          // Create new time log
-          await prisma.timeLog.create({
-            data: {
-              cardId,
-              userId: session.user.id,
-              listId: destList.id,
-              startTime: new Date(),
-            },
-          });
-        }
+      if (isServerlessRuntime()) {
+        await syncTimeTrackingPromise;
+      } else {
+        void syncTimeTrackingPromise;
       }
     }
 
     // Notify PO/Lead when a task enters a review list
-    if (sourceListId !== destinationListId && destList) {
+    if (resolvedSourceListId !== destinationListId && destList) {
       const isReviewDest = destList.name.toLowerCase().includes('review');
       const isReviewSrc = sourceList?.name.toLowerCase().includes('review');
 
