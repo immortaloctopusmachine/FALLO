@@ -134,14 +134,10 @@ export async function GET(
         orderBy: { position: 'asc' },
       });
 
-      // Calculate completion percentage based on task completion
+      // Calculate completion percentage — a task is done when in a Done list
       const totalTasks = connectedTasks.length;
       const completedTasks = connectedTasks.filter(task => {
-        // A task is "complete" if it has checklists and all items are done,
-        // OR if it's in a "done" list (we'd need list info for that)
-        // For now, use checklist completion
-        const checklistItems = task.checklists?.flatMap(cl => cl.items) || [];
-        return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
+        return task.list?.phase === 'DONE';
       }).length;
 
       const completionPercentage = totalTasks > 0
@@ -192,9 +188,11 @@ export async function GET(
           list: { boardId },
         },
         include: {
-          checklists: {
-            include: {
-              items: true,
+          list: {
+            select: {
+              id: true,
+              name: true,
+              phase: true,
             },
           },
         },
@@ -206,11 +204,10 @@ export async function GET(
         return taskData?.linkedUserStoryId && storyIds.has(taskData.linkedUserStoryId);
       });
 
-      // Calculate overall progress
+      // Calculate overall progress — a task is done when in a Done list
       const totalTasks = connectedTasks.length;
       const completedTasks = connectedTasks.filter(task => {
-        const checklistItems = task.checklists?.flatMap(cl => cl.items) || [];
-        return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
+        return task.list?.phase === 'DONE';
       }).length;
 
       const overallProgress = totalTasks > 0
@@ -447,7 +444,82 @@ export async function PATCH(
       }
     }
 
-    return apiSuccess({ ...card, _autoMovedToDone: autoMovedToDone });
+    // Compute derived stats for User Story / Epic cards so the client stays in sync
+    let computedFields: Record<string, unknown> = {};
+
+    if (card.type === 'USER_STORY') {
+      const connectedTasks = await prisma.card.findMany({
+        where: {
+          type: 'TASK',
+          archivedAt: null,
+          list: { boardId },
+          taskData: { path: ['linkedUserStoryId'], equals: cardId },
+        },
+        select: {
+          id: true,
+          list: { select: { phase: true } },
+          taskData: true,
+        },
+      });
+
+      const totalTasks = connectedTasks.length;
+      const completedTasks = connectedTasks.filter(t => t.list?.phase === 'DONE').length;
+      const totalStoryPoints = connectedTasks.reduce((sum, t) => {
+        const td = t.taskData as { storyPoints?: number } | null;
+        return sum + (td?.storyPoints || 0);
+      }, 0);
+
+      computedFields = {
+        taskCount: totalTasks,
+        completionPercentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        totalStoryPoints,
+      };
+    } else if (card.type === 'EPIC') {
+      const connectedUserStories = await prisma.card.findMany({
+        where: {
+          type: 'USER_STORY',
+          archivedAt: null,
+          list: { boardId },
+          userStoryData: { path: ['linkedEpicId'], equals: cardId },
+        },
+        select: { id: true },
+      });
+
+      const storyIds = new Set(connectedUserStories.map(s => s.id));
+      // Fetch all board tasks with list phase, then filter by linked story in JS
+      // (Prisma JSON path filters don't support `in`)
+      const allBoardTasks = storyIds.size > 0 ? await prisma.card.findMany({
+        where: {
+          type: 'TASK',
+          archivedAt: null,
+          list: { boardId },
+        },
+        select: {
+          list: { select: { phase: true } },
+          taskData: true,
+        },
+      }) : [];
+
+      const connectedTasks = allBoardTasks.filter(t => {
+        const td = t.taskData as { linkedUserStoryId?: string } | null;
+        return td?.linkedUserStoryId && storyIds.has(td.linkedUserStoryId);
+      });
+
+      const totalTasks = connectedTasks.length;
+      const completedTasks = connectedTasks.filter(t => t.list?.phase === 'DONE').length;
+      const totalStoryPoints = connectedTasks.reduce((sum, t) => {
+        const td = t.taskData as { storyPoints?: number } | null;
+        return sum + (td?.storyPoints || 0);
+      }, 0);
+
+      computedFields = {
+        storyCount: connectedUserStories.length,
+        overallProgress: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        totalStoryPoints,
+      };
+    }
+
+    return apiSuccess({ ...card, ...computedFields, _autoMovedToDone: autoMovedToDone });
   } catch (error) {
     console.error('Failed to update card:', error);
     return ApiErrors.internal('Failed to update card');

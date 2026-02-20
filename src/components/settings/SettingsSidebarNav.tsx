@@ -9,6 +9,7 @@ import {
   Layers,
   Calendar,
   Users,
+  Palette,
   Plug,
   Library,
   Boxes,
@@ -46,6 +47,7 @@ export function SettingsSidebarNav({ isSuperAdmin, isAdmin }: SettingsSidebarNav
       ...(isAdmin ? [{ name: 'Spine Modules', href: '/settings/spine-modules', icon: Bone }] : []),
       ...(isSuperAdmin
         ? [
+            { name: 'Skins', href: '/settings/skins', icon: Palette },
             { name: 'Uploads', href: '/settings/uploads', icon: Images },
             { name: 'Review Questions', href: '/settings/review-questions', icon: FileQuestion },
           ]

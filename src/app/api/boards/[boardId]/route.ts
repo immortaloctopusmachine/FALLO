@@ -409,10 +409,9 @@ export async function GET(
       }
     });
 
-    // Helper function to check if a task is complete (all checklist items done)
+    // A task is "complete" when it sits in a Done list (phase === 'DONE')
     const isTaskComplete = (task: typeof allCards[0]) => {
-      const checklistItems = task.checklists?.flatMap(cl => cl.items) || [];
-      return checklistItems.length > 0 && checklistItems.every(item => item.isComplete);
+      return task.list.phase === 'DONE';
     };
 
     // Enhance cards with computed stats and include timeline block info

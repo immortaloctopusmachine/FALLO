@@ -922,6 +922,16 @@ model SpineSkeletonModule {
   @@map("spine_skeleton_modules")
 }
 
+model SkinSettings {
+  id        String   @id @default(cuid())
+  scope     String   @unique @default("global")
+  config    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("skin_settings")
+}
+
 // In-app notifications
 model Notification {
   id        String   @id @default(cuid())

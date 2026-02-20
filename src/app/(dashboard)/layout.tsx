@@ -14,7 +14,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col skin-bg">
       <GlobalNav
         userName={session.user.name}
         userEmail={session.user.email}

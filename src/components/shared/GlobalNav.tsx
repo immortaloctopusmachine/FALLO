@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -17,8 +18,25 @@ import {
   Moon,
   Sun,
   Sparkles,
+  Flame,
+  Monitor,
+  Gamepad2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  applyThemeSkinCssVariables,
+  createDefaultSkinAssetsConfig,
+  createDefaultThemeSkinAssets,
+  getConfiguredSkinIconPath,
+  isSupportedAssetPath,
+  normalizeSkinAssetsConfig,
+  subscribeToSkinAssetsConfig,
+  UI_THEMES,
+  type SkinAssetsConfig,
+  type SkinIconName,
+  type UiTheme,
+} from '@/lib/skin-assets';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,48 +46,105 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from './NotificationBell';
+import { ThemeIcon } from './ThemeIcon';
 
 interface GlobalNavProps {
   userName?: string | null;
   userEmail?: string | null;
 }
 
-const navItems = [
-  { href: '/home', label: 'Home', icon: Home },
-  { href: '/timeline', label: 'Timeline', icon: Calendar },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/boards', label: 'Boards', icon: LayoutGrid },
-  { href: '/organization', label: 'Organization', icon: Building2 },
-  { href: '/teams', label: 'Teams', icon: Users },
-  { href: '/users', label: 'Users', icon: User },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  iconName: SkinIconName;
+}
 
-  { href: '/settings', label: 'Settings', icon: Settings },
+const navItems: NavItem[] = [
+  { href: '/home', label: 'Home', icon: Home, iconName: 'nav-home' },
+  { href: '/timeline', label: 'Timeline', icon: Calendar, iconName: 'nav-timeline' },
+  { href: '/projects', label: 'Projects', icon: FolderKanban, iconName: 'nav-projects' },
+  { href: '/boards', label: 'Boards', icon: LayoutGrid, iconName: 'nav-boards' },
+  { href: '/organization', label: 'Organization', icon: Building2, iconName: 'nav-organization' },
+  { href: '/teams', label: 'Teams', icon: Users, iconName: 'nav-teams' },
+  { href: '/users', label: 'Users', icon: User, iconName: 'nav-users' },
+
+  { href: '/settings', label: 'Settings', icon: Settings, iconName: 'nav-settings' },
 ];
+
+const themeToggleIcons: Record<UiTheme, { iconName: SkinIconName; fallback: LucideIcon }> = {
+  light: { iconName: 'toggle-light', fallback: Sun },
+  slate: { iconName: 'toggle-slate', fallback: Palette },
+  dark: { iconName: 'toggle-dark', fallback: Moon },
+  sparkle: { iconName: 'toggle-sparkle', fallback: Sparkles },
+  douala: { iconName: 'toggle-douala', fallback: Flame },
+  colordore: { iconName: 'toggle-colordore', fallback: Monitor },
+  pc98: { iconName: 'toggle-pc98', fallback: Gamepad2 },
+};
 
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<'dark' | 'slate' | 'light' | 'sparkle'>('slate');
+  const [theme, setTheme] = useState<UiTheme>('slate');
+  const [logoHasError, setLogoHasError] = useState(false);
+  const [skinAssetsConfig, setSkinAssetsConfig] = useState<SkinAssetsConfig>(() => createDefaultSkinAssetsConfig());
 
-  const applyTheme = (nextTheme: 'dark' | 'slate' | 'light' | 'sparkle') => {
+  const applyTheme = (nextTheme: UiTheme) => {
     const root = document.documentElement;
-    root.classList.remove('dark', 'slate', 'sparkle');
+    root.classList.remove('dark', 'slate', 'sparkle', 'douala', 'colordore', 'pc98', 'commodore');
     if (nextTheme === 'dark') root.classList.add('dark');
     if (nextTheme === 'slate') root.classList.add('slate');
     if (nextTheme === 'sparkle') root.classList.add('sparkle');
+    if (nextTheme === 'douala') root.classList.add('douala');
+    if (nextTheme === 'colordore') root.classList.add('colordore');
+    if (nextTheme === 'pc98') root.classList.add('pc98');
   };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const storedTheme = window.localStorage.getItem('ui.theme');
+    const mappedStoredTheme = storedTheme === 'commodore' ? 'colordore' : storedTheme;
     const nextTheme =
-      storedTheme === 'light' || storedTheme === 'slate' || storedTheme === 'dark' || storedTheme === 'sparkle'
-        ? storedTheme
+      mappedStoredTheme && UI_THEMES.includes(mappedStoredTheme as UiTheme)
+        ? (mappedStoredTheme as UiTheme)
         : 'slate';
     setTheme(nextTheme);
     applyTheme(nextTheme);
   }, []);
 
-  const setSkin = (nextTheme: 'dark' | 'slate' | 'light' | 'sparkle') => {
+  const loadSkinAssetsConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/settings/skins', { cache: 'no-store' });
+      const payload = await response.json();
+      if (!payload?.success) return;
+
+      const nextConfig = normalizeSkinAssetsConfig(payload.data?.config);
+      setSkinAssetsConfig(nextConfig);
+    } catch {
+      // Keep defaults on fetch failure.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSkinAssetsConfig();
+    return subscribeToSkinAssetsConfig((nextConfig) => {
+      setSkinAssetsConfig(nextConfig);
+    });
+  }, [loadSkinAssetsConfig]);
+
+  const activeSkinAssets = useMemo(
+    () => skinAssetsConfig[theme] ?? createDefaultThemeSkinAssets(theme),
+    [skinAssetsConfig, theme]
+  );
+
+  useEffect(() => {
+    applyThemeSkinCssVariables(theme, activeSkinAssets);
+  }, [theme, activeSkinAssets]);
+
+  useEffect(() => {
+    setLogoHasError(false);
+  }, [theme, activeSkinAssets.logoEnabled, activeSkinAssets.logoPath]);
+
+  const setSkin = (nextTheme: UiTheme) => {
     setTheme(nextTheme);
     if (typeof window !== 'undefined') {
       applyTheme(nextTheme);
@@ -86,10 +161,35 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
     return pathname.startsWith(href);
   };
 
+  const themeToggleIcon = themeToggleIcons[theme];
+  const hasValidLogoPath = isSupportedAssetPath(activeSkinAssets.logoPath);
+  const shouldShowCustomLogo = activeSkinAssets.logoEnabled && hasValidLogoPath && !logoHasError;
+
   return (
-    <header className="border-b border-border bg-surface px-6 py-4">
+    <header className="global-top-header border-b border-border bg-surface px-6 py-4">
       <div className="flex items-center justify-between">
         <nav className="flex items-center gap-1">
+          <Link
+            href="/home"
+            className="mr-2 inline-flex h-8 items-center justify-center rounded-md px-1"
+            aria-label="Go to home"
+          >
+            {shouldShowCustomLogo ? (
+              <Image
+                src={activeSkinAssets.logoPath.trim()}
+                alt="Theme logo"
+                width={192}
+                height={48}
+                unoptimized
+                className="h-12 w-auto max-w-[280px] object-contain"
+                onError={() => setLogoHasError(true)}
+              />
+            ) : (
+              <span className="inline-flex h-12 w-16 items-center justify-center text-xl font-semibold leading-none text-text-secondary">
+                PP
+              </span>
+            )}
+          </Link>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = getIsActive(item.href);
@@ -105,7 +205,14 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 )}
               >
                 <span className="sparkle-icon-chip" aria-hidden="true">
-                  <Icon className="h-4 w-4 sparkle-icon-glyph" />
+                  <ThemeIcon
+                    theme={theme}
+                    iconName={item.iconName}
+                    fallback={Icon}
+                    useCustom={activeSkinAssets.iconEnabled[item.iconName]}
+                    customSrc={getConfiguredSkinIconPath(theme, activeSkinAssets, item.iconName)}
+                    className="h-4 w-4 sparkle-icon-glyph"
+                  />
                 </span>
                 {item.label}
               </Link>
@@ -125,16 +232,26 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 title="Choose skin"
                 aria-label="Choose skin"
               >
-                {theme === 'light' ? <Sun className="h-4 w-4" /> : theme === 'slate' ? <Palette className="h-4 w-4" /> : theme === 'sparkle' ? <Sparkles className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                <ThemeIcon
+                  theme={theme}
+                  iconName={themeToggleIcon.iconName}
+                  fallback={themeToggleIcon.fallback}
+                  useCustom={activeSkinAssets.iconEnabled[themeToggleIcon.iconName]}
+                  customSrc={getConfiguredSkinIconPath(theme, activeSkinAssets, themeToggleIcon.iconName)}
+                  className="h-4 w-4"
+                />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuLabel>Skin</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as 'dark' | 'slate' | 'light' | 'sparkle')}>
+              <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as UiTheme)}>
                 <DropdownMenuRadioItem value="dark">Dark (Noir)</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="slate">Slate</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="sparkle">Sparkle</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="douala">Douala</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="colordore">Colordore</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="pc98">PC-98</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>

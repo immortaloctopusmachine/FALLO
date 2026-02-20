@@ -250,14 +250,23 @@ export function CardModal({
   }, [allCards, card?.type, linkedEpicId]);
 
   // Derive connected cards locally so board payloads can stay lean.
+  // Attach list info so the UI can show completion status (phase === 'DONE').
   useEffect(() => {
     if (!card) return;
 
     if (card.type === 'USER_STORY') {
-      const derivedConnectedTasks = allCards.filter(
-        (candidate): candidate is TaskCard =>
-          candidate.type === 'TASK' && candidate.taskData?.linkedUserStoryId === card.id
+      const listMap = new Map(
+        [...taskLists, ...planningLists].map(l => [l.id, { id: l.id, name: l.name, phase: (l.phase ?? null) as string | null }])
       );
+      const derivedConnectedTasks = allCards
+        .filter(
+          (candidate): candidate is TaskCard =>
+            candidate.type === 'TASK' && candidate.taskData?.linkedUserStoryId === card.id
+        )
+        .map(task => ({
+          ...task,
+          list: listMap.get(task.listId) || task.list,
+        }));
       setConnectedTasks(derivedConnectedTasks);
       return;
     }
@@ -269,7 +278,7 @@ export function CardModal({
       );
       setConnectedUserStories(derivedConnectedUserStories);
     }
-  }, [allCards, card]);
+  }, [allCards, card, taskLists, planningLists]);
 
   // Core save function - used by auto-save
   const performSave = useCallback(async () => {
@@ -1461,32 +1470,37 @@ export function CardModal({
               </div>
             )}
 
-            {/* User Story Progress Stats */}
-            {card.type === 'USER_STORY' && (
-              <div className="space-y-2">
-                <Label className="text-caption font-medium text-text-secondary">
-                  Progress
-                </Label>
-                <div className="space-y-2 rounded-md border border-border-subtle bg-surface p-3">
-                  <div className="flex items-center justify-between text-body">
-                    <span className="text-text-tertiary">Completion</span>
-                    <span className="font-medium text-card-story">
-                      {(card as UserStoryCard).completionPercentage ?? 0}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-border">
-                    <div
-                      className="h-full rounded-full bg-card-story transition-all"
-                      style={{ width: `${(card as UserStoryCard).completionPercentage ?? 0}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-body text-text-tertiary">
-                    <span>Tasks: {connectedTasks.length}</span>
-                    <span>SP: {(card as UserStoryCard).totalStoryPoints ?? 0}</span>
+            {/* User Story Progress Stats — computed from locally derived connected tasks */}
+            {card.type === 'USER_STORY' && (() => {
+              const doneTasks = connectedTasks.filter(t => t.list?.phase === 'DONE').length;
+              const pct = connectedTasks.length > 0 ? Math.round((doneTasks / connectedTasks.length) * 100) : 0;
+              const sp = connectedTasks.reduce((s, t) => s + (t.taskData?.storyPoints ?? 0), 0);
+              return (
+                <div className="space-y-2">
+                  <Label className="text-caption font-medium text-text-secondary">
+                    Progress
+                  </Label>
+                  <div className="space-y-2 rounded-md border border-border-subtle bg-surface p-3">
+                    <div className="flex items-center justify-between text-body">
+                      <span className="text-text-tertiary">Completion</span>
+                      <span className="font-medium text-card-story">
+                        {pct}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                      <div
+                        className="h-full rounded-full bg-card-story transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-body text-text-tertiary">
+                      <span>Tasks: {connectedTasks.length}</span>
+                      <span>SP: {sp}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Epic Progress Stats */}
             {card.type === 'EPIC' && (
