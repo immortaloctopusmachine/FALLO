@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" role="img" aria-labelledby="title desc">
+  <title id="title">Fanta Theme Logo</title>
+  <desc id="desc">Citrus orange badge with blue FANTA lettering.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF8EE" />
+      <stop offset="56%" stop-color="#FFE1B7" />
+      <stop offset="100%" stop-color="#FFC56D" />
+    </linearGradient>
+    <linearGradient id="orangeBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F06E1E" />
+      <stop offset="100%" stop-color="#F79339" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="632" height="152" rx="26" fill="url(#bg)" stroke="#0E1D6D" stroke-width="8" />
+  <rect x="18" y="18" width="604" height="20" rx="10" fill="url(#orangeBand)" opacity="0.9" />
+  <rect x="18" y="124" width="604" height="12" rx="6" fill="#2E4ABF" opacity="0.92" />
+  <rect x="18" y="138" width="604" height="8" rx="4" fill="#3FA84E" opacity="0.92" />
+  <circle cx="92" cy="80" r="40" fill="#FEC94D" stroke="#DD6116" stroke-width="5" />
+  <path d="M92 40c13 0 26 6 33 16-6 2-14 3-20 4-9 1-18 2-26 2-7 0-15-1-21-2 7-12 20-20 34-20z" fill="#FFE6B6" opacity="0.9" />
+  <text x="194" y="104" fill="#17359B" font-size="90" font-weight="900" letter-spacing="1" font-family="Baloo 2, Trebuchet MS, Verdana, sans-serif">FANTA</text>
+</svg>

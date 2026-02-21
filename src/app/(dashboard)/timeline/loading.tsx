@@ -1,5 +1,5 @@
-import { TimelineSkeleton } from '@/components/timeline/TimelineSkeleton';
+import { ThemedLoader } from '@/components/shared/ThemedLoader';
 
 export default function TimelineLoading() {
-  return <TimelineSkeleton />;
+  return <ThemedLoader />;
 }

@@ -17,6 +17,7 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSlackLoading, setIsSlackLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const authRequireSlack = process.env.NEXT_PUBLIC_AUTH_REQUIRE_SLACK === 'true';
@@ -36,13 +37,14 @@ function LoginForm() {
 
       if (result?.error) {
         setLoginError('Invalid email or password');
+        setIsLoading(false);
       } else {
+        setIsRedirecting(true);
         router.push(callbackUrl);
         router.refresh();
       }
     } catch {
       setLoginError('An error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -53,6 +55,21 @@ function LoginForm() {
     await signIn('slack', { callbackUrl });
     setIsSlackLoading(false);
   };
+
+  if (isRedirecting) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-5">
+          <span className="text-2xl font-bold text-text-secondary">Fallo</span>
+          <div className="themed-loader-dots flex items-center gap-1.5">
+            <span className="themed-loader-dot" />
+            <span className="themed-loader-dot" />
+            <span className="themed-loader-dot" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

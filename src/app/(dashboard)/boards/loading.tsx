@@ -1,5 +1,5 @@
-import { BoardsSkeleton } from '@/components/boards/BoardsSkeleton';
+import { ThemedLoader } from '@/components/shared/ThemedLoader';
 
 export default function BoardsLoading() {
-  return <BoardsSkeleton />;
+  return <ThemedLoader />;
 }
