@@ -230,6 +230,21 @@ const HEADING_FONT_PRESET_OPTIONS: FontPresetOption[] = [
     preview: 'COMIC BURST DISPLAY',
   },
   {
+    label: 'Press Start 2P',
+    value: '"Press Start 2P", "Lucida Console", "Courier New", monospace',
+    preview: 'PIXEL ARCADE DISPLAY',
+  },
+  {
+    label: 'Silkscreen',
+    value: '"Silkscreen", "Lucida Console", "Courier New", monospace',
+    preview: 'RETRO PIXEL LABEL',
+  },
+  {
+    label: 'VT323',
+    value: '"VT323", "Lucida Console", "Courier New", monospace',
+    preview: 'TERMINAL PIXEL HEADING',
+  },
+  {
     label: 'Righteous',
     value: '"Righteous", "Trebuchet MS", "Segoe UI", sans-serif',
     preview: 'CURVED RETRO LOGOTYPE',

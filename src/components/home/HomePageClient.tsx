@@ -225,7 +225,7 @@ export function HomePageClient() {
         </div>
 
         <div className="home-stats-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card home-stat-card-tasks rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">My Open Tasks</span>
               <ListChecks className="h-4 w-4 text-text-tertiary" />
@@ -234,7 +234,7 @@ export function HomePageClient() {
             <div className="mt-1 text-caption text-text-tertiary">{data.stats.dueSoonCount} due soon</div>
           </div>
 
-          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card home-stat-card-boards rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">My Boards</span>
               <LayoutGrid className="h-4 w-4 text-text-tertiary" />
@@ -243,7 +243,7 @@ export function HomePageClient() {
             <div className="mt-1 text-caption text-text-tertiary">{data.stats.myProjectCount} active projects</div>
           </div>
 
-          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card home-stat-card-reviews rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">Pending Reviews</span>
               <CheckCircle2 className="h-4 w-4 text-text-tertiary" />
@@ -254,7 +254,7 @@ export function HomePageClient() {
             </div>
           </div>
 
-          <div className="home-stat-card rounded-lg border border-border bg-surface p-4">
+          <div className="home-stat-card home-stat-card-notifications rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <span className="text-caption text-text-secondary">Unread Notifications</span>
               <Bell className="h-4 w-4 text-text-tertiary" />
@@ -267,7 +267,7 @@ export function HomePageClient() {
         </div>
 
         <div className="home-content-grid grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-          <section className="home-panel rounded-lg border border-border bg-surface">
+          <section className="home-panel home-panel-tasks rounded-lg border border-border bg-surface">
             <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
               <h2 className="font-medium">My Tasks</h2>
               <span className="text-caption text-text-tertiary">{data.myTasks.length}</span>
@@ -323,9 +323,9 @@ export function HomePageClient() {
             )}
           </section>
 
-          <div className="space-y-6">
+          <div className="home-side-stack space-y-6">
             {hasEvaluatorRole && (
-              <section className="home-panel rounded-lg border border-border bg-surface">
+              <section className="home-panel home-panel-reviews rounded-lg border border-border bg-surface">
                 <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
                   <h2 className="font-medium">Pending Reviews</h2>
                   <span className="text-caption text-text-tertiary">{data.pendingEvaluations.length}</span>
@@ -354,7 +354,7 @@ export function HomePageClient() {
               </section>
             )}
 
-            <section className="home-panel rounded-lg border border-border bg-surface">
+            <section className="home-panel home-panel-notifications rounded-lg border border-border bg-surface">
               <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
                 <h2 className="font-medium">Notifications</h2>
                 <span className="text-caption text-text-tertiary">{data.notifications.length}</span>
@@ -384,7 +384,7 @@ export function HomePageClient() {
               )}
             </section>
 
-            <section className="home-panel rounded-lg border border-border bg-surface">
+            <section className="home-panel home-panel-boards rounded-lg border border-border bg-surface">
               <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
                 <h2 className="font-medium">My Boards</h2>
                 <span className="text-caption text-text-tertiary">{data.myBoards.length}</span>
