@@ -18,12 +18,12 @@ export default async function SettingsLayout({
   const isAdmin = session.user.permission === 'ADMIN' || isSuperAdmin;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-surface px-6 py-4">
+    <div className="min-h-screen bg-background settings-layout-shell">
+      <header className="border-b border-border bg-surface px-6 py-4 settings-top-header">
         <div className="flex items-center gap-4">
           <Link
             href="/boards"
-            className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors"
+            className="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors settings-back-link"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="text-body">Back to Boards</span>
@@ -33,9 +33,9 @@ export default async function SettingsLayout({
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex settings-body-shell">
         <SettingsSidebarNav isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6 settings-main-pane">{children}</main>
       </div>
     </div>
   );

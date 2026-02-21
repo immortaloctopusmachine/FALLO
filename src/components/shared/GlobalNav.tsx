@@ -15,7 +15,6 @@ import {
 
   Settings,
   Palette,
-  Moon,
   Sun,
   Sparkles,
   Flame,
@@ -78,8 +77,8 @@ const navItems: NavItem[] = [
 
 const themeToggleIcons: Record<UiTheme, { iconName: SkinIconName; fallback: LucideIcon }> = {
   light: { iconName: 'toggle-light', fallback: Sun },
+  windows95: { iconName: 'toggle-windows95', fallback: Monitor },
   slate: { iconName: 'toggle-slate', fallback: Palette },
-  dark: { iconName: 'toggle-dark', fallback: Moon },
   sparkle: { iconName: 'toggle-sparkle', fallback: Sparkles },
   douala: { iconName: 'toggle-douala', fallback: Flame },
   colordore: { iconName: 'toggle-colordore', fallback: Monitor },
@@ -90,7 +89,7 @@ const themeToggleIcons: Record<UiTheme, { iconName: SkinIconName; fallback: Luci
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
   const { prefetch } = usePrefetchRoute();
-  const [theme, setTheme] = useState<UiTheme>('slate');
+  const [theme, setTheme] = useState<UiTheme>('windows95');
   const [logoHasError, setLogoHasError] = useState(false);
   const [skinAssetsConfig, setSkinAssetsConfig] = useState<SkinAssetsConfig>(
     () => getCachedSkinAssetsConfig() ?? createDefaultSkinAssetsConfig()
@@ -98,8 +97,19 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
 
   const applyTheme = (nextTheme: UiTheme) => {
     const root = document.documentElement;
-    root.classList.remove('dark', 'slate', 'sparkle', 'douala', 'colordore', 'pc98', 'retromarket', 'commodore');
-    if (nextTheme === 'dark') root.classList.add('dark');
+    root.classList.remove(
+      'dark',
+      'windows95',
+      'slate',
+      'sparkle',
+      'douala',
+      'fanta',
+      'colordore',
+      'pc98',
+      'retromarket',
+      'commodore'
+    );
+    if (nextTheme === 'windows95') root.classList.add('windows95');
     if (nextTheme === 'slate') root.classList.add('slate');
     if (nextTheme === 'sparkle') root.classList.add('sparkle');
     if (nextTheme === 'douala') root.classList.add('douala');
@@ -115,7 +125,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
     const nextTheme =
       mappedStoredTheme && UI_THEMES.includes(mappedStoredTheme as UiTheme)
         ? (mappedStoredTheme as UiTheme)
-        : 'slate';
+        : 'windows95';
     setTheme(nextTheme);
     applyTheme(nextTheme);
   }, []);
@@ -266,7 +276,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuLabel>Skin</DropdownMenuLabel>
               <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as UiTheme)}>
-                <DropdownMenuRadioItem value="dark">Dark (Noir)</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="windows95">Windows 95</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="slate">Slate</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="sparkle">Sparkle</DropdownMenuRadioItem>

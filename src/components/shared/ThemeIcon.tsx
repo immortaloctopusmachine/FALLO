@@ -5,6 +5,7 @@ import Image from 'next/image';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isSupportedAssetPath, type SkinIconName, type UiTheme } from '@/lib/skin-assets';
+import { Windows95ThemeIcon } from './Windows95ThemeIcon';
 
 interface ThemeIconProps {
   theme: UiTheme;
@@ -37,6 +38,10 @@ export function ThemeIcon({
   }, [customSrc]);
 
   if (!useCustom || hasError || !src) {
+    if (theme === 'windows95') {
+      return <Windows95ThemeIcon iconName={iconName} className={className} />;
+    }
+
     return <FallbackIcon className={className} aria-hidden="true" />;
   }
 

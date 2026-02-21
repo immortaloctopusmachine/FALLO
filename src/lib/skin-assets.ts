@@ -1,4 +1,4 @@
-export const UI_THEMES = ['light', 'slate', 'dark', 'sparkle', 'douala', 'colordore', 'pc98', 'retromarket'] as const;
+export const UI_THEMES = ['light', 'windows95', 'slate', 'sparkle', 'douala', 'colordore', 'pc98', 'retromarket'] as const;
 export type UiTheme = (typeof UI_THEMES)[number];
 
 export const SKIN_ICON_NAMES = [
@@ -11,8 +11,8 @@ export const SKIN_ICON_NAMES = [
   'nav-users',
   'nav-settings',
   'toggle-light',
+  'toggle-windows95',
   'toggle-slate',
-  'toggle-dark',
   'toggle-sparkle',
   'toggle-douala',
   'toggle-colordore',
@@ -150,8 +150,8 @@ export function createDefaultThemeSkinAssets(theme: UiTheme): ThemeSkinAssets {
 export function createDefaultSkinAssetsConfig(): SkinAssetsConfig {
   return {
     light: createDefaultThemeSkinAssets('light'),
+    windows95: createDefaultThemeSkinAssets('windows95'),
     slate: createDefaultThemeSkinAssets('slate'),
-    dark: createDefaultThemeSkinAssets('dark'),
     sparkle: createDefaultThemeSkinAssets('sparkle'),
     douala: createDefaultThemeSkinAssets('douala'),
     colordore: createDefaultThemeSkinAssets('colordore'),
@@ -216,8 +216,8 @@ export function normalizeSkinAssetsConfig(value: unknown): SkinAssetsConfig {
 
   return {
     light: normalizeThemeSkinAssets('light', value.light),
+    windows95: normalizeThemeSkinAssets('windows95', value.windows95),
     slate: normalizeThemeSkinAssets('slate', value.slate),
-    dark: normalizeThemeSkinAssets('dark', value.dark),
     sparkle: normalizeThemeSkinAssets('sparkle', value.sparkle),
     douala: normalizeThemeSkinAssets('douala', value.douala),
     colordore: normalizeThemeSkinAssets('colordore', value.colordore ?? value.commodore),
@@ -296,6 +296,9 @@ const GOOGLE_FONTS_MAP: Record<string, string> = {
   'Oswald': 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap',
   'Teko': 'https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&display=swap',
   'Barlow Condensed': 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&display=swap',
+  'Baloo 2': 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700&display=swap',
+  Fredoka: 'https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap',
+  Quicksand: 'https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap',
   'Inter': 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'Roboto': 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap',
   'Montserrat': 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap',
@@ -308,6 +311,10 @@ const GOOGLE_FONTS_MAP: Record<string, string> = {
   'Ubuntu': 'https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap',
   'IBM Plex Sans': 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap',
   'Fira Sans': 'https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;600;700&display=swap',
+  'Luckiest Guy': 'https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap',
+  Bangers: 'https://fonts.googleapis.com/css2?family=Bangers&display=swap',
+  Righteous: 'https://fonts.googleapis.com/css2?family=Righteous&display=swap',
+  'Archivo Black': 'https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap',
   'Merriweather': 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&display=swap',
   'Playfair Display': 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800;900&display=swap',
 };

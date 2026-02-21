@@ -172,6 +172,21 @@ const FONT_PRESET_OPTIONS: FontPresetOption[] = [
     preview: 'Tech-friendly sans',
   },
   {
+    label: 'Baloo 2',
+    value: '"Baloo 2", "Trebuchet MS", "Segoe UI", sans-serif',
+    preview: 'Rounded citrus brand feel',
+  },
+  {
+    label: 'Fredoka',
+    value: '"Fredoka", "Trebuchet MS", "Segoe UI", sans-serif',
+    preview: 'Playful rounded sans',
+  },
+  {
+    label: 'Quicksand',
+    value: '"Quicksand", "Trebuchet MS", "Segoe UI", sans-serif',
+    preview: 'Soft geometric sans',
+  },
+  {
     label: 'JetBrains Mono',
     value: '"JetBrains Mono", Consolas, monospace',
     preview: 'Monospace interface',
@@ -205,6 +220,26 @@ const HEADING_FONT_PRESET_OPTIONS: FontPresetOption[] = [
     preview: 'CLEAN CONDENSED',
   },
   {
+    label: 'Luckiest Guy',
+    value: '"Luckiest Guy", "Bebas Neue", "Impact", sans-serif',
+    preview: 'PLAYFUL POP DISPLAY',
+  },
+  {
+    label: 'Bangers',
+    value: '"Bangers", "Impact", "Arial Narrow", sans-serif',
+    preview: 'COMIC BURST DISPLAY',
+  },
+  {
+    label: 'Righteous',
+    value: '"Righteous", "Trebuchet MS", "Segoe UI", sans-serif',
+    preview: 'CURVED RETRO LOGOTYPE',
+  },
+  {
+    label: 'Archivo Black',
+    value: '"Archivo Black", "Arial Black", "Impact", sans-serif',
+    preview: 'HEAVY LABEL HEADLINE',
+  },
+  {
     label: 'Montserrat',
     value: '"Montserrat", "Segoe UI", sans-serif',
     preview: 'Bold Geometric',
@@ -228,8 +263,8 @@ const HEADING_FONT_PRESET_OPTIONS: FontPresetOption[] = [
 
 const THEME_LABELS: Record<UiTheme, string> = {
   light: 'Light',
+  windows95: 'Windows 95',
   slate: 'Slate',
-  dark: 'Dark',
   sparkle: 'Sparkle',
   douala: 'Douala',
   colordore: 'Colordore',
@@ -259,8 +294,8 @@ const ICON_FALLBACKS: Record<SkinIconName, LucideIcon> = {
   'nav-users': User,
   'nav-settings': Settings,
   'toggle-light': Sun,
+  'toggle-windows95': Monitor,
   'toggle-slate': Palette,
-  'toggle-dark': Moon,
   'toggle-sparkle': Sparkles,
   'toggle-douala': Flame,
   'toggle-colordore': Monitor,
@@ -301,7 +336,7 @@ function formatIconLabel(iconName: SkinIconName): string {
 }
 
 export function SkinsSettingsClient() {
-  const [activeTheme, setActiveTheme] = useState<UiTheme>('slate');
+  const [activeTheme, setActiveTheme] = useState<UiTheme>('windows95');
   const [config, setConfig] = useState<SkinAssetsConfig>(() => createDefaultSkinAssetsConfig());
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -550,8 +585,8 @@ export function SkinsSettingsClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-6 skins-settings-root">
+      <div className="flex flex-wrap items-start justify-between gap-4 skins-settings-header">
         <div className="space-y-1">
           <h2 className="text-heading font-semibold">Skins</h2>
           <p className="text-sm text-text-secondary">
@@ -595,7 +630,7 @@ export function SkinsSettingsClient() {
       </div>
 
       <Tabs value={activeTheme} onValueChange={(value) => setActiveTheme(value as UiTheme)}>
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 xl:grid-cols-7">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 xl:grid-cols-7 win95-tabs-list">
           {UI_THEMES.map((theme) => (
             <TabsTrigger key={theme} value={theme}>
               {THEME_LABELS[theme]}
@@ -628,8 +663,8 @@ export function SkinsSettingsClient() {
             <TabsContent key={theme} value={theme} className="space-y-4">
               <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
                 <div className="flex flex-col gap-4">
-                  <section className="order-1 rounded-md border border-border bg-surface p-4 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                  <section className="order-1 rounded-md border border-border bg-surface p-4 space-y-3 win95-section">
+                    <div className="flex flex-wrap items-center justify-between gap-3 win95-section-header">
                   <div>
                     <h3 className="text-sm font-semibold">Logo</h3>
                     <p className="text-xs text-text-secondary">Appears left of Home in the top header.</p>
@@ -706,8 +741,8 @@ export function SkinsSettingsClient() {
                 </div>
                   </section>
 
-                  <section className="order-4 rounded-md border border-border bg-surface p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <section className="order-4 rounded-md border border-border bg-surface p-4 space-y-3 win95-section">
+                <div className="flex flex-wrap items-center justify-between gap-3 win95-section-header">
                   <div>
                     <h3 className="text-sm font-semibold">Background</h3>
                     <p className="text-xs text-text-secondary">Shown behind dashboard pages when enabled.</p>
@@ -796,7 +831,7 @@ export function SkinsSettingsClient() {
                   </div>
                 </div>
 
-                <div className="relative h-28 overflow-hidden rounded-md border border-border-subtle bg-surface-subtle">
+                <div className="relative h-28 overflow-hidden rounded-md border border-border-subtle bg-surface-subtle win95-inset">
                   <div
                     className="absolute inset-0"
                     style={{
@@ -816,8 +851,8 @@ export function SkinsSettingsClient() {
                 </div>
               </section>
 
-                  <section className="order-3 rounded-md border border-border bg-surface p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <section className="order-3 rounded-md border border-border bg-surface p-4 space-y-3 win95-section">
+                <div className="flex flex-wrap items-center justify-between gap-3 win95-section-header">
                   <div>
                     <h3 className="text-sm font-semibold">Body Font</h3>
                     <p className="text-xs text-text-secondary">Font stack for body text and UI elements.</p>
@@ -900,7 +935,7 @@ export function SkinsSettingsClient() {
                   />
                 </div>
 
-                <div className="rounded-md border border-border-subtle bg-surface-subtle p-3 text-sm text-text-secondary">
+                <div className="rounded-md border border-border-subtle bg-surface-subtle p-3 text-sm text-text-secondary win95-inset">
                   <div
                     className="text-sm text-text-primary"
                     style={{
@@ -918,8 +953,8 @@ export function SkinsSettingsClient() {
                 </div>
               </section>
 
-                  <section className="order-2 rounded-md border border-border bg-surface p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <section className="order-2 rounded-md border border-border bg-surface p-4 space-y-3 win95-section">
+                <div className="flex flex-wrap items-center justify-between gap-3 win95-section-header">
                   <div>
                     <h3 className="text-sm font-semibold">Heading Font</h3>
                     <p className="text-xs text-text-secondary">
@@ -1007,7 +1042,7 @@ export function SkinsSettingsClient() {
                   />
                 </div>
 
-                <div className="rounded-md border border-border-subtle bg-surface-subtle p-3 text-sm text-text-secondary">
+                <div className="rounded-md border border-border-subtle bg-surface-subtle p-3 text-sm text-text-secondary win95-inset">
                   <div
                     className="text-lg font-bold text-text-primary"
                     style={{
@@ -1027,8 +1062,8 @@ export function SkinsSettingsClient() {
                 </div>
 
                 <div className="flex flex-col gap-4">
-                  <section className="rounded-md border border-border bg-surface p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <section className="rounded-md border border-border bg-surface p-4 space-y-3 win95-section">
+                <div className="flex flex-wrap items-center justify-between gap-3 win95-section-header">
                   <div>
                     <h3 className="text-sm font-semibold">Icons</h3>
                     <p className="text-xs text-text-secondary">Left preview: default icon. Right preview: custom icon.</p>
@@ -1052,7 +1087,7 @@ export function SkinsSettingsClient() {
                     return (
                       <div
                         key={`${theme}-${iconName}`}
-                        className="flex flex-wrap items-center gap-3 rounded-md border border-border-subtle bg-surface-subtle px-3 py-2"
+                        className="flex flex-wrap items-center gap-3 rounded-md border border-border-subtle bg-surface-subtle px-3 py-2 win95-row"
                       >
                         <div className="min-w-[210px] text-xs">
                           <div className="font-medium text-text-primary">{formatIconLabel(iconName)}</div>
@@ -1060,11 +1095,11 @@ export function SkinsSettingsClient() {
                           <div className="text-text-tertiary">{getIconRecommendation(iconName)}</div>
                         </div>
 
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface win95-icon-cell">
                           <FallbackIcon className="h-4 w-4" />
                         </span>
 
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface win95-icon-cell">
                           <ThemeIcon
                             theme={theme}
                             iconName={iconName}

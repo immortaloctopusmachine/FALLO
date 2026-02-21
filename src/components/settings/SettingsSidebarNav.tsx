@@ -67,7 +67,7 @@ export function SettingsSidebarNav({ isSuperAdmin, isAdmin }: SettingsSidebarNav
   }, [router, settingsNav]);
 
   return (
-    <nav className="w-64 border-r border-border bg-surface p-4">
+    <nav className="w-64 border-r border-border bg-surface p-4 settings-sidebar-shell">
       <ul className="space-y-1">
         {settingsNav.map((item) => {
           const isActive = pathname === item.href;
@@ -78,9 +78,9 @@ export function SettingsSidebarNav({ isSuperAdmin, isAdmin }: SettingsSidebarNav
               <Link
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-body transition-colors',
+                  'settings-sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-body transition-colors',
                   isActive
-                    ? 'bg-card-epic/10 text-card-epic font-medium'
+                    ? 'settings-sidebar-link-active bg-card-epic/10 text-card-epic font-medium'
                     : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
                 )}
               >
