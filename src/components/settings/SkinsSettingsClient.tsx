@@ -282,9 +282,11 @@ const THEME_LABELS: Record<UiTheme, string> = {
   slate: 'Slate',
   sparkle: 'Sparkle',
   douala: 'Douala',
+  anime90s: 'EVA',
   colordore: 'Colordore',
   pc98: 'PC-98',
   retromarket: 'Retro Market',
+  nova: 'Nova',
 };
 
 const BACKGROUND_POSITION_OPTIONS = [
@@ -313,9 +315,11 @@ const ICON_FALLBACKS: Record<SkinIconName, LucideIcon> = {
   'toggle-slate': Palette,
   'toggle-sparkle': Sparkles,
   'toggle-douala': Flame,
+  'toggle-anime90s': Flame,
   'toggle-colordore': Monitor,
   'toggle-pc98': Gamepad2,
   'toggle-retromarket': BarChart3,
+  'toggle-nova': Sparkles,
   'ornament-star': Star,
   'ornament-heart': Heart,
   'ornament-moon': Moon,
@@ -645,7 +649,7 @@ export function SkinsSettingsClient() {
       </div>
 
       <Tabs value={activeTheme} onValueChange={(value) => setActiveTheme(value as UiTheme)}>
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 xl:grid-cols-7 win95-tabs-list">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-3 xl:grid-cols-9 win95-tabs-list">
           {UI_THEMES.map((theme) => (
             <TabsTrigger key={theme} value={theme}>
               {THEME_LABELS[theme]}

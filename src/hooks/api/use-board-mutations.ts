@@ -82,6 +82,14 @@ export function useBoardMutations(boardId: string) {
       });
     }
 
+    async function copyCard(cardId: string, params: { listId: string; assigneeId?: string | null }): Promise<Card> {
+      return apiFetch<Card>(`/api/boards/${boardId}/cards/${cardId}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+    }
+
     return {
       invalidateBoard,
       reorderCard,
@@ -90,6 +98,7 @@ export function useBoardMutations(boardId: string) {
       assignUser,
       unassignUser,
       createList,
+      copyCard,
     };
   }, [boardId, queryClient]);
 }

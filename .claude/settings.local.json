@@ -69,7 +69,10 @@
       "Bash(npm info:*)",
       "Bash(npm view:*)",
       "Bash(npx fix-react2shell-next@latest:*)",
-      "Bash(npx next lint:*)"
+      "Bash(npx next lint:*)",
+      "Bash(xargs:*)",
+      "Bash(cat:*)",
+      "Bash(del \"c:\\\\project-planner\\\\project-planner\\\\src\\\\components\\\\boards\\\\ReviewModeOverlay.tsx\")"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",
@@ -85,7 +88,8 @@
       "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]",
       "C:\\project-planner\\project-planner\\src\\app\\api\\users\\[userId]",
       "C:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\timeline\\blocks\\[blockId]",
-      "c:\\project-planner\\project-planner\\src\\app\\(dashboard)\\projects"
+      "c:\\project-planner\\project-planner\\src\\app\\(dashboard)\\projects",
+      "c:\\project-planner\\project-planner\\public\\skins\\icons"
     ]
   }
 }

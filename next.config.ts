@@ -42,6 +42,9 @@ if (process.env.R2_PUBLIC_URL) {
 }
 
 const nextConfig: NextConfig = {
+  // Keep development and production build outputs separate.
+  // This prevents chunk/cache corruption when a dev server and build run around the same time.
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   images: {
     remotePatterns,
   },

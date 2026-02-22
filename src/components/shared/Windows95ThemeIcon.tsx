@@ -37,9 +37,11 @@ const WINDOWS95_ICON_MAP: Record<SkinIconName, Win95IconComponent> = {
   'toggle-slate': Computer3,
   'toggle-sparkle': Star,
   'toggle-douala': Mshearts1,
+  'toggle-anime90s': Mshearts1,
   'toggle-colordore': FlyingWindows100,
   'toggle-pc98': Timedate,
   'toggle-retromarket': WindowGraph,
+  'toggle-nova': Star,
   'ornament-star': Star,
   'ornament-heart': Mshearts1,
   'ornament-moon': Timedate,
@@ -54,4 +56,3 @@ export function Windows95ThemeIcon({ iconName, className }: Windows95ThemeIconPr
   const Icon = WINDOWS95_ICON_MAP[iconName];
   return <Icon className={cn('windows95-pack-icon inline-block shrink-0 object-contain', className)} aria-hidden="true" />;
 }
-

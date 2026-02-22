@@ -1,4 +1,15 @@
-export const UI_THEMES = ['light', 'windows95', 'slate', 'sparkle', 'douala', 'colordore', 'pc98', 'retromarket'] as const;
+export const UI_THEMES = [
+  'light',
+  'windows95',
+  'slate',
+  'sparkle',
+  'douala',
+  'anime90s',
+  'colordore',
+  'pc98',
+  'retromarket',
+  'nova',
+] as const;
 export type UiTheme = (typeof UI_THEMES)[number];
 
 export const SKIN_ICON_NAMES = [
@@ -15,9 +26,11 @@ export const SKIN_ICON_NAMES = [
   'toggle-slate',
   'toggle-sparkle',
   'toggle-douala',
+  'toggle-anime90s',
   'toggle-colordore',
   'toggle-pc98',
   'toggle-retromarket',
+  'toggle-nova',
   'ornament-star',
   'ornament-heart',
   'ornament-moon',
@@ -154,9 +167,11 @@ export function createDefaultSkinAssetsConfig(): SkinAssetsConfig {
     slate: createDefaultThemeSkinAssets('slate'),
     sparkle: createDefaultThemeSkinAssets('sparkle'),
     douala: createDefaultThemeSkinAssets('douala'),
+    anime90s: createDefaultThemeSkinAssets('anime90s'),
     colordore: createDefaultThemeSkinAssets('colordore'),
     pc98: createDefaultThemeSkinAssets('pc98'),
     retromarket: createDefaultThemeSkinAssets('retromarket'),
+    nova: createDefaultThemeSkinAssets('nova'),
   };
 }
 
@@ -220,9 +235,11 @@ export function normalizeSkinAssetsConfig(value: unknown): SkinAssetsConfig {
     slate: normalizeThemeSkinAssets('slate', value.slate),
     sparkle: normalizeThemeSkinAssets('sparkle', value.sparkle),
     douala: normalizeThemeSkinAssets('douala', value.douala),
+    anime90s: normalizeThemeSkinAssets('anime90s', value.anime90s),
     colordore: normalizeThemeSkinAssets('colordore', value.colordore ?? value.commodore),
     pc98: normalizeThemeSkinAssets('pc98', value.pc98),
     retromarket: normalizeThemeSkinAssets('retromarket', value.retromarket),
+    nova: normalizeThemeSkinAssets('nova', value.nova),
   };
 }
 

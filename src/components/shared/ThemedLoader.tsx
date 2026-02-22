@@ -24,6 +24,8 @@ function getThemeFromDom(): UiTheme {
 
 function getLogoFallbackText(theme: UiTheme): string {
   if (theme === 'douala') return 'FALLO';
+  if (theme === 'anime90s') return 'EVA';
+  if (theme === 'nova') return 'NOVA';
   return 'PP';
 }
 

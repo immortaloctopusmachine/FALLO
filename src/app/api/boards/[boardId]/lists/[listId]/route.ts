@@ -6,6 +6,7 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import { isValidPhase } from '@/lib/constants';
 
 // PATCH /api/boards/[boardId]/lists/[listId] - Update list
 export async function PATCH(
@@ -25,9 +26,8 @@ export async function PATCH(
     const { name, position, color, phase, durationWeeks, durationDays, startDate, endDate } = body;
 
     // Validate phase if provided
-    const validPhases = ['BACKLOG', 'SPINE_PROTOTYPE', 'CONCEPT', 'PRODUCTION', 'TWEAK', 'DONE'];
     const listPhase = phase !== undefined
-      ? (phase && validPhases.includes(phase) ? phase : null)
+      ? (typeof phase === 'string' && isValidPhase(phase) ? phase : null)
       : undefined;
 
     const list = await prisma.list.update({

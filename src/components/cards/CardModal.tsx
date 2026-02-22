@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import { CheckSquare, BookOpen, Layers, FileText, Trash2, X, Paperclip, ChevronUp, ChevronDown, ChevronRight, ListChecks, AlignLeft, AlertTriangle, Zap, FileQuestion, Ban, Eye, Link2, Link, StickyNote, Milestone, Calendar, ExternalLink } from 'lucide-react';
+import { CheckSquare, BookOpen, Layers, FileText, Trash2, X, Paperclip, ChevronUp, ChevronDown, ChevronRight, ListChecks, AlignLeft, AlertTriangle, Zap, FileQuestion, Ban, Eye, Link2, Link, StickyNote, Milestone, Calendar, ExternalLink, Info, Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,8 +28,17 @@ import { toast } from 'sonner';
 import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, Checklist, CardAssignee, BoardMember, BoardSettings, UserStoryFlag, UtilitySubtype, List, Attachment, Comment, TaskReleaseMode } from '@/types';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
+import { getFriday, formatDisplayDate } from '@/lib/date-utils';
 import { buildDependencyChain, type ChainLink } from '@/lib/task-presets';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { TaskApprovals } from './TaskApprovals';
+import { CopyCardDialog } from './CopyCardDialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Select,
   SelectContent,
@@ -65,6 +74,20 @@ const cardTypeConfig = {
   EPIC: { label: 'Epic', icon: Layers, color: 'text-card-epic', bg: 'bg-card-epic/10' },
   UTILITY: { label: 'Utility', icon: FileText, color: 'text-card-utility', bg: 'bg-card-utility/10' },
 };
+
+function isPlanningTask(task: TaskCard): boolean {
+  return task.list?.viewType === 'PLANNING' || !task.list;
+}
+
+function getTaskReleaseLabel(task: TaskCard): string {
+  if (task.taskData?.scheduledReleaseDate) {
+    return formatDisplayDate(task.taskData.scheduledReleaseDate);
+  }
+  if (task.list?.startDate) {
+    return formatDisplayDate(getFriday(new Date(task.list.startDate)));
+  }
+  return 'Release date not set';
+}
 
 const FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13, 21];
 
@@ -142,6 +165,7 @@ export function CardModal({
   const [linkedEpic, setLinkedEpic] = useState<EpicCard | null>(null);
   const [isCreatingLinkedCard, setIsCreatingLinkedCard] = useState(false);
   const [isCreateLinkedTasksOpen, setIsCreateLinkedTasksOpen] = useState(false);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>(initialBoardMembers);
   const [newLinkedCardTitle, setNewLinkedCardTitle] = useState('');
   const [newLinkedCardListId, setNewLinkedCardListId] = useState<string>('');
@@ -262,7 +286,7 @@ export function CardModal({
 
     if (card.type === 'USER_STORY') {
       const listMap = new Map(
-        [...taskLists, ...planningLists].map(l => [l.id, { id: l.id, name: l.name, phase: (l.phase ?? null) as string | null }])
+        [...taskLists, ...planningLists].map(l => [l.id, { id: l.id, name: l.name, phase: (l.phase ?? null) as string | null, viewType: l.viewType, startDate: l.startDate ?? null }])
       );
       const derivedConnectedTasks = allCards
         .filter(
@@ -445,6 +469,12 @@ export function CardModal({
     setNewLinkedReleaseTargetListId(defaultTaskListId);
   }, [card?.id, card?.type, card?.listId, defaultTaskListId]);
 
+  // Compute dependency chain for TASK cards.
+  const dependencyChain = useMemo<ChainLink[] | null>(
+    () => (card?.type === 'TASK' ? buildDependencyChain(card.id, allCards) : null),
+    [card?.id, card?.type, allCards]
+  );
+
   if (!card) return null;
 
   const config = cardTypeConfig[card.type];
@@ -565,14 +595,10 @@ export function CardModal({
     } as Card);
   };
 
-  // Compute dependency chain for TASK cards
-  const dependencyChain: ChainLink[] | null =
-    card?.type === 'TASK' ? buildDependencyChain(card.id, allCards) : null;
-
   return (
     <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-modal gap-0 overflow-hidden p-0 flex flex-col">
+      <DialogContent className="max-h-[90vh] max-w-modal gap-0 overflow-hidden p-0 flex flex-col" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Feature Image */}
         {featureImage && (
           <div className="relative h-40 w-full overflow-hidden bg-surface-hover group">
@@ -622,12 +648,12 @@ export function CardModal({
         {/* Header */}
         <DialogHeader className="border-b border-border px-6 py-4">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
+            <div className="flex-1 max-w-[60%]">
               <DialogTitle asChild>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="border-none bg-transparent px-0 text-heading font-semibold focus-visible:ring-0"
+                  className="border-none bg-transparent pl-2 pr-0 text-heading font-semibold focus-visible:ring-0"
                   placeholder="Card title"
                 />
               </DialogTitle>
@@ -635,7 +661,7 @@ export function CardModal({
                 Edit {config.label.toLowerCase()} card details
               </DialogDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mr-6">
               <div className={cn('flex items-center gap-1.5 rounded-md px-2 py-1', config.bg)}>
                 <Icon className={cn('h-4 w-4', config.color)} />
                 <span className={cn('text-caption font-medium', config.color)}>
@@ -677,10 +703,10 @@ export function CardModal({
               <div className="space-y-4">
             {/* Dependency Chain (Task cards only) */}
             {card.type === 'TASK' && dependencyChain && (
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap">
                 {dependencyChain.map((link, i) => (
-                  <div key={link.id} className="flex items-center gap-1.5">
-                    {i > 0 && <span className="text-text-tertiary text-tiny">→</span>}
+                  <div key={link.id} className="flex items-center gap-1">
+                    {i > 0 && <span className="text-text-tertiary text-[10px]">→</span>}
                     <button
                       onClick={() => {
                         if (!link.isCurrent && onCardClick) {
@@ -690,7 +716,7 @@ export function CardModal({
                       }}
                       disabled={link.isCurrent}
                       className={cn(
-                        'flex items-center gap-1 rounded-full px-2 py-0.5 text-tiny font-medium transition-colors',
+                        'flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight transition-colors',
                         link.isCurrent
                           ? 'bg-card-task/15 text-card-task border border-card-task/30'
                           : link.isComplete
@@ -699,20 +725,41 @@ export function CardModal({
                       )}
                     >
                       {link.isComplete ? (
-                        <CheckSquare className="h-3 w-3" />
+                        <CheckSquare className="h-2.5 w-2.5" />
                       ) : (
-                        <span className="h-2 w-2 rounded-full bg-current opacity-50" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />
                       )}
                       <span>{link.typeLabel}</span>
-                      {link.listName && !link.isCurrent && (
-                        <span className="opacity-60">· {link.listName}</span>
-                      )}
-                      {link.checklistProgress && !link.isCurrent && (
-                        <span className="opacity-60">
-                          ({link.checklistProgress.done}/{link.checklistProgress.total})
-                        </span>
-                      )}
                     </button>
+                    {/* Version sub-pills inline */}
+                    {link.versions && link.versions.length > 0 && link.versions.map((ver) => (
+                      <button
+                        key={ver.id}
+                        onClick={() => {
+                          if (!ver.isCurrent && onCardClick) {
+                            const target = allCards.find((c) => c.id === ver.id);
+                            if (target) onCardClick(target);
+                          }
+                        }}
+                        disabled={ver.isCurrent}
+                        className={cn(
+                          'flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight transition-colors',
+                          ver.isCurrent
+                            ? 'bg-card-task/15 text-card-task border border-card-task/30'
+                            : ver.isComplete
+                              ? 'bg-success/10 text-success hover:bg-success/20 cursor-pointer'
+                              : 'bg-surface-hover text-text-tertiary hover:bg-surface-hover/80 cursor-pointer'
+                        )}
+                      >
+                        <span className="text-text-quaternary text-[9px]">└</span>
+                        {ver.isComplete ? (
+                          <CheckSquare className="h-2 w-2" />
+                        ) : (
+                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />
+                        )}
+                        <span>{ver.typeLabel}</span>
+                      </button>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -1075,19 +1122,12 @@ export function CardModal({
                 {connectedTasks.length > 0 ? (
                   <div className="space-y-2">
                     {connectedTasks.map((task) => {
-                      // Task is complete if it's in a "Done" list
                       const isDone = task.list?.phase === 'DONE';
                       const firstAssignee = task.assignees?.[0];
-                      return (
-                        <button
-                          key={task.id}
-                          onClick={() => {
-                            if (onCardClick) {
-                              onCardClick(task as unknown as Card);
-                            }
-                          }}
-                          className="flex w-full items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body text-left hover:border-card-task hover:bg-card-task/5 transition-colors"
-                        >
+                      const isPlanning = isPlanningTask(task);
+
+                      const taskContent = (
+                        <>
                           <CheckSquare className={cn(
                             'h-4 w-4 shrink-0',
                             isDone ? 'text-success' : 'text-card-task'
@@ -1129,6 +1169,48 @@ export function CardModal({
                               </div>
                             )}
                           </div>
+                        </>
+                      );
+
+                      if (isPlanning) {
+                        return (
+                          <Popover key={task.id}>
+                            <PopoverTrigger asChild>
+                              <button
+                                className="flex w-full items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body text-left opacity-60 hover:opacity-80 transition-opacity"
+                              >
+                                {taskContent}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 p-3" side="top" align="start">
+                              <div className="space-y-2">
+                                <p className="text-body font-medium truncate">{task.title}</p>
+                                <div className="flex items-center gap-1.5 text-caption text-text-secondary">
+                                  <Calendar className="h-3.5 w-3.5 shrink-0" />
+                                  <span>Release: {getTaskReleaseLabel(task)}</span>
+                                </div>
+                                {task.list?.name && (
+                                  <p className="text-tiny text-text-tertiary">
+                                    List: {task.list.name}
+                                  </p>
+                                )}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={task.id}
+                          onClick={() => {
+                            if (onCardClick) {
+                              onCardClick(task as unknown as Card);
+                            }
+                          }}
+                          className="flex w-full items-center gap-2 rounded-md border border-border-subtle bg-surface p-2 text-body text-left hover:border-card-task hover:bg-card-task/5 transition-colors"
+                        >
+                          {taskContent}
                         </button>
                       );
                     })}
@@ -1326,11 +1408,23 @@ export function CardModal({
             className="w-[198px] shrink-0 space-y-4 border-l border-border overflow-y-auto overflow-x-hidden p-4"
             style={{ backgroundColor: color ? `${color}10` : undefined }}
           >
-            {/* Assignees */}
+            {/* Assignee */}
             {card.type === 'TASK' && (
               <div className="space-y-2">
-                <Label className="text-caption font-medium text-text-secondary">
-                  Assignees
+                <Label className="text-caption font-medium text-text-secondary flex items-center gap-1.5">
+                  Assignee
+                  {assignees.length > 0 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[220px]">
+                          <p>Only one user can be assigned to a task at a time. Remove the current user or copy this task.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </Label>
                 <AssigneePicker
                   assignees={assignees}
@@ -1338,6 +1432,7 @@ export function CardModal({
                   cardId={card.id}
                   boardMembers={boardMembers}
                   onUpdate={handleAssigneesUpdate}
+                  singleMode
                 />
               </div>
             )}
@@ -1415,7 +1510,7 @@ export function CardModal({
                 {linkedUserStoryId && (
                   <div className="mt-2 text-caption">
                     {linkedEpic ? (
-                      <div className="flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface p-2">
+                      <div className="flex items-center gap-1.5 rounded-md p-2">
                         <Layers className="h-3.5 w-3.5 text-card-epic" />
                         <span className="text-text-tertiary">Epic:</span>
                         <span className="truncate text-text-primary">{linkedEpic.title}</span>
@@ -1586,6 +1681,17 @@ export function CardModal({
               <Label className="text-caption font-medium text-text-secondary">
                 Actions
               </Label>
+              {card.type === 'TASK' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-text-secondary hover:bg-surface-hover"
+                  onClick={() => setIsCopyDialogOpen(true)}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  Copy card
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -1621,6 +1727,22 @@ export function CardModal({
         boardMembers={boardMembers}
         availableTags={availableTags}
         onTasksCreated={handleLinkedTasksCreated}
+      />
+    )}
+
+    {/* Copy Card Dialog (Task only) */}
+    {card?.type === 'TASK' && (
+      <CopyCardDialog
+        isOpen={isCopyDialogOpen}
+        onClose={() => setIsCopyDialogOpen(false)}
+        card={card as TaskCard}
+        boardId={boardId}
+        taskLists={taskLists}
+        boardMembers={boardMembers}
+        onCardCopied={(newCard) => {
+          setIsCopyDialogOpen(false);
+          onLinkedCardCreated?.(newCard);
+        }}
       />
     )}
     </>

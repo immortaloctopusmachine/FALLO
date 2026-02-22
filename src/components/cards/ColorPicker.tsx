@@ -39,7 +39,7 @@ export function ColorPicker({ color, onChange }: ColorPickerProps) {
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant={color ? 'outline' : 'ghost'}
+            variant="ghost"
             size="sm"
             className={cn('flex-1 justify-start text-text-tertiary', color && 'pr-2')}
           >

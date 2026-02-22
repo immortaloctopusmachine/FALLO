@@ -71,6 +71,7 @@ interface ListProps {
   extraHeaderActions?: ReactNode;
   useTwoRowHeaderActions?: boolean; // Move add/actions icons to a second header row
   onCardHover?: (card: Card) => void; // Prefetch card details on hover
+  onCardContextMenu?: (card: Card, e: React.MouseEvent) => void; // Right-click context menu
 }
 
 // Get subtle tint style based on list name — uses backgroundImage so it layers on top of bg-surface
@@ -131,6 +132,7 @@ export function List({
   extraHeaderActions,
   useTwoRowHeaderActions = false,
   onCardHover,
+  onCardContextMenu,
 }: ListProps) {
   const [isAddingCard, setIsAddingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -445,6 +447,11 @@ export function List({
           <div
             key={card.id}
             onMouseEnter={onCardHover ? () => onCardHover(card) : undefined}
+            onContextMenu={onCardContextMenu ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCardContextMenu(card, e);
+            } : undefined}
           >
             <CardCompact
               card={card}
@@ -484,6 +491,11 @@ export function List({
                     key={`secondary-${card.id}`}
                     className="space-y-1"
                     onMouseEnter={onCardHover ? () => onCardHover(card) : undefined}
+                    onContextMenu={onCardContextMenu ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onCardContextMenu(card, e);
+                    } : undefined}
                   >
                     <CardCompact
                       card={card}

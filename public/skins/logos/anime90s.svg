@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" role="img" aria-labelledby="title desc">
+  <title id="title">EVA skin logo</title>
+  <desc id="desc">Angular command panel with hex-grid globe motif, blue-gray signal lines, and neon status marks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E141A" />
+      <stop offset="58%" stop-color="#19212A" />
+      <stop offset="100%" stop-color="#070C10" />
+    </linearGradient>
+    <linearGradient id="alert" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF7F46" />
+      <stop offset="100%" stop-color="#DF3F2E" />
+    </linearGradient>
+    <linearGradient id="signal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4E5ED" />
+      <stop offset="100%" stop-color="#A9C5D3" />
+    </linearGradient>
+    <pattern id="hex" width="24" height="14" patternUnits="userSpaceOnUse">
+      <path d="M6 0H18L24 7L18 14H6L0 7Z" fill="none" stroke="#A7FF7A" stroke-opacity="0.16" stroke-width="1" />
+    </pattern>
+    <clipPath id="globeClip">
+      <circle cx="236" cy="80" r="56" />
+    </clipPath>
+  </defs>
+
+  <path d="M14 4H626L636 14V146L626 156H14L4 146V14Z" fill="url(#bg)" stroke="#BFD4DD" stroke-opacity="0.55" stroke-width="1.4" />
+  <rect x="12" y="12" width="616" height="136" fill="url(#hex)" opacity="0.8" />
+
+  <path d="M26 24H116L124 32V48L116 56H26L18 48V32Z" fill="#8A1E1A" stroke="#F9D8C4" stroke-opacity="0.6" />
+  <text x="71" y="43" fill="#FFF0E3" font-family="'Arial Black', Impact, sans-serif" font-size="14" text-anchor="middle" letter-spacing="1.2">ALERT</text>
+
+  <circle cx="236" cy="80" r="56" fill="none" stroke="#BDD1DB" stroke-opacity="0.68" stroke-width="1.8" />
+  <g clip-path="url(#globeClip)">
+    <path d="M180 80H292M180 64H292M180 96H292M180 48H292M180 112H292" stroke="#A7FF7A" stroke-opacity="0.3" />
+    <path d="M236 24V136M216 24V136M256 24V136M196 24V136M276 24V136" stroke="#BDD1DB" stroke-opacity="0.26" />
+    <path d="M180 80L208 32L264 32L292 80L264 128L208 128Z" fill="none" stroke="#A7FF7A" stroke-opacity="0.38" />
+    <path d="M194 56L222 40H250L278 56V88L250 104H222L194 88Z" fill="none" stroke="#A7FF7A" stroke-opacity="0.34" />
+  </g>
+
+  <path d="M300 40H614L622 48V62L614 70H300L292 62V48Z" fill="#C2D8E2" fill-opacity="0.1" stroke="#BDD1DB" stroke-opacity="0.72" />
+  <text x="316" y="60" fill="#D5E7EF" font-family="'Arial Narrow', 'Trebuchet MS', sans-serif" font-size="13" letter-spacing="2.8">PROJECT PLANNER / TACTICAL MODE</text>
+
+  <path d="M300 78H614L622 86V126L614 134H300L292 126V86Z" fill="#0B1218" fill-opacity="0.86" stroke="#A7FF7A" stroke-opacity="0.72" />
+  <text x="316" y="104" fill="url(#alert)" font-family="'Arial Black', Impact, sans-serif" font-size="27" letter-spacing="1.2">ANIME 90s MODE</text>
+  <text x="316" y="122" fill="#A7FF7A" font-family="'Trebuchet MS', Verdana, sans-serif" font-size="14" letter-spacing="2.1">STATUS : OPERATIONAL</text>
+  <text x="530" y="122" fill="#BDD1DB" font-family="'Trebuchet MS', Verdana, sans-serif" font-size="12.8" letter-spacing="2">01:29:12</text>
+
+  <path d="M550 24H614L622 32V34H550Z" fill="url(#alert)" />
+  <path d="M460 24H542V34H460Z" fill="#A7FF7A" fill-opacity="0.84" />
+</svg>

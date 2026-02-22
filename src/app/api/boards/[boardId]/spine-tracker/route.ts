@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createEmptyState } from '@/components/spine-tracker/utils';
 import {
@@ -90,14 +89,7 @@ export async function PUT(
     });
 
     if (existing && existing.version !== version) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'CONFLICT', message: 'Data has been modified by another user. Please reload and try again.' },
-          currentVersion: existing.version,
-        },
-        { status: 409 }
-      );
+      return ApiErrors.conflict('Data has been modified by another user. Please reload and try again.');
     }
 
     const record = await prisma.spineTrackerData.upsert({

@@ -1,0 +1,16 @@
+﻿<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'>
+  <path d='M6 2.5H18L21.5 6V18L18 21.5H6L2.5 18V6Z' fill='#090D10' stroke='#3D5560' stroke-width='1' />
+  <path d='M6 5H18L19 6V18L18 19H6L5 18V6Z' fill='url(#panel)' stroke='#22353E' stroke-width='0.8' />
+  <path d='M6.4 5.7H17.6' stroke='#BFD4DD' stroke-opacity='0.9' stroke-width='0.9' stroke-linecap='round' />
+  <path d='M6.5 18.3H13.8' stroke='#A7FF7A' stroke-opacity='0.85' stroke-width='0.8' stroke-linecap='round' />
+  <g stroke='#A7FF7A' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'>
+    <path d='M12 7.3L17 10L12 12.7L7 10Z' />
+<path d='M7 12.2L12 14.9L17 12.2M7 14.5L12 17.2L17 14.5' />
+  </g>
+  <defs>
+    <linearGradient id='panel' x1='12' y1='5' x2='12' y2='19' gradientUnits='userSpaceOnUse'>
+      <stop offset='0' stop-color='#122028' />
+      <stop offset='1' stop-color='#0A1116' />
+    </linearGradient>
+  </defs>
+</svg>

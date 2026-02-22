@@ -20,7 +20,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { Plus, ChevronRight, ChevronLeft, ExternalLink, Calendar, Link as LinkIcon, BarChart3, Filter, User, Eye } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, ExternalLink, Calendar, Link as LinkIcon, BarChart3, Filter, User, Eye, Copy, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoardMutations } from '@/hooks/api/use-board-mutations';
 import { useCardDetailPrefetch, useCardDetails } from '@/hooks/api/use-card-details';
@@ -31,7 +31,8 @@ import { CardCompact } from '@/components/cards/CardCompact';
 import { CardModal } from '@/components/cards/CardModal';
 import { BurnUpChart } from './BurnUpChart';
 import { ReviewSubmissionDialog } from '@/components/cards/ReviewSubmissionDialog';
-import { ReviewModeOverlay } from '@/components/boards/ReviewModeOverlay';
+import { ReviewModeInline } from '@/components/boards/ReviewModeInline';
+import { CopyCardDialog } from '@/components/cards/CopyCardDialog';
 import type { Board, Card, CardType, TaskCard, BoardSettings, WeeklyProgress } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatDisplayDate, getBusinessDaysBetween } from '@/lib/date-utils';
@@ -134,6 +135,8 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     newPosition: number;
   } | null>(null);
   const [reviewModeListId, setReviewModeListId] = useState<string | null>(null);
+  const [cardContextMenu, setCardContextMenu] = useState<{ card: Card; x: number; y: number } | null>(null);
+  const [copyDialogCard, setCopyDialogCard] = useState<Card | null>(null);
   // Default to "My Tasks" for non-admin members
   const defaultFilterType = useMemo(() => {
     const member = initialBoard.members?.find(m => m.userId === currentUserId);
@@ -157,7 +160,13 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     return board.lists.filter(list => list.viewType === 'PLANNING');
   }, [board.lists]);
 
-  const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
+  const allCards = useMemo(() => board.lists.flatMap((list) =>
+    list.cards.map((card) =>
+      card.type === 'TASK'
+        ? { ...card, list: { id: list.id, name: list.name, phase: list.phase ?? null, viewType: list.viewType, startDate: list.startDate ?? null } }
+        : card
+    )
+  ), [board.lists]);
 
   // Apply quick filters
   const filteredLists = useMemo(() => {
@@ -441,17 +450,17 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     setActiveCard(null);
     setActiveCardListId(null);
 
+    // Fire confetti immediately on optimistic move to Done.
+    if (destList && (destList.phase === 'DONE' || destList.name.toLowerCase().includes('done')) &&
+        !(srcList && (srcList.phase === 'DONE' || srcList.name.toLowerCase().includes('done')))) {
+      fireDoneConfetti();
+    }
+
     mutations.reorderCard({
       cardId: movedCardId,
       sourceListId,
       destinationListId,
       newPosition,
-    }).then(() => {
-      // Fire confetti when a card is moved to a Done list
-      if (destList && (destList.phase === 'DONE' || destList.name.toLowerCase().includes('done')) &&
-          !(srcList && (srcList.phase === 'DONE' || srcList.name.toLowerCase().includes('done')))) {
-        fireDoneConfetti();
-      }
     }).catch((error) => {
       console.error('Failed to reorder card:', error);
       toast.error('Failed to move card');
@@ -510,17 +519,16 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       return { ...prev, lists: newLists };
     });
 
+    const targetList = board.lists.find(l => l.id === targetListId);
+    if (targetList && (targetList.phase === 'DONE' || targetList.name.toLowerCase().includes('done'))) {
+      fireDoneConfetti();
+    }
+
     mutations.reorderCard({
       cardId,
       sourceListId: reviewModeListId,
       destinationListId: targetListId,
       newPosition: 0,
-    }).then(() => {
-      // Fire confetti when card is moved to Done from review mode
-      const targetList = board.lists.find(l => l.id === targetListId);
-      if (targetList && (targetList.phase === 'DONE' || targetList.name.toLowerCase().includes('done'))) {
-        fireDoneConfetti();
-      }
     }).catch((error) => {
       console.error('Failed to move card:', error);
       toast.error('Failed to move card');
@@ -599,6 +607,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           cards: list.cards.map((c) => (c.id === tempId ? realCard : c)),
         })),
       }));
+      setSelectedCard((prev) => (prev?.id === tempId ? realCard : prev));
     } catch (error) {
       console.error('Failed to add card:', error);
       // Remove temp card
@@ -609,6 +618,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
           cards: list.cards.filter((c) => c.id !== tempId),
         })),
       }));
+      setSelectedCard((prev) => (prev?.id === tempId ? null : prev));
       toast.error('Failed to create card');
     }
   }, [setBoard, mutations]);
@@ -658,6 +668,24 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       }),
     }));
   }, [setBoard]);
+
+  // Right-click context menu on cards
+  const handleCardContextMenu = useCallback((card: Card, e: React.MouseEvent) => {
+    if (card.type !== 'TASK') return;
+    setCardContextMenu({ card, x: e.clientX, y: e.clientY });
+  }, []);
+
+  // Close context menu on click or scroll
+  useEffect(() => {
+    if (!cardContextMenu) return;
+    const close = () => setCardContextMenu(null);
+    document.addEventListener('click', close);
+    document.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('scroll', close, true);
+    };
+  }, [cardContextMenu]);
 
   const handleDeleteList = useCallback(async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list? All cards will be deleted.')) {
@@ -864,6 +892,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
                 onDeleteList={handleDeleteList}
                 cardTypeFilter="TASK"
                 onCardHover={handleCardHover}
+                onCardContextMenu={handleCardContextMenu}
               />
             ))}
           </div>
@@ -875,147 +904,185 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
 
   return (
     <div className="flex flex-col h-full">
-      {/* Sub-header with filters */}
+      {/* Sub-header with filters / review mode header */}
       <div
         className="shrink-0 border-b border-border bg-surface px-4 py-2"
         style={{ backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)' }}
       >
-        <div className="flex items-center gap-4">
-          <span className="text-caption text-text-tertiary">Filters:</span>
-          <div className="flex gap-2">
+        {reviewModeListId ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Eye className="h-4 w-4 text-purple-500" />
+              <h3 className="text-body font-semibold text-text-primary">
+                Review Mode — {board.lists.find(l => l.id === reviewModeListId)?.name || 'Review'}
+              </h3>
+              <span className="text-caption text-text-tertiary">
+                {(board.lists.find(l => l.id === reviewModeListId)?.cards || []).length} cards
+              </span>
+            </div>
             <Button
-              variant={quickFilter.type === 'all' ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
-              onClick={() => setQuickFilter({ type: 'all' })}
+              onClick={() => setReviewModeListId(null)}
             >
-              <Filter className="h-3.5 w-3.5 mr-1" />
-              All Tasks
-            </Button>
-            <Button
-              variant={quickFilter.type === 'mine' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setQuickFilter({ type: 'mine' })}
-            >
-              <User className="h-3.5 w-3.5 mr-1" />
-              My Tasks
-            </Button>
-            <Button
-              variant={quickFilter.type === 'unassigned' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setQuickFilter({ type: 'unassigned' })}
-            >
-              Unassigned
+              <X className="h-3.5 w-3.5 mr-1" />
+              Exit Review
             </Button>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <span className="text-caption text-text-tertiary">Filters:</span>
+            <div className="flex gap-2">
+              <Button
+                variant={quickFilter.type === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setQuickFilter({ type: 'all' })}
+              >
+                <Filter className="h-3.5 w-3.5 mr-1" />
+                All Tasks
+              </Button>
+              <Button
+                variant={quickFilter.type === 'mine' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setQuickFilter({ type: 'mine' })}
+              >
+                <User className="h-3.5 w-3.5 mr-1" />
+                My Tasks
+              </Button>
+              <Button
+                variant={quickFilter.type === 'unassigned' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setQuickFilter({ type: 'unassigned' })}
+              >
+                Unassigned
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetection}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
-          {filteredLists.map((list) => {
-            const isReviewList = list.name.toLowerCase().includes('review');
-            return (
-            <SortableContext
-              key={list.id}
-              items={list.cards.map((c) => c.id)}
-              strategy={verticalListSortingStrategy}
+        {reviewModeListId ? (
+          <ReviewModeInline
+            cards={board.lists.find(l => l.id === reviewModeListId)?.cards || []}
+            boardId={board.id}
+            allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
+            onCardMoved={handleReviewModeCardMoved}
+            onClose={() => setReviewModeListId(null)}
+            boardSettings={settings}
+            boardMembers={board.members}
+            currentUserId={currentUserId}
+          />
+        ) : (
+          <>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={collisionDetection}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
             >
-              <List
-                id={list.id}
-                name={list.name}
-                cards={list.cards}
-                boardId={board.id}
-                onAddCard={handleAddCard}
-                onCardClick={handleCardClick}
-                onDeleteList={handleDeleteList}
-                cardTypeFilter="TASK"
-                listColor={list.color}
-                onCardHover={handleCardHover}
-                extraHeaderActions={isReviewList ? (
+              <div className="flex-1 flex items-start gap-4 overflow-x-auto p-4">
+              {filteredLists.map((list) => {
+                const isReviewList = list.name.toLowerCase().includes('review');
+                return (
+                <SortableContext
+                  key={list.id}
+                  items={list.cards.map((c) => c.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <List
+                    id={list.id}
+                    name={list.name}
+                    cards={list.cards}
+                    boardId={board.id}
+                    onAddCard={handleAddCard}
+                    onCardClick={handleCardClick}
+                    onDeleteList={handleDeleteList}
+                    cardTypeFilter="TASK"
+                    listColor={list.color}
+                    onCardHover={handleCardHover}
+                    onCardContextMenu={handleCardContextMenu}
+                    extraHeaderActions={isReviewList ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-text-tertiary hover:text-purple-500"
+                        onClick={() => setReviewModeListId(list.id)}
+                        title="Review Mode"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    ) : undefined}
+                  />
+                </SortableContext>
+                );
+              })}
+
+              {/* Add List */}
+              <div className="w-[280px] shrink-0">
+                {isAddingList ? (
+                  <div className="rounded-lg bg-surface p-2">
+                    <Input
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      placeholder="Enter list name..."
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddList();
+                        if (e.key === 'Escape') {
+                          setIsAddingList(false);
+                          setNewListName('');
+                        }
+                      }}
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleAddList}
+                        disabled={!newListName.trim()}
+                      >
+                        Add List
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsAddingList(false);
+                          setNewListName('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-text-tertiary hover:text-purple-500"
-                    onClick={() => setReviewModeListId(list.id)}
-                    title="Review Mode"
+                    className="w-full justify-start bg-surface hover:bg-surface"
+                    onClick={() => setIsAddingList(true)}
                   >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                ) : undefined}
-              />
-            </SortableContext>
-            );
-          })}
-
-          {/* Add List */}
-          <div className="w-[280px] shrink-0">
-            {isAddingList ? (
-              <div className="rounded-lg bg-surface p-2">
-                <Input
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  placeholder="Enter list name..."
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddList();
-                    if (e.key === 'Escape') {
-                      setIsAddingList(false);
-                      setNewListName('');
-                    }
-                  }}
-                />
-                <div className="mt-2 flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleAddList}
-                    disabled={!newListName.trim()}
-                  >
+                    <Plus className="mr-2 h-4 w-4" />
                     Add List
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setIsAddingList(false);
-                      setNewListName('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
+                )}
               </div>
-            ) : (
-              <Button
-                variant="ghost"
-                className="w-full justify-start bg-surface hover:bg-surface"
-                onClick={() => setIsAddingList(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add List
-              </Button>
-            )}
-          </div>
-        </div>
+            </div>
 
-          <DragOverlay>
-            {activeCard && (
-              <div className="w-[264px] rotate-2 shadow-lg">
-                <CardCompact card={activeCard} onClick={() => {}} />
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
+              <DragOverlay>
+                {activeCard && (
+                  <div className="w-[264px] rotate-2 shadow-lg">
+                    <CardCompact card={activeCard} onClick={() => {}} />
+                  </div>
+                )}
+              </DragOverlay>
+            </DndContext>
 
-        {/* Sidebar */}
-        {renderSidebar()}
+            {/* Sidebar */}
+            {renderSidebar()}
+          </>
+        )}
       </div>
 
       {/* Card Modal */}
@@ -1050,20 +1117,59 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         />
       )}
 
-      {/* Review Mode Overlay */}
-      {reviewModeListId && (
-        <ReviewModeOverlay
-          isOpen={!!reviewModeListId}
-          onClose={() => setReviewModeListId(null)}
-          reviewListId={reviewModeListId}
-          reviewListName={board.lists.find(l => l.id === reviewModeListId)?.name || 'Review'}
-          cards={board.lists.find(l => l.id === reviewModeListId)?.cards || []}
+      {/* Card right-click context menu */}
+      {cardContextMenu && (
+        <div
+          className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50 min-w-[160px]"
+          style={{ left: cardContextMenu.x, top: cardContextMenu.y }}
+        >
+          <button
+            type="button"
+            className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover flex items-center gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCopyDialogCard(cardContextMenu.card);
+              setCardContextMenu(null);
+            }}
+          >
+            <Copy className="h-4 w-4" />
+            Copy card
+          </button>
+          <button
+            type="button"
+            className="w-full px-3 py-1.5 text-left text-body text-error hover:bg-error/10 flex items-center gap-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              const cardId = cardContextMenu.card.id;
+              setCardContextMenu(null);
+              if (confirm('Are you sure you want to delete this card?')) {
+                handleCardDelete(cardId);
+                mutations.deleteCard(cardId).catch(() => {
+                  toast.error('Failed to delete card. Please refresh.');
+                  mutations.invalidateBoard();
+                });
+              }
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete card
+          </button>
+        </div>
+      )}
+
+      {/* Copy Card Dialog (from context menu) */}
+      {copyDialogCard?.type === 'TASK' && (
+        <CopyCardDialog
+          isOpen={!!copyDialogCard}
+          onClose={() => setCopyDialogCard(null)}
+          card={copyDialogCard as TaskCard}
           boardId={board.id}
-          allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
-          onCardMoved={handleReviewModeCardMoved}
-          boardSettings={settings}
+          taskLists={taskLists}
           boardMembers={board.members}
-          currentUserId={currentUserId}
+          onCardCopied={(newCard) => {
+            handleLinkedCardCreated(newCard);
+            setCopyDialogCard(null);
+          }}
         />
       )}
     </div>

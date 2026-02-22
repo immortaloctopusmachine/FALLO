@@ -7,3 +7,13 @@ Uploaded images from the Skins settings screen are typically served from the med
 
 The `windows95` theme uses built-in icons from `@react95/icons` (MIT license):
 https://www.npmjs.com/package/@react95/icons
+
+## Built-in Anime90s Icon Pack
+
+The `anime90s` theme uses a built-in SVG icon pack at:
+`public/skins/icons/anime90s/*.svg`
+
+## Built-in Nova Icon Pack
+
+The `nova` theme uses a built-in SVG icon pack at:
+`public/skins/icons/nova/*.svg`

@@ -5,6 +5,7 @@ import {
   apiSuccess,
   ApiErrors,
 } from '@/lib/api-utils';
+import { isValidPhase, PHASE_SEARCH_TERMS } from '@/lib/constants';
 
 // POST /api/boards/[boardId]/lists - Create a new list
 export async function POST(
@@ -32,8 +33,7 @@ export async function POST(
     const listViewType = viewType && validViewTypes.includes(viewType) ? viewType : 'TASKS';
 
     // Validate phase if provided
-    const validPhases = ['BACKLOG', 'SPINE_PROTOTYPE', 'CONCEPT', 'PRODUCTION', 'TWEAK', 'DONE'];
-    const listPhase = phase && validPhases.includes(phase) ? phase : null;
+    const listPhase = typeof phase === 'string' && isValidPhase(phase) ? phase : null;
 
     // Get the highest position for this view type
     const lastList = await prisma.list.findFirst({
@@ -63,18 +63,8 @@ export async function POST(
     // For PLANNING lists with dates, auto-create a linked timeline block
     let timelineBlock = null;
     if (listViewType === 'PLANNING' && startDate && endDate) {
-      // Map list phase to block type search terms
-      const phaseSearchTerms: Record<string, string[]> = {
-        'SPINE_PROTOTYPE': ['spine', 'prototype'],
-        'CONCEPT': ['concept'],
-        'PRODUCTION': ['production'],
-        'TWEAK': ['tweak'],
-        'BACKLOG': ['backlog'],
-        'DONE': ['done', 'complete'],
-      };
-
       // Get search terms for this phase, or use list name if no phase
-      const searchTerms = listPhase ? phaseSearchTerms[listPhase] : null;
+      const searchTerms = listPhase ? PHASE_SEARCH_TERMS[listPhase] : null;
       const listNameLower = name.toLowerCase();
 
       // Find matching block type

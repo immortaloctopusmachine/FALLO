@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
   requireAuth,
   requireBoardMember,
@@ -12,10 +13,22 @@ export async function GET(
   { params }: { params: Promise<{ boardId: string; cardId: string }> }
 ) {
   try {
-    const { response: authResponse } = await requireAuth();
+    const { session, response: authResponse } = await requireAuth();
     if (authResponse) return authResponse;
 
-    const { cardId } = await params;
+    const { boardId, cardId } = await params;
+
+    const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
+    if (memberResponse) return memberResponse;
+
+    const card = await prisma.card.findFirst({
+      where: { id: cardId, list: { boardId } },
+      select: { id: true },
+    });
+
+    if (!card) {
+      return ApiErrors.notFound('Card');
+    }
 
     const assignees = await prisma.cardUser.findMany({
       where: { cardId },
@@ -53,11 +66,31 @@ export async function POST(
     const { response: memberResponse } = await requireBoardMember(boardId, session.user.id);
     if (memberResponse) return memberResponse;
 
+    const card = await prisma.card.findFirst({
+      where: { id: cardId, list: { boardId } },
+      select: { id: true },
+    });
+
+    if (!card) {
+      return ApiErrors.notFound('Card');
+    }
+
     const body = await request.json();
-    const { userId } = body;
+    const userId = typeof body?.userId === 'string' ? body.userId.trim() : '';
 
     if (!userId) {
       return ApiErrors.validation('User ID is required');
+    }
+
+    const assigneeMembership = await prisma.boardMember.findUnique({
+      where: {
+        userId_boardId: { userId, boardId },
+      },
+      select: { userId: true },
+    });
+
+    if (!assigneeMembership) {
+      return ApiErrors.validation('User is not a member of this board');
     }
 
     // Check if already assigned
@@ -89,6 +122,15 @@ export async function POST(
     return apiSuccess(assignee);
   } catch (error) {
     console.error('Failed to add assignee:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return ApiErrors.conflict('User is already assigned');
+      }
+      if (error.code === 'P2003' || error.code === 'P2025') {
+        return ApiErrors.notFound('Card');
+      }
+      return ApiErrors.internal(`Failed to add assignee (${error.code})`);
+    }
     return ApiErrors.internal('Failed to add assignee');
   }
 }
@@ -123,6 +165,12 @@ export async function DELETE(
     return apiSuccess(null);
   } catch (error) {
     console.error('Failed to remove assignee:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        return ApiErrors.notFound('Assignee');
+      }
+      return ApiErrors.internal(`Failed to remove assignee (${error.code})`);
+    }
     return ApiErrors.internal('Failed to remove assignee');
   }
 }

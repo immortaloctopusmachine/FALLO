@@ -406,7 +406,13 @@ export function PlanningView({
     return board.lists.filter(list => list.viewType === 'TASKS' || !list.viewType);
   }, [board.lists]);
 
-  const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
+  const allCards = useMemo(() => board.lists.flatMap((list) =>
+    list.cards.map((card) =>
+      card.type === 'TASK'
+        ? { ...card, list: { id: list.id, name: list.name, phase: list.phase ?? null, viewType: list.viewType, startDate: list.startDate ?? null } }
+        : card
+    )
+  ), [board.lists]);
 
   const tasksByUserStory = useMemo(() => {
     const map = new Map<string, TaskCard[]>();
@@ -912,6 +918,7 @@ export function PlanningView({
           cards: list.cards.map((c) => (c.id === tempId ? realCard : c)),
         })),
       }));
+      setSelectedCard((prev) => (prev?.id === tempId ? realCard : prev));
     } catch (error) {
       console.error('Failed to add card:', error);
       // Remove temp card
@@ -922,6 +929,7 @@ export function PlanningView({
           cards: list.cards.filter((c) => c.id !== tempId),
         })),
       }));
+      setSelectedCard((prev) => (prev?.id === tempId ? null : prev));
       toast.error('Failed to create user story');
     }
   }, [setBoard, mutations]);

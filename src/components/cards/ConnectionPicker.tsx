@@ -94,12 +94,11 @@ export function ConnectionPicker({
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant={selectedId ? 'outline' : 'ghost'}
+            variant="ghost"
             size="sm"
             className={cn(
               'flex-1 justify-start',
-              !selectedId && 'text-text-tertiary',
-              selectedId && 'border-border'
+              !selectedId && 'text-text-tertiary'
             )}
           >
             <Link2 className="mr-2 h-4 w-4" />

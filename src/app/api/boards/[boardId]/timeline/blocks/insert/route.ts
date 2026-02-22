@@ -131,7 +131,7 @@ export async function POST(
           name: `${blockType.name} ${blockPosition}`,
           position: nextPosition,
           viewType: 'PLANNING',
-          phase: listPhase as 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE' | null,
+          phase: listPhase,
           color: blockType.color,
           startDate: snappedMonday,
           endDate: snappedFriday,

@@ -6,6 +6,8 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isSupportedAssetPath, type SkinIconName, type UiTheme } from '@/lib/skin-assets';
 import { Windows95ThemeIcon } from './Windows95ThemeIcon';
+import { Anime90sThemeIcon } from './Anime90sThemeIcon';
+import { NovaThemeIcon } from './NovaThemeIcon';
 
 interface ThemeIconProps {
   theme: UiTheme;
@@ -40,6 +42,12 @@ export function ThemeIcon({
   if (!useCustom || hasError || !src) {
     if (theme === 'windows95') {
       return <Windows95ThemeIcon iconName={iconName} className={className} />;
+    }
+    if (theme === 'anime90s') {
+      return <Anime90sThemeIcon iconName={iconName} fallback={FallbackIcon} className={className} />;
+    }
+    if (theme === 'nova') {
+      return <NovaThemeIcon iconName={iconName} fallback={FallbackIcon} className={className} />;
     }
 
     return <FallbackIcon className={className} aria-hidden="true" />;

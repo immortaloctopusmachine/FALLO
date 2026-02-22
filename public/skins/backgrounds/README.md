@@ -8,9 +8,11 @@ Put optional background images here. Recommended default filename per theme:
 - `public/skins/backgrounds/dark/background.jpg`
 - `public/skins/backgrounds/sparkle/background.jpg`
 - `public/skins/backgrounds/douala/background.jpg`
+- `public/skins/backgrounds/anime90s/background.jpg`
 - `public/skins/backgrounds/fanta/background.jpg`
 - `public/skins/backgrounds/colordore/background.jpg`
 - `public/skins/backgrounds/pc98/background.jpg`
 - `public/skins/backgrounds/retromarket/background.jpg`
+- `public/skins/backgrounds/nova/background.jpg`
 
 Enable and configure per theme in `Settings > Skins` (SUPER_ADMIN only).

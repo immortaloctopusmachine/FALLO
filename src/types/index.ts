@@ -46,6 +46,8 @@ export interface TaskCardData {
   // PO / Lead approval
   approvedByPo?: { userId: string; userName: string; at: string } | null;
   approvedByLead?: { userId: string; userName: string; at: string } | null;
+  // Version linking — copy points back to the original card
+  versionOfCardId?: string | null;
 }
 
 export interface TaskCard extends BaseCard {
@@ -64,6 +66,8 @@ export interface TaskCard extends BaseCard {
     id: string;
     name: string;
     phase: string | null;
+    viewType?: ListViewType;
+    startDate?: string | null;
   };
 }
 

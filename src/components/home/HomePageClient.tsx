@@ -1,18 +1,21 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Bell,
   Calendar,
+  CheckCheck,
   CheckCircle2,
+  ChevronDown,
   Clock,
   FolderKanban,
   LayoutGrid,
   ListChecks,
+  X,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -129,6 +132,27 @@ export function HomePageClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [reviewsCollapsed, setReviewsCollapsed] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('home-reviews-collapsed') === 'true'
+  );
+  const [notificationsCollapsed, setNotificationsCollapsed] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('home-notifications-collapsed') === 'true'
+  );
+
+  const toggleReviews = () => {
+    setReviewsCollapsed((prev) => {
+      localStorage.setItem('home-reviews-collapsed', String(!prev));
+      return !prev;
+    });
+  };
+
+  const toggleNotifications = () => {
+    setNotificationsCollapsed((prev) => {
+      localStorage.setItem('home-notifications-collapsed', String(!prev));
+      return !prev;
+    });
+  };
+
   const { data, isLoading } = useQuery({
     queryKey: ['home'],
     queryFn: () => apiFetch<HomeData>('/api/me/home'),
@@ -183,6 +207,51 @@ export function HomePageClient() {
       staleTime: 60_000,
     });
   };
+
+  const markOneRead = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/notifications/${id}`, { method: 'PATCH' }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['home'] });
+      const prev = queryClient.getQueryData<HomeData>(['home']);
+      if (prev) {
+        queryClient.setQueryData<HomeData>(['home'], {
+          ...prev,
+          notifications: prev.notifications.filter((n) => n.id !== id),
+          stats: {
+            ...prev.stats,
+            unreadNotifications: Math.max(0, prev.stats.unreadNotifications - 1),
+          },
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.prev) queryClient.setQueryData(['home'], context.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['home'] }),
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: () =>
+      apiFetch('/api/notifications/mark-all-read', { method: 'POST' }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['home'] });
+      const prev = queryClient.getQueryData<HomeData>(['home']);
+      if (prev) {
+        queryClient.setQueryData<HomeData>(['home'], {
+          ...prev,
+          notifications: [],
+          stats: { ...prev.stats, unreadNotifications: 0 },
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) queryClient.setQueryData(['home'], context.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['home'] }),
+  });
 
   if (isLoading || !data) return <HomeSkeleton />;
 
@@ -268,9 +337,9 @@ export function HomePageClient() {
 
         <div className="home-content-grid grid gap-6 xl:grid-cols-[1.2fr_1fr]">
           <section className="home-panel home-panel-tasks rounded-lg border border-border bg-surface">
-            <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
+            <header className="home-panel-header flex items-center border-b border-border px-4 py-3">
               <h2 className="font-medium">My Tasks</h2>
-              <span className="text-caption text-text-tertiary">{data.myTasks.length}</span>
+              <span className="home-panel-count ml-2 text-caption text-text-tertiary">{data.myTasks.length}</span>
             </header>
             {data.myTasks.length === 0 ? (
               <div className="px-4 py-8 text-center text-text-secondary">
@@ -326,68 +395,105 @@ export function HomePageClient() {
           <div className="home-side-stack space-y-6">
             {hasEvaluatorRole && (
               <section className="home-panel home-panel-reviews rounded-lg border border-border bg-surface">
-                <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
-                  <h2 className="font-medium">Pending Reviews</h2>
-                  <span className="text-caption text-text-tertiary">{data.pendingEvaluations.length}</span>
+                <header
+                  onClick={toggleReviews}
+                  className="home-panel-header flex cursor-pointer items-center justify-between border-b border-border px-4 py-3 select-none hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-2">
+                    <ChevronDown className={cn('h-4 w-4 text-text-tertiary transition-transform', reviewsCollapsed && '-rotate-90')} />
+                    <h2 className="font-medium">Pending Reviews</h2>
+                    <span className="home-panel-count text-caption text-text-tertiary">{data.pendingEvaluations.length}</span>
+                  </div>
                 </header>
-                {data.pendingEvaluations.length === 0 ? (
-                  <div className="px-4 py-6 text-caption text-text-secondary">
-                    No pending review cycles.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {data.pendingEvaluations.map((item) => (
-                      <Link
-                        key={item.id}
-                        href={`/boards/${item.boardId}`}
-                        onMouseEnter={() => prefetchBoard(item.boardId)}
-                        className="home-list-row block px-4 py-3 hover:bg-surface-hover"
-                      >
-                        <div className="truncate text-body font-medium text-text-primary">{item.cardTitle}</div>
-                        <div className="mt-0.5 text-caption text-text-secondary">
-                          {item.boardName} - Cycle {item.cycleNumber}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
+                {!reviewsCollapsed && (
+                  data.pendingEvaluations.length === 0 ? (
+                    <div className="px-4 py-6 text-caption text-text-secondary">
+                      No pending review cycles.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {data.pendingEvaluations.map((item) => (
+                        <Link
+                          key={item.id}
+                          href={`/boards/${item.boardId}`}
+                          onMouseEnter={() => prefetchBoard(item.boardId)}
+                          className="home-list-row block px-4 py-3 hover:bg-surface-hover"
+                        >
+                          <div className="truncate text-body font-medium text-text-primary">{item.cardTitle}</div>
+                          <div className="mt-0.5 text-caption text-text-secondary">
+                            {item.boardName} - Cycle {item.cycleNumber}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )
                 )}
               </section>
             )}
 
             <section className="home-panel home-panel-notifications rounded-lg border border-border bg-surface">
               <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
-                <h2 className="font-medium">Notifications</h2>
-                <span className="text-caption text-text-tertiary">{data.notifications.length}</span>
-              </header>
-              {data.notifications.length === 0 ? (
-                <div className="px-4 py-6 text-caption text-text-secondary">No notifications yet.</div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {data.notifications.slice(0, 6).map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={cn(
-                        'home-list-row px-4 py-3',
-                        !notification.read && 'home-unread-row bg-primary/5'
-                      )}
-                    >
-                      <div className="truncate text-body font-medium text-text-primary">{notification.title}</div>
-                      <div className="mt-0.5 line-clamp-2 text-caption text-text-secondary">
-                        {notification.message}
-                      </div>
-                      <div className="mt-1 text-caption text-text-tertiary">
-                        {relativeTimeLabel(notification.createdAt)}
-                      </div>
-                    </div>
-                  ))}
+                <div
+                  onClick={toggleNotifications}
+                  className="flex cursor-pointer items-center gap-2 select-none"
+                >
+                  <ChevronDown className={cn('h-4 w-4 text-text-tertiary transition-transform', notificationsCollapsed && '-rotate-90')} />
+                  <h2 className="font-medium">Notifications</h2>
+                  <span className="home-panel-count text-caption text-text-tertiary">{data.notifications.length}</span>
                 </div>
+                {!notificationsCollapsed && data.notifications.length > 0 && (
+                  <button
+                    onClick={() => markAllRead.mutate()}
+                    disabled={markAllRead.isPending}
+                    className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-caption text-text-secondary hover:bg-surface-hover hover:text-text-primary disabled:opacity-50"
+                    title="Mark all as read"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    Mark all read
+                  </button>
+                )}
+              </header>
+              {!notificationsCollapsed && (
+                data.notifications.length === 0 ? (
+                  <div className="px-4 py-6 text-caption text-text-secondary">No notifications yet.</div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {data.notifications.slice(0, 6).map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={cn(
+                          'home-list-row group flex items-start gap-2 px-4 py-3',
+                          !notification.read && 'home-unread-row bg-primary/5'
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-body font-medium text-text-primary">{notification.title}</div>
+                          <div className="mt-0.5 line-clamp-2 text-caption text-text-secondary">
+                            {notification.message}
+                          </div>
+                          <div className="mt-1 text-caption text-text-tertiary">
+                            {relativeTimeLabel(notification.createdAt)}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => markOneRead.mutate(notification.id)}
+                          disabled={markOneRead.isPending}
+                          className="shrink-0 rounded p-1 text-text-tertiary opacity-0 transition-opacity hover:bg-surface-hover hover:text-text-primary group-hover:opacity-100"
+                          title="Mark as read"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </section>
 
             <section className="home-panel home-panel-boards rounded-lg border border-border bg-surface">
-              <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
+              <header className="home-panel-header flex items-center border-b border-border px-4 py-3">
                 <h2 className="font-medium">My Boards</h2>
-                <span className="text-caption text-text-tertiary">{data.myBoards.length}</span>
+                <span className="home-panel-count ml-2 text-caption text-text-tertiary">{data.myBoards.length}</span>
               </header>
               {data.myBoards.length === 0 ? (
                 <div className="px-4 py-6 text-caption text-text-secondary">You are not assigned to any boards.</div>

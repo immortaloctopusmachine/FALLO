@@ -121,6 +121,7 @@ export async function GET() {
         prisma.notification.findMany({
           where: {
             userId,
+            read: false,
           },
           orderBy: {
             createdAt: 'desc',

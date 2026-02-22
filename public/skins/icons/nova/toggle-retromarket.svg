@@ -1,0 +1,23 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'>
+  <path d='M6 2.5H18L21.5 6V18L18 21.5H6L2.5 18V6Z' fill='#030108' stroke='url(#rb)' stroke-width='1' />
+  <path d='M6 5H18L19 6V18L18 19H6L5 18V6Z' fill='url(#np)' stroke='#2A1548' stroke-width='0.8' />
+  <path d='M6.4 5.7H17.6' stroke='url(#ch)' stroke-opacity='0.85' stroke-width='0.9' stroke-linecap='round' />
+  <path d='M6.5 18.3H13.8' stroke='url(#ra)' stroke-opacity='0.85' stroke-width='0.8' stroke-linecap='round' />
+  <g stroke='#00E5FF' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'>
+    <path d='M7.5 17V10M10.5 17V8M13.5 17V12M16.5 17V9' />
+  </g>
+  <defs>
+    <linearGradient id='rb' x1='2' y1='2' x2='22' y2='22' gradientUnits='userSpaceOnUse'>
+      <stop offset='0' stop-color='#FF2D9B' /><stop offset='0.5' stop-color='#9B4DFF' /><stop offset='1' stop-color='#00E5FF' />
+    </linearGradient>
+    <linearGradient id='np' x1='12' y1='5' x2='12' y2='19' gradientUnits='userSpaceOnUse'>
+      <stop offset='0' stop-color='#0E0520' /><stop offset='1' stop-color='#060210' />
+    </linearGradient>
+    <linearGradient id='ch' x1='6' y1='5.7' x2='18' y2='5.7' gradientUnits='userSpaceOnUse'>
+      <stop offset='0' stop-color='#D0BCFF' /><stop offset='0.5' stop-color='#FFFFFF' stop-opacity='0.6' /><stop offset='1' stop-color='#D0BCFF' />
+    </linearGradient>
+    <linearGradient id='ra' x1='6.5' y1='18.3' x2='14' y2='18.3' gradientUnits='userSpaceOnUse'>
+      <stop offset='0' stop-color='#FF2D9B' /><stop offset='0.5' stop-color='#9B4DFF' /><stop offset='1' stop-color='#00E5FF' />
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getMonday, getFriday } from '@/lib/date-utils';
 import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
+import { getPhaseFromBlockType } from '@/lib/constants';
 import {
   requireAuth,
   requireAdmin,
@@ -136,15 +137,6 @@ export async function PATCH(
 
     // If syncToList is true and block has a linked list, update the list
     if (syncToList && block.listId) {
-      // Map block type to list phase
-      const phaseMapping: Record<string, 'BACKLOG' | 'SPINE_PROTOTYPE' | 'CONCEPT' | 'PRODUCTION' | 'TWEAK' | 'DONE'> = {
-        'SPINE_PROTOTYPE': 'SPINE_PROTOTYPE',
-        'SPINE PROTOTYPE': 'SPINE_PROTOTYPE',
-        'CONCEPT': 'CONCEPT',
-        'PRODUCTION': 'PRODUCTION',
-        'TWEAK': 'TWEAK',
-      };
-
       const listUpdateData: Record<string, unknown> = {
         startDate: block.startDate,
         endDate: block.endDate,
@@ -152,8 +144,7 @@ export async function PATCH(
 
       // If block type changed, also update the list's phase and name
       if (newBlockType) {
-        const blockTypeName = newBlockType.name.toUpperCase().replace(/\s+/g, '_');
-        const newPhase = phaseMapping[blockTypeName] || phaseMapping[newBlockType.name.toUpperCase()];
+        const newPhase = getPhaseFromBlockType(newBlockType.name);
         if (newPhase) {
           listUpdateData.phase = newPhase;
         }

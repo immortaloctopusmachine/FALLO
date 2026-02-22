@@ -41,10 +41,12 @@ import {
 } from '@/lib/skin-assets';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from './NotificationBell';
@@ -81,21 +83,26 @@ const themeToggleIcons: Record<UiTheme, { iconName: SkinIconName; fallback: Luci
   slate: { iconName: 'toggle-slate', fallback: Palette },
   sparkle: { iconName: 'toggle-sparkle', fallback: Sparkles },
   douala: { iconName: 'toggle-douala', fallback: Flame },
+  anime90s: { iconName: 'toggle-anime90s', fallback: Flame },
   colordore: { iconName: 'toggle-colordore', fallback: Monitor },
   pc98: { iconName: 'toggle-pc98', fallback: Gamepad2 },
   retromarket: { iconName: 'toggle-retromarket', fallback: BarChart3 },
+  nova: { iconName: 'toggle-nova', fallback: Sparkles },
 };
+
+const ANIME_FX_STORAGE_KEY = 'ui.anime90s.fx';
+const NOVA_FX_STORAGE_KEY = 'ui.nova.fx';
 
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
   const { prefetch } = usePrefetchRoute();
   const [theme, setTheme] = useState<UiTheme>('windows95');
+  const [animeFxEnabled, setAnimeFxEnabled] = useState(true);
+  const [novaFxEnabled, setNovaFxEnabled] = useState(false);
   const [logoHasError, setLogoHasError] = useState(false);
-  const [skinAssetsConfig, setSkinAssetsConfig] = useState<SkinAssetsConfig>(
-    () => getCachedSkinAssetsConfig() ?? createDefaultSkinAssetsConfig()
-  );
+  const [skinAssetsConfig, setSkinAssetsConfig] = useState<SkinAssetsConfig>(() => createDefaultSkinAssetsConfig());
 
-  const applyTheme = (nextTheme: UiTheme) => {
+  const applyTheme = (nextTheme: UiTheme, enableAnimeFx: boolean, enableNovaFx: boolean) => {
     const root = document.documentElement;
     root.classList.remove(
       'dark',
@@ -103,19 +110,30 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
       'slate',
       'sparkle',
       'douala',
+      'anime90s',
+      'skin-effects-rich',
       'fanta',
       'colordore',
       'pc98',
       'retromarket',
+      'nova',
       'commodore'
     );
     if (nextTheme === 'windows95') root.classList.add('windows95');
     if (nextTheme === 'slate') root.classList.add('slate');
     if (nextTheme === 'sparkle') root.classList.add('sparkle');
     if (nextTheme === 'douala') root.classList.add('douala');
+    if (nextTheme === 'anime90s') {
+      root.classList.add('anime90s');
+      if (enableAnimeFx) root.classList.add('skin-effects-rich');
+    }
     if (nextTheme === 'colordore') root.classList.add('colordore');
     if (nextTheme === 'pc98') root.classList.add('pc98');
     if (nextTheme === 'retromarket') root.classList.add('retromarket');
+    if (nextTheme === 'nova') {
+      root.classList.add('nova');
+      if (enableNovaFx) root.classList.add('skin-effects-rich');
+    }
   };
 
   useEffect(() => {
@@ -126,8 +144,14 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
       mappedStoredTheme && UI_THEMES.includes(mappedStoredTheme as UiTheme)
         ? (mappedStoredTheme as UiTheme)
         : 'windows95';
+    const storedAnimeFx = window.localStorage.getItem(ANIME_FX_STORAGE_KEY);
+    const storedNovaFx = window.localStorage.getItem(NOVA_FX_STORAGE_KEY);
+    const nextAnimeFxEnabled = storedAnimeFx === null ? true : storedAnimeFx === '1';
+    const nextNovaFxEnabled = storedNovaFx === null ? false : storedNovaFx === '1';
     setTheme(nextTheme);
-    applyTheme(nextTheme);
+    setAnimeFxEnabled(nextAnimeFxEnabled);
+    setNovaFxEnabled(nextNovaFxEnabled);
+    applyTheme(nextTheme, nextAnimeFxEnabled, nextNovaFxEnabled);
   }, []);
 
   const loadSkinAssetsConfig = useCallback(async () => {
@@ -144,6 +168,11 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   }, []);
 
   useEffect(() => {
+    const cachedConfig = getCachedSkinAssetsConfig();
+    if (cachedConfig) {
+      setSkinAssetsConfig(cachedConfig);
+    }
+
     void loadSkinAssetsConfig();
     return subscribeToSkinAssetsConfig((nextConfig) => {
       setSkinAssetsConfig(cacheSkinAssetsConfig(nextConfig));
@@ -166,8 +195,24 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const setSkin = (nextTheme: UiTheme) => {
     setTheme(nextTheme);
     if (typeof window !== 'undefined') {
-      applyTheme(nextTheme);
+      applyTheme(nextTheme, animeFxEnabled, novaFxEnabled);
       window.localStorage.setItem('ui.theme', nextTheme);
+    }
+  };
+
+  const setAnimeFx = (enabled: boolean) => {
+    setAnimeFxEnabled(enabled);
+    if (typeof window !== 'undefined') {
+      applyTheme(theme, enabled, novaFxEnabled);
+      window.localStorage.setItem(ANIME_FX_STORAGE_KEY, enabled ? '1' : '0');
+    }
+  };
+
+  const setNovaFx = (enabled: boolean) => {
+    setNovaFxEnabled(enabled);
+    if (typeof window !== 'undefined') {
+      applyTheme(theme, animeFxEnabled, enabled);
+      window.localStorage.setItem(NOVA_FX_STORAGE_KEY, enabled ? '1' : '0');
     }
   };
 
@@ -184,6 +229,8 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const hasValidLogoPath = isSupportedAssetPath(activeSkinAssets.logoPath);
   const shouldShowCustomLogo = activeSkinAssets.logoEnabled && hasValidLogoPath && !logoHasError;
   const isDoualaTheme = theme === 'douala';
+  const isWideFallbackTheme = theme === 'douala' || theme === 'anime90s' || theme === 'nova';
+  const logoFallbackText = theme === 'douala' ? 'FALLO' : theme === 'anime90s' ? 'EVA' : theme === 'nova' ? 'NOVA' : 'PP';
 
   return (
     <header className="global-top-header border-b border-border bg-surface px-6 py-4">
@@ -208,10 +255,10 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
               <span
                 className={cn(
                   'theme-logo-fallback inline-flex h-12 items-center justify-center text-xl font-semibold leading-none text-text-secondary',
-                  isDoualaTheme ? 'px-2 text-2xl font-black' : 'w-16'
+                  isWideFallbackTheme ? 'px-2 text-2xl font-black' : 'w-16'
                 )}
               >
-                {isDoualaTheme ? 'FALLO' : 'PP'}
+                {logoFallbackText}
               </span>
             )}
           </Link>
@@ -273,7 +320,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 {isDoualaTheme && <span className="text-tiny tracking-wide">Skin</span>}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Skin</DropdownMenuLabel>
               <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setSkin(value as UiTheme)}>
                 <DropdownMenuRadioItem value="windows95">Windows 95</DropdownMenuRadioItem>
@@ -281,10 +328,27 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
                 <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="sparkle">Sparkle</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="douala">Douala</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="anime90s">EVA</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="colordore">Colordore</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="pc98">PC-98</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="retromarket">Retro Market</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="nova">Nova</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={animeFxEnabled}
+                disabled={theme !== 'anime90s'}
+                onCheckedChange={(checked) => setAnimeFx(checked === true)}
+              >
+                EVA FX (glow + motion)
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={novaFxEnabled}
+                disabled={theme !== 'nova'}
+                onCheckedChange={(checked) => setNovaFx(checked === true)}
+              >
+                Nova FX (glow + motion)
+              </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

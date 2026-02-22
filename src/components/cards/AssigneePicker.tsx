@@ -20,6 +20,7 @@ interface AssigneePickerProps {
   cardId: string;
   boardMembers?: BoardMember[];
   onUpdate: (assignees: CardAssignee[]) => void;
+  singleMode?: boolean;
 }
 
 export function AssigneePicker({
@@ -28,6 +29,7 @@ export function AssigneePicker({
   cardId,
   boardMembers: preloadedBoardMembers = [],
   onUpdate,
+  singleMode = false,
 }: AssigneePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>(preloadedBoardMembers);
@@ -141,8 +143,8 @@ export function AssigneePicker({
         </div>
       )}
 
-      {/* Add Assignee Button */}
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      {/* Add Assignee Button - hidden in singleMode when already assigned */}
+      {!(singleMode && assignees.length >= 1) && <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" className="w-full justify-start text-text-tertiary">
             <UserPlus className="mr-2 h-4 w-4" />
@@ -200,7 +202,7 @@ export function AssigneePicker({
             )}
           </div>
         </PopoverContent>
-      </Popover>
+      </Popover>}
     </div>
   );
 }

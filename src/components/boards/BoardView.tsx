@@ -19,7 +19,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBoardMutations } from '@/hooks/api/use-board-mutations';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ import { List } from './List';
 import { CardCompact } from '@/components/cards/CardCompact';
 import { CardModal } from '@/components/cards/CardModal';
 import { ReviewSubmissionDialog } from '@/components/cards/ReviewSubmissionDialog';
-import { ReviewModeOverlay } from '@/components/boards/ReviewModeOverlay';
+import { ReviewModeInline } from '@/components/boards/ReviewModeInline';
 import type { Board, Card, CardType } from '@/types';
 
 interface BoardViewProps {
@@ -79,7 +79,13 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
     return map;
   }, [board.lists]);
 
-  const allCards = useMemo(() => board.lists.flatMap((list) => list.cards), [board.lists]);
+  const allCards = useMemo(() => board.lists.flatMap((list) =>
+    list.cards.map((card) =>
+      card.type === 'TASK'
+        ? { ...card, list: { id: list.id, name: list.name, phase: list.phase ?? null, viewType: list.viewType, startDate: list.startDate ?? null } }
+        : card
+    )
+  ), [board.lists]);
 
   // Pre-compute review list IDs so drag handlers avoid repeated toLowerCase checks.
   const reviewListIds = useMemo(() => {
@@ -398,6 +404,7 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
           cards: list.cards.map((c) => (c.id === tempId ? realCard : c)),
         })),
       }));
+      setSelectedCard((prev) => (prev?.id === tempId ? realCard : prev));
     } catch (error) {
       console.error('Failed to add card:', error);
       // Remove temp card
@@ -408,6 +415,7 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
           cards: list.cards.filter((c) => c.id !== tempId),
         })),
       }));
+      setSelectedCard((prev) => (prev?.id === tempId ? null : prev));
       toast.error('Failed to create card');
     }
   }, [mutations]);
@@ -539,143 +547,167 @@ export function BoardView({ board: initialBoard, currentUserId, canViewQualitySu
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={collisionDetection}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex h-full gap-4 overflow-x-auto p-4">
-        {board.lists.map((list) => {
-          const isReviewList = reviewListIds.has(list.id);
-          return (
-          <SortableContext
-            key={list.id}
-            items={list.cards.map((c) => c.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <List
-              id={list.id}
-              name={list.name}
-              cards={list.cards}
+    <div className="flex flex-col h-full">
+      {reviewModeListId ? (
+        <>
+          {/* Review mode header */}
+          <div className="shrink-0 border-b border-border bg-surface px-4 py-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Eye className="h-4 w-4 text-purple-500" />
+                <h3 className="text-body font-semibold text-text-primary">
+                  Review Mode — {board.lists.find(l => l.id === reviewModeListId)?.name || 'Review'}
+                </h3>
+                <span className="text-caption text-text-tertiary">
+                  {(board.lists.find(l => l.id === reviewModeListId)?.cards || []).length} cards
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReviewModeListId(null)}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Exit Review
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-1 overflow-hidden">
+            <ReviewModeInline
+              cards={board.lists.find(l => l.id === reviewModeListId)?.cards || []}
               boardId={board.id}
-              onAddCard={handleAddCard}
-              onCardClick={handleCardClick}
-              onDeleteList={handleDeleteList}
-              extraHeaderActions={isReviewList ? (
+              allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
+              onCardMoved={handleReviewModeCardMoved}
+              onClose={() => setReviewModeListId(null)}
+            />
+          </div>
+        </>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetection}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex h-full gap-4 overflow-x-auto p-4">
+            {board.lists.map((list) => {
+              const isReviewList = reviewListIds.has(list.id);
+              return (
+              <SortableContext
+                key={list.id}
+                items={list.cards.map((c) => c.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <List
+                  id={list.id}
+                  name={list.name}
+                  cards={list.cards}
+                  boardId={board.id}
+                  onAddCard={handleAddCard}
+                  onCardClick={handleCardClick}
+                  onDeleteList={handleDeleteList}
+                  extraHeaderActions={isReviewList ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-text-tertiary hover:text-purple-500"
+                      onClick={() => setReviewModeListId(list.id)}
+                      title="Review Mode"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  ) : undefined}
+                />
+              </SortableContext>
+              );
+            })}
+
+            {/* Add List */}
+            <div className="w-[280px] shrink-0">
+              {isAddingList ? (
+                <div className="rounded-lg bg-surface p-2">
+                  <Input
+                    value={newListName}
+                    onChange={(e) => setNewListName(e.target.value)}
+                    placeholder="Enter list name..."
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddList();
+                      if (e.key === 'Escape') {
+                        setIsAddingList(false);
+                        setNewListName('');
+                      }
+                    }}
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleAddList}
+                      disabled={!newListName.trim()}
+                    >
+                      Add List
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsAddingList(false);
+                        setNewListName('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 text-text-tertiary hover:text-purple-500"
-                  onClick={() => setReviewModeListId(list.id)}
-                  title="Review Mode"
+                  className="w-full justify-start bg-surface hover:bg-surface"
+                  onClick={() => setIsAddingList(true)}
                 >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              ) : undefined}
-            />
-          </SortableContext>
-          );
-        })}
-
-        {/* Add List */}
-        <div className="w-[280px] shrink-0">
-          {isAddingList ? (
-            <div className="rounded-lg bg-surface p-2">
-              <Input
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                placeholder="Enter list name..."
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddList();
-                  if (e.key === 'Escape') {
-                    setIsAddingList(false);
-                    setNewListName('');
-                  }
-                }}
-              />
-              <div className="mt-2 flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleAddList}
-                  disabled={!newListName.trim()}
-                >
+                  <Plus className="mr-2 h-4 w-4" />
                   Add List
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setIsAddingList(false);
-                    setNewListName('');
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
+              )}
             </div>
-          ) : (
-            <Button
-              variant="ghost"
-              className="w-full justify-start bg-surface hover:bg-surface"
-              onClick={() => setIsAddingList(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add List
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <DragOverlay>
-        {activeCard && (
-          <div className="w-[264px] rotate-2 shadow-lg">
-            <CardCompact card={activeCard} onClick={() => {}} />
           </div>
-        )}
-      </DragOverlay>
 
-      <CardModal
-        card={selectedCard}
-        boardId={board.id}
-        isOpen={!!selectedCard}
-        onClose={() => setSelectedCard(null)}
-        onUpdate={handleCardUpdate}
-        onDelete={handleCardDelete}
-        onLinkedCardCreated={handleLinkedCardCreated}
-        onCardClick={setSelectedCard}
-        currentUserId={currentUserId}
-        canViewQualitySummaries={canViewQualitySummaries}
-        boardMembers={board.members}
-        allCards={allCards}
-      />
+          <DragOverlay>
+            {activeCard && (
+              <div className="w-[264px] rotate-2 shadow-lg">
+                <CardCompact card={activeCard} onClick={() => {}} />
+              </div>
+            )}
+          </DragOverlay>
 
-      {/* Review Submission Dialog */}
-      {pendingReviewMove && (
-        <ReviewSubmissionDialog
-          isOpen={!!pendingReviewMove}
-          card={pendingReviewMove.card}
-          boardId={board.id}
-          onSubmit={handleReviewSubmitted}
-          onCancel={handleReviewCancelled}
-        />
+          <CardModal
+            card={selectedCard}
+            boardId={board.id}
+            isOpen={!!selectedCard}
+            onClose={() => setSelectedCard(null)}
+            onUpdate={handleCardUpdate}
+            onDelete={handleCardDelete}
+            onLinkedCardCreated={handleLinkedCardCreated}
+            onCardClick={setSelectedCard}
+            currentUserId={currentUserId}
+            canViewQualitySummaries={canViewQualitySummaries}
+            boardMembers={board.members}
+            allCards={allCards}
+          />
+
+          {/* Review Submission Dialog */}
+          {pendingReviewMove && (
+            <ReviewSubmissionDialog
+              isOpen={!!pendingReviewMove}
+              card={pendingReviewMove.card}
+              boardId={board.id}
+              onSubmit={handleReviewSubmitted}
+              onCancel={handleReviewCancelled}
+            />
+          )}
+        </DndContext>
       )}
-
-      {/* Review Mode Overlay */}
-      {reviewModeListId && (
-        <ReviewModeOverlay
-          isOpen={!!reviewModeListId}
-          onClose={() => setReviewModeListId(null)}
-          reviewListId={reviewModeListId}
-          reviewListName={board.lists.find(l => l.id === reviewModeListId)?.name || 'Review'}
-          cards={board.lists.find(l => l.id === reviewModeListId)?.cards || []}
-          boardId={board.id}
-          allLists={board.lists.map(l => ({ id: l.id, name: l.name }))}
-          onCardMoved={handleReviewModeCardMoved}
-        />
-      )}
-    </DndContext>
+    </div>
   );
 }
