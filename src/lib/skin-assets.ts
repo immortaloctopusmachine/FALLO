@@ -131,18 +131,6 @@ function sanitizeFontFamily(value: unknown, fallback: string): string {
   return /^[a-zA-Z0-9,'" -]+$/.test(trimmed) ? trimmed : fallback;
 }
 
-export function getSkinIconPath(theme: UiTheme, iconName: SkinIconName): string {
-  return `/skins/icons/${theme}/${iconName}.svg`;
-}
-
-export function getDefaultThemeLogoPath(theme: UiTheme): string {
-  return `/skins/logos/${theme}.svg`;
-}
-
-export function getDefaultThemeBackgroundPath(theme: UiTheme): string {
-  return `/skins/backgrounds/${theme}/background.jpg`;
-}
-
 export function createDefaultThemeSkinAssets(theme: UiTheme): ThemeSkinAssets {
   return {
     logoEnabled: false,

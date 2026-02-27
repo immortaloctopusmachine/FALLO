@@ -62,10 +62,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { UserPicker } from '@/components/shared/UserPicker';
 import { cn } from '@/lib/utils';
 import { getBoardBackgroundStyle } from '@/lib/board-backgrounds';
 import { getProjectDisplayName } from '@/lib/project-utils';
-import { formatLocalDateKey, formatMonthDay } from '@/lib/date-utils';
+import { formatLocalDateKey, formatMonthDay, formatShortMonthDay } from '@/lib/date-utils';
 import type { BoardSettings } from '@/types';
 import type { LucideIcon } from 'lucide-react';
 
@@ -302,81 +303,7 @@ function StatCard({
 }
 
 // ---------------------------------------------------------------------------
-// User Picker Popover (for roles table)
-// ---------------------------------------------------------------------------
-
-function UserPicker({
-  members,
-  selectedUserId,
-  onSelect,
-}: {
-  members: ProjectMember[];
-  selectedUserId: string;
-  onSelect: (userId: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = members.find(m => m.user.id === selectedUserId);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="flex items-center gap-2 w-full rounded-md border border-border bg-surface px-2 py-1 text-body hover:bg-surface-hover transition-colors text-left"
-        >
-          {selected ? (
-            <>
-              <Avatar className="h-5 w-5">
-                <AvatarImage src={selected.user.image || undefined} />
-                <AvatarFallback className="text-[10px]">
-                  {(selected.user.name || selected.user.email)[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">{selected.user.name || selected.user.email}</span>
-            </>
-          ) : (
-            <span className="text-text-tertiary">Select member...</span>
-          )}
-          <ChevronsUpDown className="ml-auto h-3 w-3 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search members..." />
-          <CommandList>
-            <CommandEmpty>No members found.</CommandEmpty>
-            <CommandGroup>
-              {members.map(m => (
-                <CommandItem
-                  key={m.user.id}
-                  value={m.user.name || m.user.email}
-                  onSelect={() => {
-                    onSelect(m.user.id);
-                    setOpen(false);
-                  }}
-                >
-                  <Check className={cn('mr-2 h-3.5 w-3.5', selectedUserId === m.user.id ? 'opacity-100' : 'opacity-0')} />
-                  <Avatar className="h-5 w-5 mr-2">
-                    <AvatarImage src={m.user.image || undefined} />
-                    <AvatarFallback className="text-[10px]">
-                      {(m.user.name || m.user.email)[0].toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col min-w-0">
-                    <span className="truncate">{m.user.name || 'Unnamed'}</span>
-                    <span className="text-tiny text-text-tertiary truncate">{m.user.email}</span>
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Helper: calculate Last Tweak and Last Static Art from TWEAK blocks
+// Helper: calculate Last Tweak and Last Static Assets from TWEAK blocks
 // ---------------------------------------------------------------------------
 
 function getCalculatedDates(blocks: TimelineBlockData[]) {
@@ -384,7 +311,7 @@ function getCalculatedDates(blocks: TimelineBlockData[]) {
   const tweakBlocks = blocks.filter(b =>
     b.blockType.name.toLowerCase().includes('tweak')
   );
-  if (tweakBlocks.length === 0) return { lastTweak: null, lastStaticArt: null };
+  if (tweakBlocks.length === 0) return { lastTweak: null, lastStaticAssets: null };
 
   const lastTweakBlock = tweakBlocks[tweakBlocks.length - 1];
   // Last Tweak = block endDate (already a Friday since blocks end on Friday)
@@ -393,9 +320,9 @@ function getCalculatedDates(blocks: TimelineBlockData[]) {
   // Last Static Assets = endDate minus 2 days (Wednesday)
   const [year, month, day] = lastTweak.split('-').map(Number);
   const endDate = new Date(year, month - 1, day - 2);
-  const lastStaticArt = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+  const lastStaticAssets = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
-  return { lastTweak, lastStaticArt };
+  return { lastTweak, lastStaticAssets };
 }
 
 // ---------------------------------------------------------------------------
@@ -456,9 +383,9 @@ export function ProjectDetailClient({
 
   // ---- Date override state ----
   const [lastTweakOverride, setLastTweakOverride] = useState(board.settings.lastTweakOverride || '');
-  const [lastStaticArtOverride, setLastStaticArtOverride] = useState(board.settings.lastStaticArtOverride || '');
+  const [lastStaticAssetsOverride, setLastStaticAssetsOverride] = useState(board.settings.lastStaticAssetsOverride || '');
   const [editingTweakOverride, setEditingTweakOverride] = useState(false);
-  const [editingStaticArtOverride, setEditingStaticArtOverride] = useState(false);
+  const [editingStaticAssetsOverride, setEditingStaticAssetsOverride] = useState(false);
 
   // ---- Event date add popover ----
   const [addDateOpen, setAddDateOpen] = useState(false);
@@ -568,8 +495,7 @@ export function ProjectDetailClient({
   };
 
   const formatWeekStartLabel = (weekStart: string) => {
-    const weekDate = new Date(`${weekStart}T00:00:00`);
-    return weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return formatShortMonthDay(weekStart);
   };
 
   const renderQualitySummary = () => {
@@ -1310,7 +1236,7 @@ export function ProjectDetailClient({
     }
   };
 
-  const handleSaveOverride = async (field: 'lastTweakOverride' | 'lastStaticArtOverride', value: string) => {
+  const handleSaveOverride = async (field: 'lastTweakOverride' | 'lastStaticAssetsOverride', value: string) => {
     try {
       const updatedSettings: BoardSettings = {
         ...board.settings,
@@ -1325,7 +1251,7 @@ export function ProjectDetailClient({
       if (data.success) {
         invalidateBoard();
         if (field === 'lastTweakOverride') setEditingTweakOverride(false);
-        else setEditingStaticArtOverride(false);
+        else setEditingStaticAssetsOverride(false);
       }
     } catch (err) {
       console.error('Failed to save override:', err);
@@ -2116,28 +2042,28 @@ export function ProjectDetailClient({
                     }}
                   />
                 )}
-                {calculatedDates.lastStaticArt && (
+                {calculatedDates.lastStaticAssets && (
                   <CalculatedDateRow
                     label="Last Static Assets"
-                    calculatedDate={calculatedDates.lastStaticArt}
-                    overrideDate={lastStaticArtOverride}
-                    isEditing={editingStaticArtOverride}
+                    calculatedDate={calculatedDates.lastStaticAssets}
+                    overrideDate={lastStaticAssetsOverride}
+                    isEditing={editingStaticAssetsOverride}
                     isAdmin={isAdmin}
-                    onStartEditing={() => setEditingStaticArtOverride(true)}
+                    onStartEditing={() => setEditingStaticAssetsOverride(true)}
                     onCancel={() => {
-                      setEditingStaticArtOverride(false);
-                      setLastStaticArtOverride(board.settings.lastStaticArtOverride || '');
+                      setEditingStaticAssetsOverride(false);
+                      setLastStaticAssetsOverride(board.settings.lastStaticAssetsOverride || '');
                     }}
-                    onChangeOverride={setLastStaticArtOverride}
-                    onSave={() => handleSaveOverride('lastStaticArtOverride', lastStaticArtOverride)}
+                    onChangeOverride={setLastStaticAssetsOverride}
+                    onSave={() => handleSaveOverride('lastStaticAssetsOverride', lastStaticAssetsOverride)}
                     onClearOverride={() => {
-                      setLastStaticArtOverride('');
-                      handleSaveOverride('lastStaticArtOverride', '');
+                      setLastStaticAssetsOverride('');
+                      handleSaveOverride('lastStaticAssetsOverride', '');
                     }}
                   />
                 )}
 
-                {(calculatedDates.lastTweak || calculatedDates.lastStaticArt) && dateRows.length > 0 && (
+                {(calculatedDates.lastTweak || calculatedDates.lastStaticAssets) && dateRows.length > 0 && (
                   <div className="border-t border-border my-1" />
                 )}
 

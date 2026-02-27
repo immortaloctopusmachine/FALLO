@@ -6,6 +6,7 @@ import {
   ApiErrors,
 } from '@/lib/api-utils';
 import { isValidPhase, PHASE_SEARCH_TERMS } from '@/lib/constants';
+import { getFriday, getMonday } from '@/lib/date-utils';
 
 // POST /api/boards/[boardId]/lists - Create a new list
 export async function POST(
@@ -124,13 +125,15 @@ export async function POST(
       });
 
       // Create the timeline block linked to this list
+      const snappedMonday = getMonday(new Date(startDate));
+      const snappedFriday = getFriday(snappedMonday);
       timelineBlock = await prisma.timelineBlock.create({
         data: {
           boardId,
           blockTypeId: blockType.id,
           listId: list.id,
-          startDate: new Date(startDate),
-          endDate: new Date(endDate),
+          startDate: snappedMonday,
+          endDate: snappedFriday,
           position: (lastBlock?.position ?? -1) + 1,
         },
         include: {

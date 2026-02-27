@@ -14,12 +14,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col skin-bg">
+    <div className="h-screen flex flex-col skin-bg overflow-hidden">
       <GlobalNav
         userName={session.user.name}
         userEmail={session.user.email}
       />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {children}
       </div>
     </div>

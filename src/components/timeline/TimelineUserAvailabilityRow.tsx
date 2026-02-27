@@ -3,6 +3,8 @@
 import { useMemo } from 'react';
 import { getMonday, formatLocalDateKey } from '@/lib/date-utils';
 import type { UserWeeklyAvailability, TimelineMember } from '@/types';
+import { TodayIndicator } from './TodayIndicator';
+import { getTimelineGridBackground } from './grid-background';
 
 interface TimelineUserAvailabilityRowProps {
   member: TimelineMember;
@@ -62,26 +64,7 @@ export function TimelineUserAvailabilityRow({
 
   // Generate CSS background for grid lines
   const gridBackground = useMemo(() => {
-    const weekWidth = columnWidth * DAYS_PER_WEEK;
-    return {
-      backgroundImage: `
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth}px
-        ),
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${weekWidth - 2}px,
-          var(--border) ${weekWidth - 2}px,
-          var(--border) ${weekWidth}px
-        )
-      `,
-      backgroundSize: `${columnWidth}px 100%, ${weekWidth}px 100%`,
-    };
+    return getTimelineGridBackground(columnWidth, DAYS_PER_WEEK);
   }, [columnWidth]);
 
   // Calculate the position and width for a week cell
@@ -154,41 +137,11 @@ export function TimelineUserAvailabilityRow({
       })}
 
       {/* Today indicator */}
-      <TodayIndicator startDate={startDate} columnWidth={columnWidth} />
+      <TodayIndicator
+        startDate={startDate}
+        columnWidth={columnWidth}
+        className="absolute top-0 bottom-0 w-0.5 bg-error z-10 pointer-events-none"
+      />
     </div>
-  );
-}
-
-function TodayIndicator({
-  startDate,
-  columnWidth,
-}: {
-  startDate: Date;
-  columnWidth: number;
-}) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  let daysFromStart = 0;
-  const current = new Date(startDate);
-  while (current < today) {
-    const dayOfWeek = current.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      daysFromStart++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  if (current.toDateString() !== today.toDateString()) {
-    return null;
-  }
-
-  const left = daysFromStart * columnWidth + columnWidth / 2;
-
-  return (
-    <div
-      className="absolute top-0 bottom-0 w-0.5 bg-error z-10 pointer-events-none"
-      style={{ left }}
-    />
   );
 }

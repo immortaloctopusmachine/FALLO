@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback } from 'react';
 import type { WeeklyProgress } from '@/types';
+import { formatShortMonthDay } from '@/lib/date-utils';
 
 interface BurnUpChartProps {
   data: WeeklyProgress[];
@@ -82,8 +83,7 @@ export function BurnUpChart({
 
   // Format date for labels
   const formatWeekLabel = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return formatShortMonthDay(dateStr);
   };
 
   if (sortedData.length === 0) {

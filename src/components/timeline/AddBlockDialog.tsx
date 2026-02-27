@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { snapToMonday, getBlockEndDate } from '@/lib/list-templates';
+import { formatDateInput } from '@/lib/date-utils';
 import type { BlockType, List as BoardList } from '@/types';
 
 interface AddBlockDialogProps {
@@ -46,14 +47,14 @@ export function AddBlockDialog({
     // Snap to Monday for consistent week alignment
     const baseDate = defaultStartDate ? new Date(defaultStartDate) : new Date();
     const monday = snapToMonday(baseDate);
-    return monday.toISOString().split('T')[0];
+    return formatDateInput(monday);
   });
   const [endDate, setEndDate] = useState(() => {
     // Default to 5-day block (Mon-Fri)
     const baseDate = defaultStartDate ? new Date(defaultStartDate) : new Date();
     const monday = snapToMonday(baseDate);
     const friday = getBlockEndDate(monday);
-    return friday.toISOString().split('T')[0];
+    return formatDateInput(friday);
   });
   const [linkOption, setLinkOption] = useState<'none' | 'existing' | 'create'>('create');
   const [selectedListId, setSelectedListId] = useState<string>('');
@@ -101,8 +102,8 @@ export function AddBlockDialog({
     try {
       await onCreate({
         blockTypeId: selectedBlockTypeId,
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
+        startDate,
+        endDate,
         listId: linkOption === 'existing' ? selectedListId : undefined,
         createList: linkOption === 'create',
       });
@@ -172,13 +173,13 @@ export function AddBlockDialog({
                   value={startDate}
                   onChange={(e) => {
                     // Snap selected date to Monday
-                    const selectedDate = new Date(e.target.value);
+                    const selectedDate = new Date(`${e.target.value}T00:00:00`);
                     const monday = snapToMonday(selectedDate);
-                    const mondayStr = monday.toISOString().split('T')[0];
+                    const mondayStr = formatDateInput(monday);
                     setStartDate(mondayStr);
                     // Auto-update end date to Friday (5-day block)
                     const friday = getBlockEndDate(monday);
-                    setEndDate(friday.toISOString().split('T')[0]);
+                    setEndDate(formatDateInput(friday));
                   }}
                   className="pl-10"
                   required

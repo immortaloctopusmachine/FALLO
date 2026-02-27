@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, UserPlus, X, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import type {
+  Board,
+  BoardMember,
   BoardModuleTemplate,
   Card,
   EpicNamePreset,
@@ -32,12 +41,14 @@ interface ModuleTaskSelection {
   immediateListId: string;
   stagingPlanningListId: string;
   releaseTargetListId: string;
+  previewAssignedUserIds: string[]; // Preview user assignments
 }
 
 interface AddModuleToBoardModalProps {
   isOpen: boolean;
   onClose: () => void;
   boardId: string;
+  board: Board; // Need full board for members and project roles
   planningLists: List[];
   taskLists: List[];
   defaultPlanningListId?: string;
@@ -46,10 +57,57 @@ interface AddModuleToBoardModalProps {
 
 const MANUAL_EPIC = '__manual__';
 
+/**
+ * Auto-assign users based on task tags and project role assignments.
+ * - "static art" tag → assigns users with "Artist" role
+ * - "fx/animation" tag → assigns users with "Animator" role
+ * - If multiple users have the same role, pick the oldest by joinedAt
+ */
+function getAutoAssignedUsers(
+  tags: string[],
+  projectRoleAssignments: NonNullable<Board['settings']['projectRoleAssignments']>,
+  boardMembers: BoardMember[]
+): string[] {
+  const userIds: string[] = [];
+  const tagLower = tags.map((t) => t.toLowerCase());
+
+  // Check for "static art" tag → assign Artist
+  if (tagLower.some((t) => t.includes('static') && t.includes('art'))) {
+    const artistRole = projectRoleAssignments.find((r) =>
+      r.roleName.toLowerCase().includes('artist')
+    );
+    if (artistRole) {
+      // Find the member with oldest joinedAt
+      const member = boardMembers
+        .filter((m) => m.userId === artistRole.userId)
+        .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())[0];
+      if (member) userIds.push(member.userId);
+    }
+  }
+
+  // Check for "fx/animation" tag → assign Animator
+  if (tagLower.some((t) => (t.includes('fx') || t.includes('animation')))) {
+    const animatorRole = projectRoleAssignments.find((r) =>
+      r.roleName.toLowerCase().includes('animator') || r.roleName.toLowerCase().includes('animation')
+    );
+    if (animatorRole) {
+      // Find the member with oldest joinedAt
+      const member = boardMembers
+        .filter((m) => m.userId === animatorRole.userId)
+        .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())[0];
+      if (member) userIds.push(member.userId);
+    }
+  }
+
+  // Return unique user IDs
+  return [...new Set(userIds)];
+}
+
 export function AddModuleToBoardModal({
   isOpen,
   onClose,
   boardId,
+  board,
   planningLists,
   taskLists,
   defaultPlanningListId,
@@ -137,13 +195,19 @@ export function AddModuleToBoardModal({
       ? selectedModule.epicName
       : MANUAL_EPIC);
 
-    const defaults = selectedModule.taskTemplates.map((task) => ({
-      taskTemplateId: task.id,
-      destinationMode: task.destinationMode,
-      immediateListId: defaultTaskListId,
-      stagingPlanningListId: selectedPlanningListId,
-      releaseTargetListId: defaultTaskListId,
-    }));
+    const defaults = selectedModule.taskTemplates.map((task) => {
+      // Auto-assign users based on tags and project roles
+      const autoAssignedUserIds = getAutoAssignedUsers(task.tags, board.settings?.projectRoleAssignments || [], board.members);
+
+      return {
+        taskTemplateId: task.id,
+        destinationMode: task.destinationMode,
+        immediateListId: defaultTaskListId,
+        stagingPlanningListId: selectedPlanningListId,
+        releaseTargetListId: defaultTaskListId,
+        previewAssignedUserIds: autoAssignedUserIds,
+      };
+    });
     setTaskConfig(defaults);
     initializedModuleIdRef.current = selectedModule.id;
   }, [isOpen, selectedModule, epicNames, defaultTaskListId, planningListId, defaultPlanningListId, planningLists]);
@@ -384,6 +448,112 @@ export function AddModuleToBoardModal({
                             </SelectContent>
                           </Select>
                         )}
+                      </div>
+
+                      {/* Preview User Assignment */}
+                      <div className="pt-2 border-t border-border-subtle">
+                        <div className="text-caption font-medium text-text-secondary mb-2">
+                          Preview Assignment
+                          <span className="ml-1 text-text-tertiary font-normal">(activated when moved to Tasks)</span>
+                        </div>
+                        <div className="space-y-2">
+                          {/* Current Assignees */}
+                          {config.previewAssignedUserIds.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {config.previewAssignedUserIds.map((userId) => {
+                                const member = board.members.find((m) => m.userId === userId);
+                                if (!member) return null;
+                                return (
+                                  <div
+                                    key={userId}
+                                    className="flex items-center gap-1.5 rounded-full bg-surface-hover py-1 pl-1 pr-2 opacity-60"
+                                    title="Preview assignment"
+                                  >
+                                    <Avatar className="h-5 w-5">
+                                      <AvatarImage src={member.user.image || undefined} />
+                                      <AvatarFallback className="text-[10px]">
+                                        {member.user.name?.[0] || member.user.email[0]}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-caption">
+                                      {member.user.name || member.user.email}
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        const updated = config.previewAssignedUserIds.filter((id) => id !== userId);
+                                        updateTask(task.id, { previewAssignedUserIds: updated });
+                                      }}
+                                      className="ml-0.5 rounded-full p-0.5 hover:bg-surface"
+                                    >
+                                      <X className="h-3 w-3 text-text-tertiary" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {/* Add Assignee Popover */}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="sm" className="w-full justify-start text-text-tertiary h-8">
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Add preview assignee
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[240px] p-2" align="start">
+                              <div className="space-y-1">
+                                <p className="px-2 py-1 text-caption font-medium text-text-secondary">
+                                  Board members
+                                </p>
+                                {board.members.length === 0 ? (
+                                  <p className="px-2 py-2 text-caption text-text-tertiary">
+                                    No members found
+                                  </p>
+                                ) : (
+                                  board.members.map((member) => {
+                                    const assigned = config.previewAssignedUserIds.includes(member.userId);
+                                    return (
+                                      <button
+                                        key={member.id}
+                                        onClick={() => {
+                                          const updated = assigned
+                                            ? config.previewAssignedUserIds.filter((id) => id !== member.userId)
+                                            : [...config.previewAssignedUserIds, member.userId];
+                                          updateTask(task.id, { previewAssignedUserIds: updated });
+                                        }}
+                                        className={cn(
+                                          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                                          'hover:bg-surface-hover',
+                                          assigned && 'bg-surface-hover'
+                                        )}
+                                      >
+                                        <Avatar className="h-6 w-6">
+                                          <AvatarImage src={member.user.image || undefined} />
+                                          <AvatarFallback className="text-xs">
+                                            {member.user.name?.[0] || member.user.email[0]}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="truncate text-body">
+                                            {member.user.name || member.user.email}
+                                          </p>
+                                          {member.user.name && (
+                                            <p className="truncate text-caption text-text-tertiary">
+                                              {member.user.email}
+                                            </p>
+                                          )}
+                                        </div>
+                                        {assigned && (
+                                          <Check className="h-4 w-4 text-success shrink-0" />
+                                        )}
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
                     </div>
                   );

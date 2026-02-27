@@ -41,13 +41,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import type { TeamDetail, TeamMember, Studio, User } from '@/types';
-
-const TEAM_COLORS = [
-  '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
-  '#f43f5e', '#ef4444', '#f97316',
-];
+import type { TeamDetail, TeamMember } from '@/types';
+import { TEAM_COLORS, useTeamReferenceData } from './team-form-shared';
 
 interface TeamSettingsModalProps {
   team: TeamDetail;
@@ -67,8 +62,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
   const [error, setError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const [studios, setStudios] = useState<Studio[]>([]);
-  const [users, setUsers] = useState<Pick<User, 'id' | 'name' | 'email' | 'image'>[]>([]);
+  const { studios, users, loadReferenceData } = useTeamReferenceData();
   const [members, setMembers] = useState<TeamMember[]>(team.members);
   const [studioOpen, setStudioOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
@@ -78,8 +72,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
   // Fetch studios and users when modal opens
   useEffect(() => {
     if (open) {
-      fetchStudios();
-      fetchUsers();
+      void loadReferenceData();
       // Reset form to current team values
       setName(team.name);
       setDescription(team.description || '');
@@ -88,31 +81,7 @@ export function TeamSettingsModal({ team, open, onOpenChange }: TeamSettingsModa
       setStudioId(team.studio?.id || null);
       setMembers(team.members);
     }
-  }, [open, team]);
-
-  const fetchStudios = async () => {
-    try {
-      const response = await fetch('/api/studios');
-      const data = await response.json();
-      if (data.success) {
-        setStudios(data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch studios:', err);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('/api/users?scope=picker');
-      const data = await response.json();
-      if (data.success) {
-        setUsers(data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch users:', err);
-    }
-  };
+  }, [open, team, loadReferenceData]);
 
   const selectedStudio = studios.find((s) => s.id === studioId);
   const memberUserIds = members.map((m) => m.user.id);

@@ -14,29 +14,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 import type { Team, User as BaseUser } from '@/types';
-
-interface Skill {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-interface CompanyRole {
-  id: string;
-  name: string;
-  color: string | null;
-}
+import {
+  type UserCompanyRoleOption,
+  UserDialogShell,
+  UserMetadataFormBlock,
+  UserFormSubmitActions,
+  type UserSkillOption,
+} from './UserFormSections';
+import { invalidateUserAndTeamQueries } from './user-query-invalidation';
 
 interface UserToEdit {
   id: BaseUser['id'];
@@ -67,16 +55,9 @@ interface EditUserDialogProps {
   onClose: () => void;
   user: UserToEdit | null;
   teams: Team[];
-  skills: Skill[];
-  companyRoles: CompanyRole[];
+  skills: UserSkillOption[];
+  companyRoles: UserCompanyRoleOption[];
 }
-
-const PERMISSIONS = [
-  { value: 'VIEWER', label: 'Viewer', description: 'Can view boards and cards' },
-  { value: 'MEMBER', label: 'Member', description: 'Can create and edit cards' },
-  { value: 'ADMIN', label: 'Admin', description: 'Can manage boards and users' },
-  { value: 'SUPER_ADMIN', label: 'Super Admin', description: 'Full system access' },
-] as const;
 
 export function EditUserDialog({
   isOpen,
@@ -117,28 +98,18 @@ export function EditUserDialog({
     }
   }, [isOpen]);
 
-  const toggleTeam = (teamId: string) => {
-    setSelectedTeamIds(prev =>
-      prev.includes(teamId)
-        ? prev.filter(id => id !== teamId)
-        : [...prev, teamId]
-    );
-  };
+  const finalizeUserMutationSuccess = () => {
+    if (!user) return;
 
-  const toggleSkill = (skillId: string) => {
-    setSelectedSkillIds(prev =>
-      prev.includes(skillId)
-        ? prev.filter(id => id !== skillId)
-        : [...prev, skillId]
-    );
-  };
-
-  const toggleCompanyRole = (roleId: string) => {
-    setSelectedCompanyRoleIds(prev =>
-      prev.includes(roleId)
-        ? prev.filter(id => id !== roleId)
-        : [...prev, roleId]
-    );
+    const affectedTeamIds = new Set<string>([
+      ...user.teamMembers.map((tm) => tm.team.id),
+      ...selectedTeamIds,
+    ]);
+    onClose();
+    invalidateUserAndTeamQueries(queryClient, {
+      userId: user.id,
+      teamIds: affectedTeamIds,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -168,18 +139,7 @@ export function EditUserDialog({
         return;
       }
 
-      const affectedTeamIds = new Set<string>([
-        ...user.teamMembers.map((tm) => tm.team.id),
-        ...selectedTeamIds,
-      ]);
-      onClose();
-      queryClient.invalidateQueries({ queryKey: ['users', 'page'] });
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['users', user.id, 'detail'] });
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      affectedTeamIds.forEach((teamId) => {
-        queryClient.invalidateQueries({ queryKey: ['teams', teamId] });
-      });
+      finalizeUserMutationSuccess();
     } catch {
       setError('An error occurred. Please try again.');
     } finally {
@@ -206,18 +166,7 @@ export function EditUserDialog({
         return;
       }
 
-      const affectedTeamIds = new Set<string>([
-        ...user.teamMembers.map((tm) => tm.team.id),
-        ...selectedTeamIds,
-      ]);
-      onClose();
-      queryClient.invalidateQueries({ queryKey: ['users', 'page'] });
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['users', user.id, 'detail'] });
-      queryClient.invalidateQueries({ queryKey: ['teams'] });
-      affectedTeamIds.forEach((teamId) => {
-        queryClient.invalidateQueries({ queryKey: ['teams', teamId] });
-      });
+      finalizeUserMutationSuccess();
     } catch {
       setError('An error occurred. Please try again.');
       setShowDeleteConfirm(false);
@@ -228,182 +177,66 @@ export function EditUserDialog({
 
   if (!user) return null;
 
+  const metadataSelectionState = {
+    selectedTeamIds,
+    setSelectedTeamIds,
+    selectedSkillIds,
+    setSelectedSkillIds,
+    selectedRoleIds: selectedCompanyRoleIds,
+    setSelectedRoleIds: setSelectedCompanyRoleIds,
+  };
+  const teamOptions = teams.map((team) => ({ id: team.id, name: team.name, color: team.color }));
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit User</DialogTitle>
-          <DialogDescription>
+    <>
+      <UserDialogShell
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Edit User"
+        description={(
+          <>
             Update user details for {user.email}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* Email (read-only) */}
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <div className="p-2 rounded-md border border-border bg-surface-subtle text-text-secondary">
-              {user.email}
-            </div>
+          </>
+        )}
+        onSubmit={handleSubmit}
+      >
+        {/* Email (read-only) */}
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <div className="p-2 rounded-md border border-border bg-surface-subtle text-text-secondary">
+            {user.email}
           </div>
+        </div>
 
-          {/* Name */}
-          <div className="space-y-2">
-            <Label htmlFor="edit-name">Name</Label>
-            <Input
-              id="edit-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Full name"
-            />
-          </div>
+        {/* Name */}
+        <div className="space-y-2">
+          <Label htmlFor="edit-name">Name</Label>
+          <Input
+            id="edit-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full name"
+          />
+        </div>
 
-          {/* Permission Level */}
-          <div className="space-y-2">
-            <Label>Permission Level</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {PERMISSIONS.map((r) => (
-                <button
-                  key={r.value}
-                  type="button"
-                  onClick={() => setPermission(r.value)}
-                  className={cn(
-                    'flex flex-col items-start p-2 rounded-md border-2 text-left transition-colors',
-                    permission === r.value
-                      ? 'border-success bg-success/10'
-                      : 'border-border hover:border-success/50'
-                  )}
-                >
-                  <span className={cn(
-                    'text-body font-medium',
-                    permission === r.value && 'text-success'
-                  )}>
-                    {r.label}
-                  </span>
-                  <span className="text-caption text-text-tertiary">
-                    {r.description}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+        <UserMetadataFormBlock
+          permission={permission}
+          onPermissionChange={setPermission}
+          teams={teamOptions}
+          skills={skills}
+          roles={companyRoles}
+          selectionState={metadataSelectionState}
+          error={error}
+        />
 
-          {/* Teams */}
-          {teams.length > 0 && (
-            <div className="space-y-2">
-              <Label>Teams</Label>
-              <div className="flex flex-wrap gap-2">
-                {teams.map((team) => {
-                  const isSelected = selectedTeamIds.includes(team.id);
-                  return (
-                    <button
-                      key={team.id}
-                      type="button"
-                      onClick={() => toggleTeam(team.id)}
-                      className={cn(
-                        'px-3 py-1.5 rounded-full text-body transition-colors',
-                        isSelected
-                          ? 'ring-2 ring-success'
-                          : 'opacity-70 hover:opacity-100'
-                      )}
-                      style={{
-                        backgroundColor: `${team.color}20`,
-                        color: team.color,
-                      }}
-                    >
-                      {team.name}
-                    </button>
-                  );
-                })}
-              </div>
-              {teams.length === 0 && (
-                <p className="text-caption text-text-tertiary">No teams available</p>
-              )}
-            </div>
-          )}
-
-          {/* Skills */}
-          {skills.length > 0 && (
-            <div className="space-y-2">
-              <Label>Skills</Label>
-              <div className="flex flex-wrap gap-2">
-                {skills.map((skill) => {
-                  const isSelected = selectedSkillIds.includes(skill.id);
-                  const color = skill.color || '#71717a';
-                  return (
-                    <button
-                      key={skill.id}
-                      type="button"
-                      onClick={() => toggleSkill(skill.id)}
-                      className={cn(
-                        'flex items-center gap-1 px-3 py-1.5 rounded-full text-body transition-colors',
-                        isSelected
-                          ? 'ring-2 ring-success'
-                          : 'opacity-70 hover:opacity-100'
-                      )}
-                      style={{
-                        backgroundColor: `${color}20`,
-                        color: color,
-                      }}
-                    >
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                      {skill.name}
-                    </button>
-                  );
-                })}
-              </div>
-              {skills.length === 0 && (
-                <p className="text-caption text-text-tertiary">No skills available</p>
-              )}
-            </div>
-          )}
-
-          {/* Company Roles */}
-          {companyRoles.length > 0 && (
-            <div className="space-y-2">
-              <Label>Roles</Label>
-              <div className="flex flex-wrap gap-2">
-                {companyRoles.map((companyRole) => {
-                  const isSelected = selectedCompanyRoleIds.includes(companyRole.id);
-                  const color = companyRole.color || '#71717a';
-                  return (
-                    <button
-                      key={companyRole.id}
-                      type="button"
-                      onClick={() => toggleCompanyRole(companyRole.id)}
-                      className={cn(
-                        'flex items-center gap-1 px-3 py-1.5 rounded-full text-body transition-colors',
-                        isSelected
-                          ? 'ring-2 ring-success'
-                          : 'opacity-70 hover:opacity-100'
-                      )}
-                      style={{
-                        backgroundColor: `${color}20`,
-                        color: color,
-                      }}
-                    >
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                      {companyRole.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {error && (
-            <div className="text-caption text-error">{error}</div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-between pt-2">
+        <UserFormSubmitActions
+          onCancel={onClose}
+          isLoading={isLoading}
+          loadingLabel="Saving..."
+          submitLabel="Save Changes"
+          submitIcon={<Pencil className="h-4 w-4 mr-1" />}
+          submitDisabled={isLoading}
+          leadingAction={(
             <Button
               type="button"
               variant="ghost"
@@ -413,24 +246,9 @@ export function EditUserDialog({
               <Trash2 className="h-4 w-4 mr-1" />
               Delete User
             </Button>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  'Saving...'
-                ) : (
-                  <>
-                    <Pencil className="h-4 w-4 mr-1" />
-                    Save Changes
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </form>
-      </DialogContent>
+          )}
+        />
+      </UserDialogShell>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
@@ -461,6 +279,6 @@ export function EditUserDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dialog>
+    </>
   );
 }

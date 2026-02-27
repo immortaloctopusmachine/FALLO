@@ -159,13 +159,3 @@ export function calculateListDates(
 
   return dates;
 }
-
-// Get the "Done" list ID from task lists
-export function getDoneListId(lists: { id: string; phase?: string | null; viewType: string }[]): string | undefined {
-  return lists.find(l => l.viewType === 'TASKS' && l.phase === 'DONE')?.id;
-}
-
-// Calculate total project duration in weeks
-export function getTotalDurationWeeks(template: ListTemplate): number {
-  return template.planningLists.reduce((sum, list) => sum + list.durationWeeks, 0);
-}

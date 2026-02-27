@@ -660,8 +660,9 @@ model EvaluationScore {
 }
 
 model CardUser {
-  id         String   @id @default(cuid())
-  assignedAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  assignedAt  DateTime  @default(now())
+  activatedAt DateTime? // null = preview assignment (not yet active), set = activated
 
   // Relations
   userId String
@@ -671,6 +672,7 @@ model CardUser {
 
   @@unique([userId, cardId])
   @@index([cardId])
+  @@index([userId, activatedAt]) // For querying active assignments only
   @@map("card_users")
 }
 

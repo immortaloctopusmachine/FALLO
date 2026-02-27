@@ -30,6 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { snapToMonday } from '@/lib/list-templates';
 import { formatDateInput } from '@/lib/date-utils';
 import { recordClientPerf } from '@/lib/perf-client';
+import { fetchProjectTemplates, type ProjectTemplateSummary } from '@/lib/project-templates';
 import type {
   Team,
   CoreProjectTemplate,
@@ -55,13 +56,6 @@ interface SelectedMember {
     name: string;
     color: string | null;
   }[];
-}
-
-interface ProjectTemplate {
-  id: string;
-  name: string;
-  description: string | null;
-  listCount: number;
 }
 
 interface TimelineQueryData {
@@ -107,7 +101,7 @@ export function CreateProjectDialog({
   const [selectedCoreTemplateId, setSelectedCoreTemplateId] = useState<string>('');
   const [isLoadingCoreTemplates, setIsLoadingCoreTemplates] = useState(false);
   const [selectedProjectTemplate, setSelectedProjectTemplate] = useState<string | null>(null);
-  const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
+  const [projectTemplates, setProjectTemplates] = useState<ProjectTemplateSummary[]>([]);
   const [productionTitle, setProductionTitle] = useState('');
   const [memberRoleAssignments, setMemberRoleAssignments] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -208,26 +202,13 @@ export function CreateProjectDialog({
 
   // Fetch project templates when dialog opens
   useEffect(() => {
-    if (isOpen) {
-      setIsLoadingTemplates(true);
-      fetch('/api/boards?templates=true')
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.data) {
-            const templates = data.data
-              .filter((b: { isTemplate?: boolean }) => b.isTemplate)
-              .map((b: { id: string; name: string; description: string | null; lists: unknown[] }) => ({
-                id: b.id,
-                name: b.name,
-                description: b.description,
-                listCount: b.lists?.length || 0,
-              }));
-            setProjectTemplates(templates);
-          }
-        })
-        .catch(console.error)
-        .finally(() => setIsLoadingTemplates(false));
-    }
+    if (!isOpen) return;
+
+    setIsLoadingTemplates(true);
+    fetchProjectTemplates()
+      .then(setProjectTemplates)
+      .catch(console.error)
+      .finally(() => setIsLoadingTemplates(false));
   }, [isOpen]);
 
   // Fetch core templates when dialog opens

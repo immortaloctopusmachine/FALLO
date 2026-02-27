@@ -72,7 +72,9 @@
       "Bash(npx next lint:*)",
       "Bash(xargs:*)",
       "Bash(cat:*)",
-      "Bash(del \"c:\\\\project-planner\\\\project-planner\\\\src\\\\components\\\\boards\\\\ReviewModeOverlay.tsx\")"
+      "Bash(del \"c:\\\\project-planner\\\\project-planner\\\\src\\\\components\\\\boards\\\\ReviewModeOverlay.tsx\")",
+      "Bash(next.config \")",
+      "Bash(c:project-plannerproject-plannerscriptsbackfill-activated-assignments.ts << 'EOF'\nimport { PrismaClient } from '@prisma/client';\n\nconst prisma = new PrismaClient\\(\\);\n\nasync function main\\(\\) {\n  console.log\\('Starting backfill of activatedAt for existing assignments...'\\);\n\n  // Find all CardUser records where:\n  // - activatedAt is null \\(not yet set\\)\n  // - Card is in a TASKS list \\(not PLANNING\\)\n  const result = await prisma.$executeRaw`\n    UPDATE card_users cu\n    SET \"activatedAt\" = cu.\"assignedAt\"\n    FROM cards c\n    JOIN lists l ON c.\"listId\" = l.id\n    WHERE cu.\"cardId\" = c.id\n      AND cu.\"activatedAt\" IS NULL\n      AND l.\"viewType\" = 'TASKS'\n  `;\n\n  console.log\\(`✅ Backfilled ${result} assignments in Task lists`\\);\n\n  // Also handle cards that don't have a viewType set \\(older boards\\)\n  const legacyResult = await prisma.$executeRaw`\n    UPDATE card_users cu\n    SET \"activatedAt\" = cu.\"assignedAt\"\n    FROM cards c\n    JOIN lists l ON c.\"listId\" = l.id\n    WHERE cu.\"cardId\" = c.id\n      AND cu.\"activatedAt\" IS NULL\n      AND l.\"viewType\" IS NULL\n  `;\n\n  console.log\\(`✅ Backfilled ${legacyResult} assignments in lists without viewType \\(legacy\\)`\\);\n\n  console.log\\('Backfill complete!'\\);\n}\n\nmain\\(\\)\n  .catch\\(\\(error\\) => {\n    console.error\\('Error during backfill:', error\\);\n    process.exit\\(1\\);\n  }\\)\n  .finally\\(async \\(\\) => {\n    await prisma.$disconnect\\(\\);\n  }\\);\nEOF)"
     ],
     "additionalDirectories": [
       "c:\\project-planner\\project-planner\\src\\app\\api\\boards\\[boardId]\\cards\\[cardId]\\checklists\\[checklistId]",

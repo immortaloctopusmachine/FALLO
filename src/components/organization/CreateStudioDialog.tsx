@@ -12,10 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+import { OrganizationFormFields } from './OrganizationFormFields';
 
 const STUDIO_COLORS = [
   '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
@@ -85,46 +82,23 @@ export function CreateStudioDialog() {
               {error}
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="studio-name">Name</Label>
-            <Input
-              id="studio-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Game Studio Alpha"
-              required
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="studio-description">Description</Label>
-            <Textarea
-              id="studio-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this studio do?"
-              rows={2}
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Brand Color</Label>
-            <div className="flex gap-2 flex-wrap">
-              {STUDIO_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    'w-8 h-8 rounded-full border-2 transition-transform',
-                    color === c ? 'border-white scale-110' : 'border-transparent'
-                  )}
-                  style={{ backgroundColor: c }}
-                  disabled={isLoading}
-                />
-              ))}
-            </div>
-          </div>
+          <OrganizationFormFields
+            nameId="studio-name"
+            nameLabel="Name"
+            namePlaceholder="e.g., Game Studio Alpha"
+            name={name}
+            onNameChange={setName}
+            descriptionId="studio-description"
+            descriptionLabel="Description"
+            descriptionPlaceholder="What does this studio do?"
+            description={description}
+            onDescriptionChange={setDescription}
+            colorLabel="Brand Color"
+            colors={STUDIO_COLORS}
+            selectedColor={color}
+            onColorChange={setColor}
+            disabled={isLoading}
+          />
           <div className="flex justify-end gap-2 pt-4">
             <Button
               type="button"

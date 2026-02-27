@@ -179,6 +179,8 @@ export function TimelineView({
     y: number;
   } | null>(null);
   const [loadingArchivedProjectId, setLoadingArchivedProjectId] = useState<string | null>(null);
+  const [repairingProjectId, setRepairingProjectId] = useState<string | null>(null);
+  const [isRepairingVisibleTimelines, setIsRepairingVisibleTimelines] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [createProjectStartDate, setCreateProjectStartDate] = useState<Date | undefined>();
   const [editingBlock, setEditingBlock] = useState<TimelineBlock | null>(null);
@@ -809,6 +811,57 @@ export function TimelineView({
     setArchivedProjectContextMenu(null);
   }, [router]);
 
+  const handleRepairProjectTimeline = useCallback(async (projectId: string) => {
+    if (!projectId || repairingProjectId === projectId) return;
+
+    setRepairingProjectId(projectId);
+    try {
+      const response = await fetch(`/api/boards/${projectId}/timeline/blocks/repair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncToList: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to repair timeline');
+      }
+
+      await refreshTimeline();
+    } catch (error) {
+      console.error('Failed to repair project timeline:', error);
+    } finally {
+      setRepairingProjectId(null);
+      setProjectContextMenu(null);
+    }
+  }, [refreshTimeline, repairingProjectId]);
+
+  const handleRepairVisibleTimelines = useCallback(async () => {
+    if (isRepairingVisibleTimelines) return;
+
+    const boardIds = filteredProjects.map((project) => project.board.id);
+    if (boardIds.length === 0) return;
+
+    setIsRepairingVisibleTimelines(true);
+    try {
+      for (const boardId of boardIds) {
+        const response = await fetch(`/api/boards/${boardId}/timeline/blocks/repair`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ syncToList: true }),
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to repair timeline for board ${boardId}`);
+        }
+      }
+
+      await refreshTimeline();
+    } catch (error) {
+      console.error('Failed to repair visible timelines:', error);
+    } finally {
+      setIsRepairingVisibleTimelines(false);
+    }
+  }, [filteredProjects, isRepairingVisibleTimelines, refreshTimeline]);
+
   const handleLoadArchivedProject = useCallback(async (projectId: string) => {
     if (!projectId || loadingArchivedProjectId === projectId) return;
 
@@ -1096,18 +1149,12 @@ export function TimelineView({
     const project = projects[projectIndex];
     const boardId = project.board.id;
 
-    // Helper: get week key (Monday date string) for a block's start date
-    const _getWeekKey = (startDate: string): string => {
-      const monday = getMonday(new Date(startDate));
-      return monday.toISOString().split('T')[0];
-    };
-
     // Compute new week key for a block after applying a delta
     const computeNewWeekKey = (blockStartDate: string, delta: number): string => {
       const currentMonday = getMonday(new Date(blockStartDate));
       const newMonday = new Date(currentMonday);
       newMonday.setDate(newMonday.getDate() + delta * 7);
-      return newMonday.toISOString().split('T')[0];
+      return formatLocalDateKey(newMonday);
     };
 
     // Build per-block delta map: blockId -> weeksDelta
@@ -1505,6 +1552,9 @@ export function TimelineView({
         onDateChange={setCurrentDate}
         onTodayClick={handleTodayClick}
         showFilterButton={false}
+        onRepairTimeline={handleRepairVisibleTimelines}
+        isRepairingTimeline={isRepairingVisibleTimelines}
+        canRepairTimeline={filteredProjects.length > 0}
         onCreateProject={handleCreateProject}
         isAdmin={isAdmin}
       />
@@ -1820,6 +1870,21 @@ export function TimelineView({
             >
               Open project page
             </button>
+            {isAdmin && (
+              <>
+                <hr className="my-1 border-border" />
+                <button
+                  type="button"
+                  className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover disabled:opacity-60"
+                  disabled={repairingProjectId === projectContextMenu.projectId}
+                  onClick={() => handleRepairProjectTimeline(projectContextMenu.projectId)}
+                >
+                  {repairingProjectId === projectContextMenu.projectId
+                    ? 'Repairing timeline...'
+                    : 'Repair timeline'}
+                </button>
+              </>
+            )}
           </div>
         )}
 

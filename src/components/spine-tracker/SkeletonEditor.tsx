@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Skeleton, Animation, SoundFx, Skin, SpineEvent } from '@/types/spine-tracker';
+import type { Skeleton, Animation, SoundFx, Skin } from '@/types/spine-tracker';
 import { SKELETON_STATUSES, STATUS_COLORS, DEFAULT_SKELETON_GROUPS } from './constants';
 import { AnimationTable } from './AnimationTable';
 import { SkeletonPlacement } from './SkeletonPlacement';
@@ -45,9 +45,6 @@ interface SkeletonEditorProps {
   onAddSkin: () => void;
   onUpdateSkin: (index: number, updates: Partial<Skin>) => void;
   onDeleteSkin: (index: number) => void;
-  onAddEvent: () => void;
-  onUpdateEvent: (index: number, updates: Partial<SpineEvent>) => void;
-  onDeleteEvent: (index: number) => void;
 }
 
 export function SkeletonEditor({
@@ -69,9 +66,6 @@ export function SkeletonEditor({
   onAddSkin,
   onUpdateSkin,
   onDeleteSkin,
-  onAddEvent,
-  onUpdateEvent,
-  onDeleteEvent,
 }: SkeletonEditorProps) {
   const [manualTaskInput, setManualTaskInput] = useState('');
   const [selectedTaskOptionId, setSelectedTaskOptionId] = useState('__none__');

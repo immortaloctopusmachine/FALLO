@@ -96,7 +96,7 @@ const NOVA_FX_STORAGE_KEY = 'ui.nova.fx';
 export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
   const pathname = usePathname();
   const { prefetch } = usePrefetchRoute();
-  const [theme, setTheme] = useState<UiTheme>('windows95');
+  const [theme, setTheme] = useState<UiTheme>('slate');
   const [animeFxEnabled, setAnimeFxEnabled] = useState(true);
   const [novaFxEnabled, setNovaFxEnabled] = useState(false);
   const [logoHasError, setLogoHasError] = useState(false);
@@ -143,7 +143,7 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
     const nextTheme =
       mappedStoredTheme && UI_THEMES.includes(mappedStoredTheme as UiTheme)
         ? (mappedStoredTheme as UiTheme)
-        : 'windows95';
+        : 'slate';
     const storedAnimeFx = window.localStorage.getItem(ANIME_FX_STORAGE_KEY);
     const storedNovaFx = window.localStorage.getItem(NOVA_FX_STORAGE_KEY);
     const nextAnimeFxEnabled = storedAnimeFx === null ? true : storedAnimeFx === '1';

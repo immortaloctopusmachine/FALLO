@@ -2,6 +2,11 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { TimelineEvent } from './TimelineEvent';
+import {
+  TimelineEventContextMenu,
+  type TimelineEventContextMenuState,
+} from './TimelineEventContextMenu';
+import { getTimelineGridBackground } from './grid-background';
 import type { TimelineEvent as TimelineEventType } from '@/types';
 import { formatDisplayDate } from '@/lib/date-utils';
 
@@ -40,11 +45,7 @@ export function TimelineEventsRow({
   const [dragOffset, setDragOffset] = useState(0);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
   // Context menu state for existing events
-  const [eventContextMenu, setEventContextMenu] = useState<{
-    event: TimelineEventType;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [eventContextMenu, setEventContextMenu] = useState<TimelineEventContextMenuState | null>(null);
 
   // Context menu state for empty area (add event)
   const [emptyContextMenu, setEmptyContextMenu] = useState<{
@@ -161,26 +162,7 @@ export function TimelineEventsRow({
 
   // Generate CSS background for grid lines
   const gridBackground = useMemo(() => {
-    const weekWidth = columnWidth * 5;
-    return {
-      backgroundImage: `
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth}px
-        ),
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${weekWidth - 2}px,
-          var(--border) ${weekWidth - 2}px,
-          var(--border) ${weekWidth}px
-        )
-      `,
-      backgroundSize: `${columnWidth}px 100%, ${weekWidth}px 100%`,
-    };
+    return getTimelineGridBackground(columnWidth);
   }, [columnWidth]);
 
   // Format date for display
@@ -213,33 +195,12 @@ export function TimelineEventsRow({
         );
       })}
 
-      {/* Event Context menu (for existing events) */}
-      {eventContextMenu && (
-        <div
-          className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50"
-          style={{ left: eventContextMenu.x, top: eventContextMenu.y }}
-        >
-          <button
-            className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover"
-            onClick={() => {
-              onEventEdit?.(eventContextMenu.event);
-              setEventContextMenu(null);
-            }}
-          >
-            Edit Event
-          </button>
-          <hr className="my-1 border-border" />
-          <button
-            className="w-full px-3 py-1.5 text-left text-body text-error hover:bg-surface-hover"
-            onClick={() => {
-              onEventDelete?.(eventContextMenu.event);
-              setEventContextMenu(null);
-            }}
-          >
-            Delete Event
-          </button>
-        </div>
-      )}
+      <TimelineEventContextMenu
+        menu={eventContextMenu}
+        onEdit={onEventEdit}
+        onDelete={onEventDelete}
+        onClose={() => setEventContextMenu(null)}
+      />
 
       {/* Empty area Context menu (add event at date) */}
       {emptyContextMenu && (

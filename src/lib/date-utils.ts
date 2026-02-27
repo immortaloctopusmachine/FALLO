@@ -25,6 +25,7 @@ export function getMonday(date: Date): Date {
   // If Sunday (0), go back 6 days; otherwise go back (day - 1) days
   const diff = day === 0 ? -6 : 1 - day;
   result.setDate(result.getDate() + diff);
+  result.setHours(0, 0, 0, 0);
   return result;
 }
 
@@ -61,6 +62,7 @@ export function snapToMonday(date: Date): Date {
     result.setDate(result.getDate() - (dayOfWeek - 1));
   }
 
+  result.setHours(0, 0, 0, 0);
   return result;
 }
 
@@ -73,6 +75,7 @@ export function snapToMonday(date: Date): Date {
 export function getFriday(monday: Date): Date {
   const result = new Date(monday);
   result.setDate(result.getDate() + 4);
+  result.setHours(0, 0, 0, 0);
   return result;
 }
 
@@ -216,6 +219,16 @@ export function formatMonthYear(date: Date): string {
 }
 
 /**
+ * Format a month/year with short month name (e.g., "Jan 2026").
+ *
+ * @param date - The date to format
+ * @returns Formatted string like "Jan 2026"
+ */
+export function formatShortMonthYear(date: Date): string {
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+/**
  * Format a date for display in the UI.
  *
  * @param date - The date to format (Date or string)
@@ -242,7 +255,10 @@ export function formatDisplayDate(
  * @returns Date string in YYYY-MM-DD format
  */
 export function formatDateInput(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -274,4 +290,58 @@ export function formatLocalDateKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Format a date for simple display (e.g., "1/5/2026").
+ * Uses browser's default locale short date format.
+ *
+ * @param date - The date to format (Date or string)
+ * @returns Formatted string in short date format
+ */
+export function formatShortDate(date: Date | string): string {
+  const parsedDate = typeof date === 'string' ? new Date(date) : date;
+  return parsedDate.toLocaleDateString();
+}
+
+/**
+ * Format a date as "Month Day" with short month (e.g., "Jan 5").
+ * Handles YYYY-MM-DD strings by appending T00:00:00 to prevent timezone offset issues.
+ *
+ * @param date - The date to format (Date or string)
+ * @returns Formatted string like "Jan 5"
+ */
+export function formatShortMonthDay(date: Date | string): string {
+  let parsedDate: Date;
+  if (typeof date === 'string') {
+    parsedDate = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00');
+  } else {
+    parsedDate = date;
+  }
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Format a date as full date with weekday (e.g., "Monday, January 5, 2026").
+ * Handles YYYY-MM-DD strings by appending T00:00:00 to prevent timezone offset issues.
+ *
+ * @param date - The date to format (Date or string)
+ * @returns Formatted string with weekday, month, day, year
+ */
+export function formatFullDateWithWeekday(date: Date | string): string {
+  let parsedDate: Date;
+  if (typeof date === 'string') {
+    parsedDate = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00');
+  } else {
+    parsedDate = date;
+  }
+  return parsedDate.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 }

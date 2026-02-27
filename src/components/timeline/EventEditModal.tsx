@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { formatDateInput, formatFullDateWithWeekday } from '@/lib/date-utils';
 import type { TimelineEvent, EventType } from '@/types';
 
 interface EventEditModalProps {
@@ -68,15 +69,15 @@ export function EventEditModal({
       if (event) {
         // Editing existing event
         setDescription(event.description || '');
-        setStartDate(new Date(event.startDate).toISOString().split('T')[0]);
-        setEndDate(new Date(event.endDate).toISOString().split('T')[0]);
+        setStartDate(formatDateInput(new Date(event.startDate)));
+        setEndDate(formatDateInput(new Date(event.endDate)));
         setSelectedEventTypeId(event.eventType.id);
       } else {
         // Creating new event
         setDescription('');
         const dateStr = defaultDate
-          ? defaultDate.toISOString().split('T')[0]
-          : new Date().toISOString().split('T')[0];
+          ? formatDateInput(defaultDate)
+          : formatDateInput(new Date());
         setStartDate(dateStr);
         setEndDate(dateStr);
         // Default to first event type
@@ -209,12 +210,7 @@ export function EventEditModal({
               </Label>
               <div className="px-3 py-2 bg-surface-subtle rounded-md border border-border">
                 <span className="text-body text-text-primary">
-                  {startDate ? new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  }) : 'No date selected'}
+                  {startDate ? formatFullDateWithWeekday(startDate) : 'No date selected'}
                 </span>
               </div>
               <p className="text-caption text-text-tertiary">

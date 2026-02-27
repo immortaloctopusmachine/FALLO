@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { formatShortDate } from '@/lib/date-utils';
 import { HomeSkeleton } from '@/components/home/HomeSkeleton';
 
 interface HomeNotification {
@@ -90,6 +91,7 @@ interface HomeData {
     id: string;
     name: string | null;
     email: string;
+    image: string | null;
     permission: string;
     evaluatorRoles: string[];
   };
@@ -120,7 +122,7 @@ function relativeTimeLabel(isoDate: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  return formatShortDate(date);
 }
 
 function displayName(name: string | null, email: string): string {
@@ -262,11 +264,27 @@ export function HomePageClient() {
     <div className="home-page flex-1 overflow-auto p-6">
       <div className="home-shell mx-auto w-full max-w-7xl space-y-6">
         <div className="home-hero rounded-lg border border-border bg-surface p-5">
-          <h1 className="home-hero-title text-heading font-semibold">Welcome back, {viewerName}</h1>
-          <p className="home-hero-subtitle mt-1 text-body text-text-secondary">
-            Personalized overview of your tasks, boards, reviews, and notifications.
-          </p>
-          <div className="home-hero-actions mt-4 flex flex-wrap items-center gap-2">
+          <div className="flex items-start gap-5">
+            {/* Avatar — large to accommodate future badge/coin overlays */}
+            <div className="home-avatar relative shrink-0">
+              {data.user.image ? (
+                <img
+                  src={data.user.image}
+                  alt={viewerName}
+                  className="h-20 w-20 rounded-full border-2 border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-border bg-primary/10 text-2xl font-bold text-primary">
+                  {(data.user.name?.[0] || data.user.email[0] || '?').toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="home-hero-title text-heading font-semibold">Welcome back, {viewerName}</h1>
+              <p className="home-hero-subtitle mt-1 text-body text-text-secondary">
+                Personalized overview of your tasks, boards, reviews, and notifications.
+              </p>
+              <div className="home-hero-actions mt-4 flex flex-wrap items-center gap-2">
             <Link
               href="/boards"
               className="home-cta home-cta-primary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
@@ -290,6 +308,8 @@ export function HomePageClient() {
               <FolderKanban className="h-4 w-4" />
               Open Projects
             </Link>
+          </div>
+            </div>
           </div>
         </div>
 
@@ -383,7 +403,7 @@ export function HomePageClient() {
                     </div>
                     {task.deadline && (
                       <div className="mt-1 text-caption text-text-tertiary">
-                        Deadline: {new Date(task.deadline).toLocaleDateString()}
+                        Deadline: {formatShortDate(task.deadline)}
                       </div>
                     )}
                   </Link>

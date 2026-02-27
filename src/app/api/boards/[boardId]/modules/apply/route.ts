@@ -14,6 +14,7 @@ interface ApplyTaskOverride {
   stagingPlanningListId?: string;
   releaseTargetListId?: string;
   title?: string;
+  previewAssignedUserIds?: string[]; // Preview user assignments
 }
 
 function getPreviousFriday(date: Date): Date {
@@ -341,6 +342,16 @@ export async function POST(
             }
           }
 
+          // Create user assignments (activated for IMMEDIATE tasks)
+          if (override?.previewAssignedUserIds?.length) {
+            const assignmentData = override.previewAssignedUserIds.map((userId) => ({
+              cardId: createdTaskId,
+              userId,
+              activatedAt: new Date(), // Activated immediately for IMMEDIATE tasks
+            }));
+            await tx.cardUser.createMany({ data: assignmentData, skipDuplicates: true });
+          }
+
           previousTaskIdByChain.set(chainKey, createdTaskId);
           createdTasks.push({ id: createdTaskId });
           continue;
@@ -402,6 +413,16 @@ export async function POST(
           if (tagCreateData.length > 0) {
             await tx.cardTag.createMany({ data: tagCreateData });
           }
+        }
+
+        // Create preview user assignments (not activated for STAGED tasks)
+        if (override?.previewAssignedUserIds?.length) {
+          const assignmentData = override.previewAssignedUserIds.map((userId) => ({
+            cardId: createdTaskId,
+            userId,
+            activatedAt: null, // Preview only - activated when moved to Task list
+          }));
+          await tx.cardUser.createMany({ data: assignmentData, skipDuplicates: true });
         }
 
         previousTaskIdByChain.set(chainKey, createdTaskId);

@@ -8,11 +8,13 @@ import { Paperclip, MessageSquare, CheckSquare, BookOpen, Layers, FileText, Aler
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Card, TaskCard, UserStoryCard, EpicCard, UtilityCard, UserStoryFlag, UtilitySubtype } from '@/types';
 import { cn } from '@/lib/utils';
+import { formatShortDate } from '@/lib/date-utils';
 
 interface CardCompactProps {
   card: Card;
   onClick: () => void;
   sortable?: boolean;
+  inlineAction?: React.ReactNode; // Optional action button to render inside the card
 }
 
 
@@ -23,7 +25,7 @@ const cardTypeIcons = {
   UTILITY: FileText,
 };
 
-export const CardCompact = memo(function CardCompact({ card, onClick, sortable = true }: CardCompactProps) {
+export const CardCompact = memo(function CardCompact({ card, onClick, sortable = true, inlineAction }: CardCompactProps) {
   const {
     attributes,
     listeners,
@@ -39,6 +41,9 @@ export const CardCompact = memo(function CardCompact({ card, onClick, sortable =
     },
     disabled: !sortable,
   });
+
+  // Check if this is a card in Planning view (only TaskCards have the list property)
+  const isInPlanningView = card.type === 'TASK' && (card as TaskCard).list?.viewType === 'PLANNING';
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -57,14 +62,18 @@ export const CardCompact = memo(function CardCompact({ card, onClick, sortable =
       {...(sortable ? listeners : {})}
       onClick={onClick}
       className={cn(
-        'cursor-pointer rounded-md border border-border-subtle bg-surface p-2',
-        'transition-shadow hover:shadow-sm',
-        isDragging && 'rotate-2 shadow-lg'
+        'cursor-pointer rounded-md border border-border-subtle bg-surface transition-shadow hover:shadow-sm',
+        isDragging && 'rotate-2 shadow-lg',
+        // More compact padding for Planning view
+        isInPlanningView ? 'p-1.5' : 'p-2'
       )}
     >
       {/* Feature Image */}
       {card.featureImage && (
-        <div className="-mx-2 -mt-2 mb-2 h-20 relative">
+        <div className={cn(
+          "relative mb-2",
+          isInPlanningView ? "-mx-1.5 -mt-1.5 h-16" : "-mx-2 -mt-2 h-20"
+        )}>
           <Image
             src={card.featureImage}
             alt=""
@@ -78,14 +87,20 @@ export const CardCompact = memo(function CardCompact({ card, onClick, sortable =
 
       {/* Title */}
       <div className="flex items-start gap-2">
-        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-        <h4 className="line-clamp-2 flex-1 text-body font-medium text-text-primary">
+        <Icon className={cn(
+          "shrink-0 text-text-tertiary",
+          isInPlanningView ? "mt-0.5 h-3 w-3" : "mt-0.5 h-3.5 w-3.5"
+        )} />
+        <h4 className={cn(
+          "line-clamp-2 flex-1 font-medium text-text-primary",
+          isInPlanningView ? "text-caption" : "text-body"
+        )}>
           {card.title}
         </h4>
       </div>
 
       {/* Type-specific content */}
-      {card.type === 'TASK' && <TaskCardBadges card={card as TaskCard} />}
+      {card.type === 'TASK' && <TaskCardBadges card={card as TaskCard} inlineAction={inlineAction} />}
       {card.type === 'USER_STORY' && <UserStoryCardBadges card={card as UserStoryCard} />}
       {card.type === 'EPIC' && <EpicCardBadges card={card as EpicCard} />}
       {card.type === 'UTILITY' && <UtilityCardBadges card={card as UtilityCard} />}
@@ -93,10 +108,12 @@ export const CardCompact = memo(function CardCompact({ card, onClick, sortable =
   );
 }, (prev, next) => {
   // Custom comparator: skip onClick (always new closure) and compare card by reference
-  return prev.card === next.card && prev.sortable === next.sortable;
+  return prev.card === next.card && prev.sortable === next.sortable && prev.inlineAction === next.inlineAction;
 });
 
-function TaskCardBadges({ card }: { card: TaskCard }) {
+function TaskCardBadges({ card, inlineAction }: { card: TaskCard; inlineAction?: React.ReactNode }) {
+  // Only show preview state for tasks in Planning lists
+  const isInPlanningList = card.list?.viewType === 'PLANNING';
   const checklistTotal = card.checklists?.reduce((sum, cl) => sum + cl.items.length, 0) || 0;
   const checklistComplete = card.checklists?.reduce(
     (sum, cl) => sum + cl.items.filter((i) => i.isComplete).length,
@@ -110,7 +127,7 @@ function TaskCardBadges({ card }: { card: TaskCard }) {
     ? new Date(card.taskData.scheduledReleaseDate)
     : null;
   const scheduledLabel = scheduledReleaseDate && !Number.isNaN(scheduledReleaseDate.getTime())
-    ? scheduledReleaseDate.toLocaleDateString()
+    ? formatShortDate(scheduledReleaseDate)
     : null;
 
   const showBadges =
@@ -118,63 +135,108 @@ function TaskCardBadges({ card }: { card: TaskCard }) {
     attachmentCount > 0 ||
     hasChecklist ||
     (card.assignees?.length ?? 0) > 0 ||
-    isStaged;
+    isStaged ||
+    inlineAction;
 
   if (!showBadges) return null;
 
   return (
-    <div className="mt-2 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {card.taskData?.storyPoints && (
-          <span className="rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
-            {card.taskData.storyPoints}
-          </span>
-        )}
-        {attachmentCount > 0 && (
-          <span className="flex items-center gap-0.5 text-caption text-text-tertiary">
-            <Paperclip className="h-3 w-3" />
-            {attachmentCount}
-          </span>
-        )}
-        {commentCount > 0 && (
-          <span className="flex items-center gap-0.5 text-caption text-text-tertiary">
-            <MessageSquare className="h-3 w-3" />
-            {commentCount}
-          </span>
-        )}
-        {hasChecklist && (
-          <span className={cn(
-            'flex items-center gap-0.5 text-caption',
-            checklistComplete === checklistTotal ? 'text-success' : 'text-text-tertiary'
-          )}>
-            <CheckSquare className="h-3 w-3" />
-            {checklistComplete}/{checklistTotal}
-          </span>
-        )}
-        {isStaged && (
-          <span className="flex items-center gap-0.5 rounded bg-card-story/10 px-1.5 py-0.5 text-caption text-card-story">
-            <Calendar className="h-3 w-3" />
-            {scheduledLabel ? `Staged until ${scheduledLabel}` : 'Staged'}
-          </span>
-        )}
-      </div>
-      {card.assignees && card.assignees.length > 0 && (
-        <div className="flex -space-x-1.5">
-          {card.assignees.slice(0, 3).map((assignee) => (
-            <Avatar key={assignee.id} className="h-5 w-5 border-2 border-surface">
-              <AvatarImage src={assignee.user.image || undefined} />
-              <AvatarFallback className="text-[10px]">
-                {assignee.user.name?.[0] || assignee.user.email[0]}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {card.assignees.length > 3 && (
-            <div className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-surface-raised text-[10px] text-text-tertiary">
-              +{card.assignees.length - 3}
+    <div className={cn(
+      "mt-1.5",
+      isInPlanningList && "mt-1"
+    )}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          {card.taskData?.storyPoints && (
+            <span className={cn(
+              "rounded bg-card-task/10 font-medium text-card-task",
+              isInPlanningList ? "px-1 py-0.5 text-tiny" : "px-1.5 py-0.5 text-tiny"
+            )}>
+              {card.taskData.storyPoints}
+            </span>
+          )}
+          {attachmentCount > 0 && (
+            <span className={cn(
+              "flex items-center gap-0.5 text-text-tertiary",
+              isInPlanningList ? "text-tiny" : "text-caption"
+            )}>
+              <Paperclip className={cn(isInPlanningList ? "h-2.5 w-2.5" : "h-3 w-3")} />
+              {attachmentCount}
+            </span>
+          )}
+          {commentCount > 0 && (
+            <span className={cn(
+              "flex items-center gap-0.5 text-text-tertiary",
+              isInPlanningList ? "text-tiny" : "text-caption"
+            )}>
+              <MessageSquare className={cn(isInPlanningList ? "h-2.5 w-2.5" : "h-3 w-3")} />
+              {commentCount}
+            </span>
+          )}
+          {hasChecklist && (
+            <span className={cn(
+              'flex items-center gap-0.5',
+              checklistComplete === checklistTotal ? 'text-success' : 'text-text-tertiary',
+              isInPlanningList ? "text-tiny" : "text-caption"
+            )}>
+              <CheckSquare className={cn(isInPlanningList ? "h-2.5 w-2.5" : "h-3 w-3")} />
+              {checklistComplete}/{checklistTotal}
+            </span>
+          )}
+          {isStaged && !inlineAction && (
+            <span className={cn(
+              "flex items-center gap-0.5 rounded bg-card-story/10 text-card-story",
+              isInPlanningList ? "px-1 py-0.5 text-tiny" : "px-1.5 py-0.5 text-caption"
+            )}>
+              <Calendar className={cn(isInPlanningList ? "h-2.5 w-2.5" : "h-3 w-3")} />
+              {scheduledLabel ? `Staged until ${scheduledLabel}` : 'Staged'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {card.assignees && card.assignees.length > 0 && (
+            <div className={cn(
+              "flex",
+              isInPlanningList ? "-space-x-1" : "-space-x-1.5"
+            )}>
+              {card.assignees.slice(0, 3).map((assignee) => {
+                // Only show preview state for cards in Planning lists
+                const isPreview = isInPlanningList && !assignee.activatedAt;
+                return (
+                  <Avatar
+                    key={assignee.id}
+                    className={cn(
+                      "border-2 border-surface",
+                      isInPlanningList ? "h-4 w-4" : "h-5 w-5",
+                      isPreview && "opacity-50"
+                    )}
+                    title={isPreview ? "Preview assignment (will activate when moved to Tasks)" : undefined}
+                  >
+                    <AvatarImage src={assignee.user.image || undefined} />
+                    <AvatarFallback className={cn(isInPlanningList ? "text-[8px]" : "text-[10px]")}>
+                      {assignee.user.name?.[0] || assignee.user.email[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                );
+              })}
+              {card.assignees.length > 3 && (
+                <div className={cn(
+                  "flex items-center justify-center rounded-full border-2 border-surface bg-surface-raised text-text-tertiary",
+                  isInPlanningList ? "h-4 w-4 text-[8px]" : "h-5 w-5 text-[10px]"
+                )}>
+                  +{card.assignees.length - 3}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Inline action button (e.g., Release now) */}
+          {inlineAction && (
+            <div onClick={(e) => e.stopPropagation()}>
+              {inlineAction}
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -283,7 +345,7 @@ function UtilityCardBadges({ card }: { card: UtilityCard }) {
       {subtype === 'MILESTONE' && card.utilityData?.date && (
         <div className="flex items-center gap-1 text-caption text-text-tertiary">
           <Calendar className="h-3 w-3" />
-          <span>{new Date(card.utilityData.date).toLocaleDateString()}</span>
+          <span>{formatShortDate(card.utilityData.date)}</span>
         </div>
       )}
       {subtype === 'BLOCKER' && card.utilityData?.blockedCardIds && (

@@ -12,10 +12,7 @@ import {
   Pencil,
   Shield,
   Clock,
-  Gauge,
   TrendingUp,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -27,7 +24,9 @@ import { UserDetailSkeleton } from './UserDetailSkeleton';
 import { useUserDetail } from '@/hooks/api/use-users';
 import { formatDisplayDate } from '@/lib/date-utils';
 import { apiFetch } from '@/lib/api-client';
+import { getQualityTierTextClass } from '@/lib/quality-tier';
 import { cn } from '@/lib/utils';
+import { QualitySummarySection } from '@/components/quality/QualitySummarySection';
 
 interface UserDetailClientProps {
   userId: string;
@@ -158,13 +157,6 @@ export function UserDetailClient({
   const selectedSlackUser =
     slackUsers.find((slackUser) => slackUser.id === selectedSlackUserId) || null;
 
-  const qualityTierClass = (tier: UserQualitySummary['totals']['overallQualityTier']) => {
-    if (tier === 'HIGH') return 'text-green-600';
-    if (tier === 'MEDIUM') return 'text-amber-600';
-    if (tier === 'LOW') return 'text-red-600';
-    return 'text-text-tertiary';
-  };
-
   const confidenceDotClass = (confidence: 'GREEN' | 'AMBER' | 'RED') => {
     if (confidence === 'GREEN') return 'bg-green-500';
     if (confidence === 'AMBER') return 'bg-amber-500';
@@ -205,128 +197,105 @@ export function UserDetailClient({
     }
 
     return (
-      <div
-        className={cn(
-          'border-b border-border bg-surface transition-all duration-300 overflow-hidden',
-          qualitySummaryExpanded ? 'max-h-[1200px]' : 'max-h-10'
-        )}
+      <QualitySummarySection
+        expanded={qualitySummaryExpanded}
+        onToggle={() => setQualitySummaryExpanded(!qualitySummaryExpanded)}
+        isLoading={isLoadingQualitySummary}
+        hasData={Boolean(qualitySummary)}
       >
-        <div className="px-6 py-2">
-          <button
-            onClick={() => setQualitySummaryExpanded(!qualitySummaryExpanded)}
-            className="flex items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            {qualitySummaryExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <Gauge className="h-4 w-4" />
-            Quality Summary
-          </button>
-        </div>
-
-        {qualitySummaryExpanded && (
-          <div className="px-6 pb-5">
-            <div className="max-w-6xl rounded-lg border border-border bg-surface p-4 space-y-4">
-              {isLoadingQualitySummary ? (
-                <div className="text-body text-text-tertiary">Loading quality summary...</div>
-              ) : qualitySummary ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-md border border-border-subtle bg-background p-3">
-                      <div className="text-caption text-text-tertiary">Overall</div>
-                      <div className={cn('text-title font-semibold mt-1', qualityTierClass(qualitySummary.totals.overallQualityTier))}>
-                        {qualitySummary.totals.overallAverage !== null
-                          ? qualitySummary.totals.overallAverage.toFixed(2)
-                          : 'Unscored'}
-                      </div>
-                      <div className="text-caption text-text-tertiary">
-                        {qualitySummary.totals.overallQualityTier}
-                      </div>
-                    </div>
-                    <div className="rounded-md border border-border-subtle bg-background p-3">
-                      <div className="text-caption text-text-tertiary">Finalized Tasks</div>
-                      <div className="text-title font-semibold mt-1 text-text-primary">
-                        {qualitySummary.totals.finalizedTaskCount}
-                      </div>
-                      <div className="text-caption text-text-tertiary">with final quality scores</div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 text-caption font-medium text-text-secondary">
-                      <TrendingUp className="h-4 w-4" />
-                      Per Dimension
-                    </div>
-                    <div className="space-y-2">
-                      {qualitySummary.perDimension.map((dimension) => (
-                        <div key={dimension.dimensionId} className="flex items-center justify-between rounded-md border border-border-subtle bg-background px-2 py-2">
-                          <div className="text-body text-text-primary">{dimension.name}</div>
-                          <div className="flex items-center gap-2">
-                            <span className={cn('h-2.5 w-2.5 rounded-full', confidenceDotClass(dimension.confidence))} />
-                            <span className="text-body font-medium text-text-primary">
-                              {dimension.average !== null ? dimension.average.toFixed(2) : 'N/A'}
-                            </span>
-                            <span className="text-caption text-text-tertiary">n={dimension.count}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 text-caption font-medium text-text-secondary">Progression</div>
-                    <div className="space-y-2">
-                      {qualitySummary.progression.slice(-6).map((point) => (
-                        <div key={point.cycleId} className="flex items-center justify-between rounded-md border border-border-subtle bg-background px-2 py-2">
-                          <div className="text-body text-text-primary">
-                            {point.weekStart} - Cycle #{point.cycleNumber}
-                          </div>
-                          <div className={cn('text-body font-medium', qualityTierClass(point.qualityTier))}>
-                            {point.overallAverage !== null ? point.overallAverage.toFixed(2) : 'N/A'}
-                          </div>
-                        </div>
-                      ))}
-                      {qualitySummary.progression.length === 0 && (
-                        <div className="text-caption text-text-tertiary">No progression data yet.</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 text-caption font-medium text-text-secondary">Latest Final Scores</div>
-                    <div className="space-y-2">
-                      {qualitySummary.latestFinalizedTasks.slice(0, 5).map((task) => (
-                        <Link
-                          key={task.cycleId}
-                          href={`/boards/${task.boardId}`}
-                          className="block rounded-md border border-border-subtle bg-background px-2 py-2 hover:bg-surface-hover transition-colors"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="truncate text-body font-medium text-text-primary">{task.cardTitle}</div>
-                              <div className="text-caption text-text-tertiary">
-                                {task.boardName} - {formatDisplayDate(task.finalizedAt)}
-                              </div>
-                            </div>
-                            <div className={cn('text-body font-medium', qualityTierClass(task.qualityTier))}>
-                              {task.overallAverage !== null ? task.overallAverage.toFixed(2) : 'N/A'}
-                            </div>
-                          </div>
-                        </Link>
-                      ))}
-                      {qualitySummary.latestFinalizedTasks.length === 0 && (
-                        <div className="text-caption text-text-tertiary">No finalized quality scores yet.</div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-body text-text-tertiary">
-                  Quality summary unavailable.
+        {qualitySummary ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md border border-border-subtle bg-background p-3">
+                <div className="text-caption text-text-tertiary">Overall</div>
+                <div className={cn('text-title font-semibold mt-1', getQualityTierTextClass(qualitySummary.totals.overallQualityTier))}>
+                  {qualitySummary.totals.overallAverage !== null
+                    ? qualitySummary.totals.overallAverage.toFixed(2)
+                    : 'Unscored'}
                 </div>
-              )}
+                <div className="text-caption text-text-tertiary">
+                  {qualitySummary.totals.overallQualityTier}
+                </div>
+              </div>
+              <div className="rounded-md border border-border-subtle bg-background p-3">
+                <div className="text-caption text-text-tertiary">Finalized Tasks</div>
+                <div className="text-title font-semibold mt-1 text-text-primary">
+                  {qualitySummary.totals.finalizedTaskCount}
+                </div>
+                <div className="text-caption text-text-tertiary">with final quality scores</div>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-caption font-medium text-text-secondary">
+                <TrendingUp className="h-4 w-4" />
+                Per Dimension
+              </div>
+              <div className="space-y-2">
+                {qualitySummary.perDimension.map((dimension) => (
+                  <div key={dimension.dimensionId} className="flex items-center justify-between rounded-md border border-border-subtle bg-background px-2 py-2">
+                    <div className="text-body text-text-primary">{dimension.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('h-2.5 w-2.5 rounded-full', confidenceDotClass(dimension.confidence))} />
+                      <span className="text-body font-medium text-text-primary">
+                        {dimension.average !== null ? dimension.average.toFixed(2) : 'N/A'}
+                      </span>
+                      <span className="text-caption text-text-tertiary">n={dimension.count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-caption font-medium text-text-secondary">Progression</div>
+              <div className="space-y-2">
+                {qualitySummary.progression.slice(-6).map((point) => (
+                  <div key={point.cycleId} className="flex items-center justify-between rounded-md border border-border-subtle bg-background px-2 py-2">
+                    <div className="text-body text-text-primary">
+                      {point.weekStart} - Cycle #{point.cycleNumber}
+                    </div>
+                    <div className={cn('text-body font-medium', getQualityTierTextClass(point.qualityTier))}>
+                      {point.overallAverage !== null ? point.overallAverage.toFixed(2) : 'N/A'}
+                    </div>
+                  </div>
+                ))}
+                {qualitySummary.progression.length === 0 && (
+                  <div className="text-caption text-text-tertiary">No progression data yet.</div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-caption font-medium text-text-secondary">Latest Final Scores</div>
+              <div className="space-y-2">
+                {qualitySummary.latestFinalizedTasks.slice(0, 5).map((task) => (
+                  <Link
+                    key={task.cycleId}
+                    href={`/boards/${task.boardId}`}
+                    className="block rounded-md border border-border-subtle bg-background px-2 py-2 hover:bg-surface-hover transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-body font-medium text-text-primary">{task.cardTitle}</div>
+                        <div className="text-caption text-text-tertiary">
+                          {task.boardName} - {formatDisplayDate(task.finalizedAt)}
+                        </div>
+                      </div>
+                      <div className={cn('text-body font-medium', getQualityTierTextClass(task.qualityTier))}>
+                        {task.overallAverage !== null ? task.overallAverage.toFixed(2) : 'N/A'}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                {qualitySummary.latestFinalizedTasks.length === 0 && (
+                  <div className="text-caption text-text-tertiary">No finalized quality scores yet.</div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
+      </QualitySummarySection>
     );
   };
 

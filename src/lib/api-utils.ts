@@ -230,22 +230,3 @@ export async function requireBoardAdmin(
 
   return result;
 }
-
-/**
- * Wrap an async API handler with standard error handling.
- *
- * @param handler - The async handler function
- * @param errorMessage - Custom error message for logging/response
- * @returns NextResponse
- */
-export async function withErrorHandling<T>(
-  handler: () => Promise<NextResponse<T>>,
-  errorMessage = 'An error occurred'
-): Promise<NextResponse<T | ApiResponse>> {
-  try {
-    return await handler();
-  } catch (error) {
-    console.error(`${errorMessage}:`, error);
-    return ApiErrors.internal(errorMessage);
-  }
-}

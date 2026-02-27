@@ -2,6 +2,9 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { TimelineBlock } from './TimelineBlock';
+import { TodayIndicator } from './TodayIndicator';
+import { getTimelineGridBackground } from './grid-background';
+import { useTimelineBlockGroupDrag, type BlockDragScope } from './useTimelineBlockGroupDrag';
 import type { TimelineBlock as TimelineBlockType } from '@/types';
 
 // Constants for 5-day week snapping
@@ -45,12 +48,6 @@ export function TimelineBlocksRow({
     );
   }, [blocks]);
 
-  // Drag state - managed at row level for group dragging
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
-
   // Context menu state for blocks
   const [contextMenu, setContextMenu] = useState<{
     block: TimelineBlockType;
@@ -66,72 +63,34 @@ export function TimelineBlocksRow({
   // Get blocks that should move together
   // - Normal drag: block and all blocks to the right
   // - All blocks drag: ALL blocks in the row
-  const getBlocksToMove = useCallback((blockId: string, allBlocks: boolean = false) => {
-    if (allBlocks) {
-      return sortedBlocks;
+  const getBlocksToMove = useCallback(({
+    blockId,
+    scope,
+    blocks: dragBlocks,
+  }: {
+    blockId: string;
+    scope: BlockDragScope;
+    blocks: TimelineBlockType[];
+  }) => {
+    if (scope === 'all') {
+      return dragBlocks;
     }
-    const blockIndex = sortedBlocks.findIndex(b => b.id === blockId);
+    const blockIndex = dragBlocks.findIndex((block) => block.id === blockId);
     if (blockIndex === -1) return [];
-    return sortedBlocks.slice(blockIndex);
-  }, [sortedBlocks]);
-
-  // Track if this is an "all blocks" drag (from long press right-click)
-  const [isAllBlocksDrag, setIsAllBlocksDrag] = useState(false);
-
-  // Handle drag start
-  const handleDragStart = useCallback((block: TimelineBlockType, e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStartX(e.clientX);
-    setDragOffset(0);
-    setDraggedBlockId(block.id);
-    setIsAllBlocksDrag(false);
+    return dragBlocks.slice(blockIndex);
   }, []);
 
-  // Handle long press drag - moves ALL blocks (entire section)
-  const handleLongPressDrag = useCallback((block: TimelineBlockType, e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStartX(e.clientX);
-    setDragOffset(0);
-    setDraggedBlockId(block.id);
-    setIsAllBlocksDrag(true);
-  }, []);
-
-  // Handle drag move
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const delta = e.clientX - dragStartX;
-      const weekWidth = DAYS_PER_WEEK * columnWidth;
-      const weekSnap = Math.round(delta / weekWidth) * weekWidth;
-      setDragOffset(weekSnap);
-    };
-
-    const handleMouseUp = () => {
-      const weekWidth = DAYS_PER_WEEK * columnWidth;
-      const weeksDelta = Math.round(dragOffset / weekWidth);
-
-      if (weeksDelta !== 0 && draggedBlockId && onBlockGroupMove) {
-        // If all blocks drag, move all blocks; otherwise move from clicked block onwards
-        const blocksToMove = getBlocksToMove(draggedBlockId, isAllBlocksDrag);
-        const blockIds = blocksToMove.map(b => b.id);
-        onBlockGroupMove(blockIds, weeksDelta);
-      }
-
-      setIsDragging(false);
-      setDragOffset(0);
-      setDraggedBlockId(null);
-      setIsAllBlocksDrag(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, dragStartX, dragOffset, draggedBlockId, columnWidth, onBlockGroupMove, getBlocksToMove, isAllBlocksDrag]);
+  const {
+    dragOffset,
+    draggingBlockIds,
+    handleDragStart,
+    handleAllBlocksDragStart,
+  } = useTimelineBlockGroupDrag({
+    blocks: sortedBlocks,
+    columnWidth,
+    onBlockGroupMove,
+    getBlocksToMove,
+  });
 
   // Handle block context menu
   const handleContextMenu = useCallback((block: TimelineBlockType, e: React.MouseEvent) => {
@@ -198,35 +157,9 @@ export function TimelineBlocksRow({
     }
   }, [contextMenu, emptyContextMenu]);
 
-  // Pre-compute the set of dragging block IDs for O(1) lookup
-  const draggingBlockIds = useMemo(() => {
-    if (!isDragging || !draggedBlockId) return new Set<string>();
-    const blocksToMove = getBlocksToMove(draggedBlockId, isAllBlocksDrag);
-    return new Set(blocksToMove.map(b => b.id));
-  }, [isDragging, draggedBlockId, getBlocksToMove, isAllBlocksDrag]);
-
   // Generate CSS background for grid lines
   const gridBackground = useMemo(() => {
-    const weekWidth = columnWidth * 5;
-    return {
-      backgroundImage: `
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth}px
-        ),
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${weekWidth - 2}px,
-          var(--border) ${weekWidth - 2}px,
-          var(--border) ${weekWidth}px
-        )
-      `,
-      backgroundSize: `${columnWidth}px 100%, ${weekWidth}px 100%`,
-    };
+    return getTimelineGridBackground(columnWidth, DAYS_PER_WEEK);
   }, [columnWidth]);
 
   return (
@@ -254,7 +187,7 @@ export function TimelineBlocksRow({
             onClick={() => onBlockClick?.(block)}
             onDragStart={handleDragStart}
             onContextMenu={handleContextMenu}
-            onLongPressDrag={handleLongPressDrag}
+            onLongPressDrag={handleAllBlocksDragStart}
             isSelected={selectedBlockId === block.id}
             isDragging={blockIsDragging}
             dragOffset={blockIsDragging ? dragOffset : 0}
@@ -318,39 +251,5 @@ export function TimelineBlocksRow({
         </div>
       )}
     </div>
-  );
-}
-
-function TodayIndicator({
-  startDate,
-  columnWidth,
-}: {
-  startDate: Date;
-  columnWidth: number;
-}) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  let daysFromStart = 0;
-  const current = new Date(startDate);
-  while (current < today) {
-    const dayOfWeek = current.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      daysFromStart++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  if (current.toDateString() !== today.toDateString()) {
-    return null;
-  }
-
-  const left = daysFromStart * columnWidth + columnWidth / 2;
-
-  return (
-    <div
-      className="absolute top-0 bottom-0 w-0.5 bg-error z-10"
-      style={{ left }}
-    />
   );
 }

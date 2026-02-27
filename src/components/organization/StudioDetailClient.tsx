@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Settings, Gauge, ChevronDown, ChevronRight } from 'lucide-react';
+import { Building2, Settings } from 'lucide-react';
 import { useStudio } from '@/hooks/api/use-studios';
 import { apiFetch } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
 import { TeamCard } from '@/components/organization/TeamCard';
 import { CreateTeamDialog } from '@/components/organization/CreateTeamDialog';
+import { OrganizationQualitySummaryContent } from '@/components/organization/OrganizationQualitySummaryContent';
 import { StudioSettingsModal } from '@/components/organization/StudioSettingsModal';
 import { StudioDetailSkeleton } from '@/components/organization/StudioDetailSkeleton';
+import { QualitySummarySection } from '@/components/quality/QualitySummarySection';
 
 interface StudioDetailClientProps {
   studioId: string;
@@ -68,104 +69,26 @@ export function StudioDetailClient({
   });
   const totalMembers = uniqueMembers.size;
 
-  const qualityTierClass = (tier: StudioQualitySummary['totals']['overallQualityTier']) => {
-    if (tier === 'HIGH') return 'text-green-600';
-    if (tier === 'MEDIUM') return 'text-amber-600';
-    if (tier === 'LOW') return 'text-red-600';
-    return 'text-text-tertiary';
-  };
-
   const renderQualitySummary = () => {
     if (!canViewQualitySummaries) {
       return null;
     }
 
     return (
-      <div
-        className={cn(
-          'border-b border-border bg-surface transition-all duration-300 overflow-hidden',
-          qualitySummaryExpanded ? 'max-h-[1200px]' : 'max-h-10'
-        )}
+      <QualitySummarySection
+        expanded={qualitySummaryExpanded}
+        onToggle={() => setQualitySummaryExpanded(!qualitySummaryExpanded)}
+        isLoading={isLoadingQualitySummary}
+        hasData={Boolean(qualitySummary)}
       >
-        <div className="px-6 py-2">
-          <button
-            onClick={() => setQualitySummaryExpanded(!qualitySummaryExpanded)}
-            className="flex items-center gap-2 text-caption font-medium text-text-secondary hover:text-text-primary transition-colors"
-          >
-            {qualitySummaryExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <Gauge className="h-4 w-4" />
-            Quality Summary
-          </button>
-        </div>
-
-        {qualitySummaryExpanded && (
-          <div className="px-6 pb-5">
-            <div className="max-w-6xl rounded-lg border border-border bg-surface p-4 space-y-4">
-              {isLoadingQualitySummary ? (
-                <div className="text-body text-text-tertiary">Loading quality summary...</div>
-              ) : qualitySummary ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="rounded-md border border-border-subtle bg-background p-3">
-                      <div className="text-caption text-text-tertiary">Overall</div>
-                      <div className={cn('text-title font-semibold mt-1', qualityTierClass(qualitySummary.totals.overallQualityTier))}>
-                        {qualitySummary.totals.overallAverage !== null
-                          ? qualitySummary.totals.overallAverage.toFixed(2)
-                          : 'Unscored'}
-                      </div>
-                      <div className="text-caption text-text-tertiary">{qualitySummary.totals.overallQualityTier}</div>
-                    </div>
-                    <div className="rounded-md border border-border-subtle bg-background p-3">
-                      <div className="text-caption text-text-tertiary">Projects</div>
-                      <div className="text-title font-semibold mt-1 text-text-primary">{qualitySummary.totals.projectCount}</div>
-                    </div>
-                    <div className="rounded-md border border-border-subtle bg-background p-3">
-                      <div className="text-caption text-text-tertiary">Done Tasks</div>
-                      <div className="text-title font-semibold mt-1 text-text-primary">{qualitySummary.totals.doneTaskCount}</div>
-                    </div>
-                    <div className="rounded-md border border-border-subtle bg-background p-3">
-                      <div className="text-caption text-text-tertiary">Finalized</div>
-                      <div className="text-title font-semibold mt-1 text-text-primary">
-                        {qualitySummary.totals.finalizedTaskCount}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border border-border-subtle bg-background overflow-hidden">
-                    {qualitySummary.projects.length === 0 ? (
-                      <div className="p-3 text-caption text-text-tertiary">No project data yet.</div>
-                    ) : (
-                      <div className="divide-y divide-border-subtle">
-                        {qualitySummary.projects.map((project) => (
-                          <Link
-                            key={project.projectId}
-                            href={`/projects/${project.projectId}`}
-                            className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-surface-hover transition-colors"
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate text-body font-medium text-text-primary">
-                                {project.projectName}
-                              </div>
-                              <div className="text-caption text-text-tertiary">
-                                {project.teamName || 'No team'} | coverage {project.coveragePct !== null ? `${project.coveragePct.toFixed(1)}%` : 'N/A'} | {project.finalizedTaskCount}/{project.doneTaskCount}
-                              </div>
-                            </div>
-                            <div className={cn('text-body font-medium shrink-0', qualityTierClass(project.overallQualityTier))}>
-                              {project.overallAverage !== null ? project.overallAverage.toFixed(2) : 'N/A'}
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-body text-text-tertiary">Quality summary unavailable.</div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+        {qualitySummary ? (
+          <OrganizationQualitySummaryContent
+            totals={qualitySummary.totals}
+            projects={qualitySummary.projects}
+            showTeamName
+          />
+        ) : null}
+      </QualitySummarySection>
     );
   };
 

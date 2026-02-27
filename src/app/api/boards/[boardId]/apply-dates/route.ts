@@ -9,6 +9,7 @@ import {
 } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
 import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
+import { ensureTimelineBlockIntegrity } from '@/lib/timeline-block-integrity';
 import type { BoardTemplateType, ListPhase } from '@/types';
 
 async function findBlockTypeForList(list: {
@@ -266,6 +267,7 @@ export async function POST(
       }
     }
 
+    await ensureTimelineBlockIntegrity(boardId, { syncToList: true });
     await renumberTimelineBlockPositions(boardId);
 
     if (coreTemplate) {

@@ -386,6 +386,19 @@ export async function PATCH(
       });
 
       if (hasListTransition && destinationList) {
+        // Activate preview assignments when moving from Planning to Tasks list
+        if (existingCard.list.viewType === 'PLANNING' && destinationList.viewType === 'TASKS') {
+          await tx.cardUser.updateMany({
+            where: {
+              cardId,
+              activatedAt: null, // Only update preview assignments
+            },
+            data: {
+              activatedAt: new Date(), // Activate them
+            },
+          });
+        }
+
         await handleCardListTransition(tx, {
           cardId,
           fromList: existingCard.list,

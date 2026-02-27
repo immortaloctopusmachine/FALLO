@@ -3,6 +3,13 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { TimelineBlock } from './TimelineBlock';
 import { TimelineEvent } from './TimelineEvent';
+import {
+  TimelineEventContextMenu,
+  type TimelineEventContextMenuState,
+} from './TimelineEventContextMenu';
+import { TodayIndicator } from './TodayIndicator';
+import { getTimelineGridBackground } from './grid-background';
+import { useTimelineBlockGroupDrag, type BlockDragScope } from './useTimelineBlockGroupDrag';
 import type { TimelineBlock as TimelineBlockType, TimelineEvent as TimelineEventType } from '@/types';
 
 // Constants for 5-day week snapping
@@ -56,12 +63,6 @@ export function TimelineProjectRow({
     );
   }, [blocks]);
 
-  // Drag state - managed at row level for group dragging
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
-
   // Context menu state for blocks
   const [contextMenu, setContextMenu] = useState<{
     block: TimelineBlockType;
@@ -70,64 +71,28 @@ export function TimelineProjectRow({
   } | null>(null);
 
   // Context menu state for events
-  const [eventContextMenu, setEventContextMenu] = useState<{
-    event: TimelineEventType;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [eventContextMenu, setEventContextMenu] = useState<TimelineEventContextMenuState | null>(null);
 
-  // Get blocks that should move together (block and all blocks to the right)
-  const getBlocksToMove = useCallback((blockId: string) => {
-    const blockIndex = sortedBlocks.findIndex(b => b.id === blockId);
+  // Get blocks that should move together (dragged block and all blocks to the right)
+  const getBlocksToMove = useCallback(({
+    blockId,
+    blocks: dragBlocks,
+  }: {
+    blockId: string;
+    scope: BlockDragScope;
+    blocks: TimelineBlockType[];
+  }) => {
+    const blockIndex = dragBlocks.findIndex((block) => block.id === blockId);
     if (blockIndex === -1) return [];
-    // Return this block and all blocks to the right
-    return sortedBlocks.slice(blockIndex);
-  }, [sortedBlocks]);
-
-  // Handle drag start
-  const handleDragStart = useCallback((block: TimelineBlockType, e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStartX(e.clientX);
-    setDragOffset(0);
-    setDraggedBlockId(block.id);
+    return dragBlocks.slice(blockIndex);
   }, []);
 
-  // Handle drag move
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const delta = e.clientX - dragStartX;
-      // Snap to week boundaries (5 business days)
-      const weekWidth = DAYS_PER_WEEK * columnWidth;
-      const weekSnap = Math.round(delta / weekWidth) * weekWidth;
-      setDragOffset(weekSnap);
-    };
-
-    const handleMouseUp = () => {
-      const weekWidth = DAYS_PER_WEEK * columnWidth;
-      const weeksDelta = Math.round(dragOffset / weekWidth);
-
-      if (weeksDelta !== 0 && draggedBlockId && onBlockGroupMove) {
-        // Get all blocks to move (dragged block and those to the right)
-        const blocksToMove = getBlocksToMove(draggedBlockId);
-        const blockIds = blocksToMove.map(b => b.id);
-        onBlockGroupMove(blockIds, weeksDelta);
-      }
-
-      setIsDragging(false);
-      setDragOffset(0);
-      setDraggedBlockId(null);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, dragStartX, dragOffset, draggedBlockId, columnWidth, onBlockGroupMove, getBlocksToMove]);
+  const { dragOffset, draggingBlockIds, handleDragStart } = useTimelineBlockGroupDrag({
+    blocks: sortedBlocks,
+    columnWidth,
+    onBlockGroupMove,
+    getBlocksToMove,
+  });
 
   // Handle block context menu
   const handleContextMenu = useCallback((block: TimelineBlockType, e: React.MouseEvent) => {
@@ -163,40 +128,9 @@ export function TimelineProjectRow({
     }
   }, [contextMenu, eventContextMenu]);
 
-  // Pre-compute the set of dragging block IDs for O(1) lookup
-  const draggingBlockIds = useMemo(() => {
-    if (!isDragging || !draggedBlockId) return new Set<string>();
-    const blocksToMove = getBlocksToMove(draggedBlockId);
-    return new Set(blocksToMove.map(b => b.id));
-  }, [isDragging, draggedBlockId, getBlocksToMove]);
-
   // Generate CSS background for grid lines (much more performant than DOM elements)
   const gridBackground = useMemo(() => {
-    // Week separator positions (every 5 business days = Monday)
-    const weekWidth = columnWidth * 5;
-
-    // Create repeating gradient for daily lines and weekly borders
-    // Daily lines: thin gray
-    // Weekly lines: slightly thicker
-    return {
-      backgroundImage: `
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth - 1}px,
-          var(--border-subtle) ${columnWidth}px
-        ),
-        repeating-linear-gradient(
-          to right,
-          transparent,
-          transparent ${weekWidth - 2}px,
-          var(--border) ${weekWidth - 2}px,
-          var(--border) ${weekWidth}px
-        )
-      `,
-      backgroundSize: `${columnWidth}px 100%, ${weekWidth}px 100%`,
-    };
+    return getTimelineGridBackground(columnWidth, DAYS_PER_WEEK);
   }, [columnWidth]);
 
   return (
@@ -311,69 +245,12 @@ export function TimelineProjectRow({
         </div>
       )}
 
-      {/* Event Context menu */}
-      {eventContextMenu && (
-        <div
-          className="fixed bg-surface border border-border rounded-md shadow-lg py-1 z-50"
-          style={{ left: eventContextMenu.x, top: eventContextMenu.y }}
-        >
-          <button
-            className="w-full px-3 py-1.5 text-left text-body hover:bg-surface-hover"
-            onClick={() => {
-              onEventEdit?.(eventContextMenu.event);
-              setEventContextMenu(null);
-            }}
-          >
-            Edit Event
-          </button>
-          <hr className="my-1 border-border" />
-          <button
-            className="w-full px-3 py-1.5 text-left text-body text-error hover:bg-surface-hover"
-            onClick={() => {
-              onEventDelete?.(eventContextMenu.event);
-              setEventContextMenu(null);
-            }}
-          >
-            Delete Event
-          </button>
-        </div>
-      )}
+      <TimelineEventContextMenu
+        menu={eventContextMenu}
+        onEdit={onEventEdit}
+        onDelete={onEventDelete}
+        onClose={() => setEventContextMenu(null)}
+      />
     </div>
-  );
-}
-
-function TodayIndicator({
-  startDate,
-  columnWidth,
-}: {
-  startDate: Date;
-  columnWidth: number;
-}) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Calculate position
-  let daysFromStart = 0;
-  const current = new Date(startDate);
-  while (current < today) {
-    const dayOfWeek = current.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      daysFromStart++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  // Check if today is visible
-  if (current.toDateString() !== today.toDateString()) {
-    return null;
-  }
-
-  const left = daysFromStart * columnWidth + columnWidth / 2;
-
-  return (
-    <div
-      className="absolute top-0 bottom-0 w-0.5 bg-error z-10"
-      style={{ left }}
-    />
   );
 }

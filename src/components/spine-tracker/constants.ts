@@ -79,17 +79,3 @@ export const Z_ORDER_RANGES = [
   { range: '800-899', layer: 'Transitions', examples: 'Screen wipes, fades' },
   { range: '900-999', layer: 'System', examples: 'Loading, critical alerts' },
 ];
-
-// ============== Z-ORDER BADGE COLORS ==============
-
-export function getZOrderColor(zOrder: number): string {
-  if (zOrder < 100) return 'bg-slate-600';
-  if (zOrder < 200) return 'bg-violet-600';
-  if (zOrder < 300) return 'bg-indigo-600';
-  if (zOrder < 400) return 'bg-sky-600';
-  if (zOrder < 500) return 'bg-cyan-600';
-  if (zOrder < 600) return 'bg-teal-600';
-  if (zOrder < 700) return 'bg-amber-600';
-  if (zOrder < 800) return 'bg-orange-600';
-  return 'bg-rose-600';
-}

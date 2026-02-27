@@ -1,7 +1,6 @@
 import type {
   Skeleton,
   Animation,
-  SkeletonPlacement,
   SpineTrackerState,
   SpineChange,
   ChangelogResult,
@@ -54,25 +53,6 @@ export function getGroupForSkeleton(name: string): string {
     return 'screens';
   if (upper.includes('LAYOUT') || upper.includes('BACKGROUND')) return 'layout';
   return 'other';
-}
-
-// ============== PLACEMENT PARSING ==============
-
-/** Parse a placement string (from markdown format) into structured data */
-export function parsePlacement(placementStr: string | null): SkeletonPlacement {
-  if (!placementStr || placementStr === 'standalone' || placementStr.includes('standalone')) {
-    return { parent: null, bone: null, notes: placementStr || 'Standalone' };
-  }
-  if (placementStr === 'dynamic') {
-    return { parent: null, bone: null, notes: 'Dynamic placement' };
-  }
-  const parts = placementStr.includes('->')
-    ? placementStr.split('->')
-    : placementStr.split('→');
-  if (parts.length === 2) {
-    return { parent: parts[0].trim(), bone: parts[1].trim(), notes: '' };
-  }
-  return { parent: null, bone: null, notes: placementStr };
 }
 
 // ============== SKELETON FACTORY ==============
@@ -169,7 +149,7 @@ export function generateChangelog(
       changes.push({
         type: 'modified',
         skeleton: skeleton.name,
-        detail: `Status: ${base.status} → ${skeleton.status}`,
+        detail: `Status: ${base.status} â†’ ${skeleton.status}`,
       });
     }
 
@@ -192,7 +172,7 @@ export function generateChangelog(
         changes.push({
           type: 'modified',
           skeleton: skeleton.name,
-          detail: `Animation '${anim.name}': ${baseAnim.status} → ${anim.status}`,
+          detail: `Animation '${anim.name}': ${baseAnim.status} â†’ ${anim.status}`,
         });
       }
     });
@@ -230,7 +210,7 @@ export function generateChangelog(
 
 /** Format the full spine tracker state as markdown documentation */
 export function exportAsMarkdown(state: SpineTrackerState): string {
-  let md = `# Spine Asset Tracker — ${state.projectName}\n\n`;
+  let md = `# Spine Asset Tracker â€” ${state.projectName}\n\n`;
   md += `## Important Notes\n\n- **DESKTOP/SPINE_ASSETS is the source of truth**\n- Mobile and Desktop must have identical file names\n\n`;
   md += `## Skeleton Index\n\n| Skeleton | Status | Z-Order | Placement | Notes |\n|----------|--------|---------|-----------|-------|\n`;
 
@@ -402,3 +382,5 @@ export function normalizeImportData(data: SpineTrackerState): SpineTrackerState 
     baseline: data.baseline || null,
   };
 }
+
+

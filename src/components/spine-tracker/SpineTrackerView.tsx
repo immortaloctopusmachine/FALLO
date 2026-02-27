@@ -296,9 +296,6 @@ export function SpineTrackerView({ boardId, canEdit = true }: SpineTrackerViewPr
               onAddSkin={() => tracker.addSkin(tracker.selectedSkeletonId!)}
               onUpdateSkin={(i, updates) => tracker.updateSkin(tracker.selectedSkeletonId!, i, updates)}
               onDeleteSkin={(i) => tracker.deleteSkin(tracker.selectedSkeletonId!, i)}
-              onAddEvent={() => tracker.addEvent(tracker.selectedSkeletonId!)}
-              onUpdateEvent={(i, updates) => tracker.updateEvent(tracker.selectedSkeletonId!, i, updates)}
-              onDeleteEvent={(i) => tracker.deleteEvent(tracker.selectedSkeletonId!, i)}
             />
           ) : (
             <div className="flex items-center justify-center h-full">

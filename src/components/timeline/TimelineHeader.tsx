@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Calendar, Filter, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Filter, Plus, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatMonthYear } from '@/lib/date-utils';
@@ -12,6 +12,9 @@ interface TimelineHeaderProps {
   onFilterToggle?: () => void;
   showFilters?: boolean;
   showFilterButton?: boolean;
+  onRepairTimeline?: () => void;
+  isRepairingTimeline?: boolean;
+  canRepairTimeline?: boolean;
   onCreateProject?: () => void;
   isAdmin: boolean;
 }
@@ -23,6 +26,9 @@ export function TimelineHeader({
   onFilterToggle,
   showFilters = false,
   showFilterButton = true,
+  onRepairTimeline,
+  isRepairingTimeline = false,
+  canRepairTimeline = true,
   onCreateProject,
   isAdmin,
 }: TimelineHeaderProps) {
@@ -63,6 +69,19 @@ export function TimelineHeader({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Repair Timeline Button */}
+        {isAdmin && onRepairTimeline && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRepairTimeline}
+            disabled={isRepairingTimeline || !canRepairTimeline}
+          >
+            <Wrench className="mr-1.5 h-4 w-4" />
+            {isRepairingTimeline ? 'Repairing...' : 'Repair Timeline'}
+          </Button>
+        )}
+
         {/* Create Project Button */}
         {isAdmin && onCreateProject && (
           <Button variant="default" size="sm" onClick={onCreateProject}>

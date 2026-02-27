@@ -13,9 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Command,
   CommandEmpty,
@@ -30,21 +28,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import type { User as BaseUser } from '@/types';
-
-const TEAM_COLORS = [
-  '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
-  '#f43f5e', '#ef4444', '#f97316',
-];
-
-interface Studio {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-type TeamUser = Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
+import { OrganizationFormFields } from './OrganizationFormFields';
+import { TEAM_COLORS, useTeamReferenceData } from './team-form-shared';
 
 interface CreateTeamDialogProps {
   studioId?: string;
@@ -61,42 +46,16 @@ export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialog
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [studios, setStudios] = useState<Studio[]>([]);
-  const [users, setUsers] = useState<TeamUser[]>([]);
+  const { studios, users, loadReferenceData } = useTeamReferenceData();
   const [studioOpen, setStudioOpen] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
 
   // Fetch studios and users when dialog opens
   useEffect(() => {
     if (open) {
-      fetchStudios();
-      fetchUsers();
+      void loadReferenceData();
     }
-  }, [open]);
-
-  const fetchStudios = async () => {
-    try {
-      const response = await fetch('/api/studios');
-      const data = await response.json();
-      if (data.success) {
-        setStudios(data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch studios:', err);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('/api/users?scope=picker');
-      const data = await response.json();
-      if (data.success) {
-        setUsers(data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch users:', err);
-    }
-  };
+  }, [open, loadReferenceData]);
 
   const toggleUser = (userId: string) => {
     setSelectedUserIds((prev) =>
@@ -197,51 +156,24 @@ export function CreateTeamDialog({ studioId: defaultStudioId }: CreateTeamDialog
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="team-name">Name</Label>
-            <Input
-              id="team-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Yellow Team"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="team-description">Description</Label>
-            <Textarea
-              id="team-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this team work on?"
-              rows={2}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Team Color</Label>
-            <p className="text-caption text-text-tertiary">
-              This color will be used in the timeline view.
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              {TEAM_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    'w-8 h-8 rounded-full border-2 transition-transform',
-                    color === c ? 'border-white scale-110' : 'border-transparent'
-                  )}
-                  style={{ backgroundColor: c }}
-                  disabled={isLoading}
-                />
-              ))}
-            </div>
-          </div>
+          <OrganizationFormFields
+            nameId="team-name"
+            nameLabel="Name"
+            namePlaceholder="e.g., Yellow Team"
+            name={name}
+            onNameChange={setName}
+            descriptionId="team-description"
+            descriptionLabel="Description"
+            descriptionPlaceholder="What does this team work on?"
+            description={description}
+            onDescriptionChange={setDescription}
+            colorLabel="Team Color"
+            colorDescription="This color will be used in the timeline view."
+            colors={TEAM_COLORS}
+            selectedColor={color}
+            onColorChange={setColor}
+            disabled={isLoading}
+          />
 
           {/* Studio Selection */}
           <div className="space-y-2">

@@ -489,7 +489,6 @@ export function List({
                 {secondaryCards.map((card) => (
                   <div
                     key={`secondary-${card.id}`}
-                    className="space-y-1"
                     onMouseEnter={onCardHover ? () => onCardHover(card) : undefined}
                     onContextMenu={onCardContextMenu ? (e) => {
                       e.preventDefault();
@@ -501,12 +500,8 @@ export function List({
                       card={card}
                       onClick={() => onCardClick(card)}
                       sortable={false}
+                      inlineAction={renderSecondaryCardActions?.(card)}
                     />
-                    {renderSecondaryCardActions && (
-                      <div className="flex justify-end">
-                        {renderSecondaryCardActions(card)}
-                      </div>
-                    )}
                   </div>
                 ))}
 

@@ -33,9 +33,13 @@ export async function GET() {
     const dueSoonThreshold = new Date(now);
     dueSoonThreshold.setDate(dueSoonThreshold.getDate() + DUE_SOON_DAYS);
 
-    const [access, boardMemberships, taskAssignments, notifications, unreadNotifications] =
+    const [access, viewer, boardMemberships, taskAssignments, notifications, unreadNotifications] =
       await Promise.all([
         getQualityAccessContext(prisma, userId),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { image: true, slackAvatarUrl: true },
+        }),
         prisma.boardMember.findMany({
           where: {
             userId,
@@ -76,6 +80,7 @@ export async function GET() {
         prisma.cardUser.findMany({
           where: {
             userId,
+            activatedAt: { not: null }, // Only show activated assignments (exclude previews)
             card: {
               type: 'TASK',
               archivedAt: null,
@@ -145,9 +150,10 @@ export async function GET() {
         }),
       ]);
 
-    const pendingEvaluationsPromise =
+    // Fetch all pending review cycles with board settings to filter by project role assignments
+    const allPendingEvaluations =
       access && access.evaluatorRoles.length > 0
-        ? prisma.reviewCycle.findMany({
+        ? await prisma.reviewCycle.findMany({
             where: {
               lockedAt: null,
               card: {
@@ -162,7 +168,6 @@ export async function GET() {
             orderBy: {
               openedAt: 'desc',
             },
-            take: 6,
             select: {
               id: true,
               cycleNumber: true,
@@ -177,6 +182,7 @@ export async function GET() {
                       board: {
                         select: {
                           name: true,
+                          settings: true,
                         },
                       },
                     },
@@ -185,29 +191,55 @@ export async function GET() {
               },
             },
           })
-        : Promise.resolve([]);
+        : [];
 
-    const pendingEvaluationCountPromise =
-      access && access.evaluatorRoles.length > 0
-        ? prisma.reviewCycle.count({
-            where: {
-              lockedAt: null,
-              card: {
-                archivedAt: null,
-              },
-              evaluations: {
-                none: {
-                  reviewerId: userId,
-                },
-              },
-            },
-          })
-        : Promise.resolve(0);
+    // Filter to only cycles where user is assigned as lead/PO on the specific board
+    const filteredPendingEvaluations = allPendingEvaluations.filter((cycle) => {
+      const settings = cycle.card.list.board.settings;
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+        return false;
+      }
 
-    const [pendingEvaluationItems, pendingEvaluationCount] = await Promise.all([
-      pendingEvaluationsPromise,
-      pendingEvaluationCountPromise,
-    ]);
+      const projectRoleAssignments = (settings as Record<string, unknown>).projectRoleAssignments;
+      if (!Array.isArray(projectRoleAssignments)) {
+        return false;
+      }
+
+      // Check if user is assigned as lead or PO on this board
+      return projectRoleAssignments.some((assignment: unknown) => {
+        if (!assignment || typeof assignment !== 'object') return false;
+        const assignmentUserId = (assignment as Record<string, unknown>).userId;
+        const assignmentRoleName = (assignment as Record<string, unknown>).roleName;
+
+        if (assignmentUserId !== userId || typeof assignmentRoleName !== 'string') {
+          return false;
+        }
+
+        const normalizedRole = assignmentRoleName.trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+        // Match same patterns as resolveApprovers in role-utils.ts
+        const isPO = normalizedRole === 'po' || normalizedRole.includes('po') || normalizedRole.includes('product owner');
+        const isLead = normalizedRole === 'lead' || normalizedRole.endsWith(' lead') || normalizedRole.startsWith('lead ');
+        return isPO || isLead;
+      });
+    });
+
+    const pendingEvaluationItems = filteredPendingEvaluations.slice(0, 6).map((cycle) => ({
+      id: cycle.id,
+      cycleNumber: cycle.cycleNumber,
+      openedAt: cycle.openedAt,
+      card: {
+        id: cycle.card.id,
+        title: cycle.card.title,
+        list: {
+          boardId: cycle.card.list.boardId,
+          board: {
+            name: cycle.card.list.board.name,
+          },
+        },
+      },
+    }));
+
+    const pendingEvaluationCount = filteredPendingEvaluations.length;
 
     const myBoards = boardMemberships
       .filter((membership) => {
@@ -306,6 +338,7 @@ export async function GET() {
         id: session.user.id,
         name: session.user.name,
         email: session.user.email,
+        image: viewer?.slackAvatarUrl || viewer?.image || null,
         permission: session.user.permission,
         evaluatorRoles,
       },

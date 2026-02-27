@@ -18,7 +18,7 @@ export async function GET() {
     );
     if (evaluatorResponse) return evaluatorResponse;
 
-    const [allActiveDimensions, pendingCycles] = await Promise.all([
+    const [allActiveDimensions, allPendingCycles] = await Promise.all([
       prisma.reviewDimension.findMany({
         where: {
           isActive: true,
@@ -64,6 +64,7 @@ export async function GET() {
                   board: {
                     select: {
                       name: true,
+                      settings: true,
                     },
                   },
                 },
@@ -73,6 +74,36 @@ export async function GET() {
         },
       }),
     ]);
+
+    // Filter to only cycles where user is assigned as lead/PO on the specific board
+    const pendingCycles = allPendingCycles.filter((cycle) => {
+      const settings = cycle.card.list.board.settings;
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+        return false;
+      }
+
+      const projectRoleAssignments = (settings as Record<string, unknown>).projectRoleAssignments;
+      if (!Array.isArray(projectRoleAssignments)) {
+        return false;
+      }
+
+      // Check if user is assigned as lead or PO on this board
+      return projectRoleAssignments.some((assignment: unknown) => {
+        if (!assignment || typeof assignment !== 'object') return false;
+        const assignmentUserId = (assignment as Record<string, unknown>).userId;
+        const assignmentRoleName = (assignment as Record<string, unknown>).roleName;
+
+        if (assignmentUserId !== session.user.id || typeof assignmentRoleName !== 'string') {
+          return false;
+        }
+
+        const normalizedRole = assignmentRoleName.trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+        // Match same patterns as resolveApprovers in role-utils.ts
+        const isPO = normalizedRole === 'po' || normalizedRole.includes('po') || normalizedRole.includes('product owner');
+        const isLead = normalizedRole === 'lead' || normalizedRole.endsWith(' lead') || normalizedRole.startsWith('lead ');
+        return isPO || isLead;
+      });
+    });
 
     const pending = [] as Array<{
       cycleId: string;

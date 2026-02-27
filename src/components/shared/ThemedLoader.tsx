@@ -15,11 +15,11 @@ interface ThemedLoaderProps {
 }
 
 function getThemeFromDom(): UiTheme {
-  if (typeof window === 'undefined') return 'windows95';
+  if (typeof window === 'undefined') return 'slate';
   const stored = window.localStorage.getItem('ui.theme');
   const mappedStoredTheme = stored === 'commodore' ? 'colordore' : stored;
-  if (!mappedStoredTheme) return 'windows95';
-  return UI_THEMES.includes(mappedStoredTheme as UiTheme) ? (mappedStoredTheme as UiTheme) : 'windows95';
+  if (!mappedStoredTheme) return 'slate';
+  return UI_THEMES.includes(mappedStoredTheme as UiTheme) ? (mappedStoredTheme as UiTheme) : 'slate';
 }
 
 function getLogoFallbackText(theme: UiTheme): string {
@@ -30,7 +30,7 @@ function getLogoFallbackText(theme: UiTheme): string {
 }
 
 export function ThemedLoader({ message }: ThemedLoaderProps) {
-  const [theme, setTheme] = useState<UiTheme>('windows95');
+  const [theme, setTheme] = useState<UiTheme>('slate');
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
 

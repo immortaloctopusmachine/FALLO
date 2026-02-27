@@ -154,6 +154,7 @@ export interface CardAssignee {
   userId: string;
   user: User;
   assignedAt: string;
+  activatedAt: string | null; // null = preview assignment (not yet active)
 }
 
 export interface Attachment {
@@ -271,7 +272,7 @@ export interface BoardSettings {
 
   // Project settings
   projectStartDate?: string;           // ISO date string
-  lastDayStaticArt?: string;           // ISO date string
+  lastDayStaticAssets?: string;           // ISO date string
   lastDayAnimationTweaks?: string;     // ISO date string
   releaseDate?: string;                // ISO date string
   marketingAssetsDeadline?: string;    // ISO date string
@@ -308,7 +309,7 @@ export interface BoardSettings {
 
   // Auto-calculated date overrides (from timeline TWEAK blocks)
   lastTweakOverride?: string;       // ISO date, overrides calculated Last Tweak
-  lastStaticArtOverride?: string;   // ISO date, overrides calculated Last Static Art
+  lastStaticAssetsOverride?: string;   // ISO date, overrides calculated Last Static Assets
 
   // Board background
   backgroundType?: 'none' | 'gradient' | 'image';

@@ -59,6 +59,7 @@ import type {
 } from '@/types';
 import { cn } from '@/lib/utils';
 import { LIST_TEMPLATES } from '@/lib/list-templates';
+import { formatShortMonthDay } from '@/lib/date-utils';
 
 interface PlanningViewProps {
   board: Board;
@@ -1164,8 +1165,7 @@ export function PlanningView({
   };
 
   const formatWeekStartLabel = (weekStart: string) => {
-    const weekDate = new Date(`${weekStart}T00:00:00`);
-    return weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return formatShortMonthDay(weekStart);
   };
 
   // Render stats dashboard
@@ -1615,7 +1615,7 @@ export function PlanningView({
       cardTypeFilter="USER_STORY"
       onCardHover={handleCardHover}
       listColor={list.color}
-      showDateRange
+      showDateRange={!board.isTemplate}
       startDate={list.startDate}
       endDate={list.endDate}
       donePoints={listDonePoints[list.id]}
@@ -1645,14 +1645,14 @@ export function PlanningView({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 gap-1 text-caption"
+            className="h-6 gap-1 text-tiny px-2"
             disabled={isReleasing}
             onClick={(event) => {
               event.stopPropagation();
               void handleReleaseStagedTask(task);
             }}
           >
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3 w-3" />
             {isReleasing ? 'Releasing...' : 'Release now'}
           </Button>
         );
@@ -1813,6 +1813,7 @@ export function PlanningView({
         isOpen={isAddModuleOpen}
         onClose={() => setIsAddModuleOpen(false)}
         boardId={board.id}
+        board={board}
         planningLists={planningLists}
         taskLists={taskLists}
         defaultPlanningListId={moduleDefaultPlanningListId}

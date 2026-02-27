@@ -468,6 +468,157 @@ export default function ModulesSettingsPage() {
     };
   }, [form.taskTemplates]);
 
+  const renderTaskEditorCard = (task: ModuleTaskTemplate, suffixPlaceholder: string) => {
+    const effectiveTitle = getEffectiveTitle(task, form.symbol);
+    const hasOverride = task.titleOverride !== null;
+    const isExpanded = expandedTasks.has(task.id);
+
+    return (
+      <div
+        key={task.id}
+        className="rounded-md border"
+        style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}
+      >
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 p-3"
+          onClick={() => toggleTaskExpanded(task.id)}
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />
+          )}
+          <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: task.color }} />
+          <span className="flex-1 truncate text-left text-body font-medium">{effectiveTitle || task.title}</span>
+          {task.storyPoints !== null && (
+            <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">
+              {task.storyPoints} SP
+            </span>
+          )}
+          {task.tags.map((tag) => (
+            <span key={tag} className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">
+              {tag}
+            </span>
+          ))}
+        </button>
+        {isExpanded && (
+          <div className="space-y-2 border-t px-3 pb-3 pt-2" style={{ borderColor: `${task.color}33` }}>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 space-y-1">
+                <div className="text-tiny text-text-tertiary">
+                  {hasOverride ? 'Custom title' : `Auto: ${form.symbol || '...'} - suffix`}
+                </div>
+                <Input
+                  value={effectiveTitle}
+                  onChange={(e) => updateTask(task.id, { titleOverride: e.target.value })}
+                  placeholder="Task title"
+                />
+              </div>
+              {hasOverride && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => updateTask(task.id, { titleOverride: null })}
+                  title="Reset to auto-generated title"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => deleteTask(task.id)}
+                disabled={form.taskTemplates.length <= 1}
+                title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            {!hasOverride && (
+              <Input
+                value={task.title}
+                onChange={(e) => updateTask(task.id, { title: e.target.value })}
+                placeholder={`Suffix (e.g. ${suffixPlaceholder})`}
+                className="text-caption"
+              />
+            )}
+            <div className="space-y-1">
+              <div className="text-tiny text-text-tertiary">Story Points</div>
+              <div className="flex flex-wrap gap-1">
+                {STORY_POINT_VALUES.map((sp) => {
+                  const isSelected = task.storyPoints === sp;
+                  const colors = SP_COLORS[sp];
+                  return (
+                    <button
+                      key={sp}
+                      type="button"
+                      onClick={() => updateTask(task.id, { storyPoints: isSelected ? null : sp })}
+                      className={cn(
+                        'h-7 min-w-[2rem] rounded border px-1.5 text-tiny font-medium transition-colors',
+                        isSelected
+                          ? `${colors.bgSelected} text-white border-transparent`
+                          : `${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`
+                      )}
+                    >
+                      {sp}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-1 text-tiny text-text-tertiary">
+                <Tag className="h-3 w-3" />
+                Tags
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {task.tags.map((tag) => (
+                  <span key={tag} className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-0.5 text-tiny">
+                    {tag}
+                    <button type="button" onClick={() => updateTask(task.id, { tags: task.tags.filter((t) => t !== tag) })}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                <Select
+                  value="none"
+                  onValueChange={(value) => {
+                    if (value === 'none') return;
+                    if (!task.tags.includes(value)) {
+                      updateTask(task.id, { tags: [...task.tags, value] });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-7 flex-1 text-tiny">
+                    <SelectValue placeholder="Add tag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Add tag...</SelectItem>
+                    {availableTags.filter((t) => !task.tags.includes(t)).map((tag) => (
+                      <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {renderImageSelector(task.id, task.featureImage || null)}
+            <Textarea
+              placeholder="Task description (optional)"
+              value={task.description || ''}
+              onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
+              rows={2}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return <div className="flex h-64 items-center justify-center text-text-secondary">Loading modules...</div>;
   }
@@ -624,143 +775,7 @@ export default function ModulesSettingsPage() {
             <div key={group.groupId} className="rounded-md border border-border-subtle bg-background p-2 space-y-2 col-span-full">
               <div className="text-caption font-medium text-text-secondary">{group.label}</div>
               <div className="grid gap-2 md:grid-cols-2">
-              {group.tasks.map((task) => {
-                const effectiveTitle = getEffectiveTitle(task, form.symbol);
-                const hasOverride = task.titleOverride !== null;
-                const isExpanded = expandedTasks.has(task.id);
-                return (
-                  <div key={task.id} className="rounded-md border" style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 p-3"
-                      onClick={() => toggleTaskExpanded(task.id)}
-                    >
-                      {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary" /> : <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />}
-                      <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: task.color }} />
-                      <span className="flex-1 truncate text-left text-body font-medium">{effectiveTitle || task.title}</span>
-                      {task.storyPoints !== null && (
-                        <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{task.storyPoints} SP</span>
-                      )}
-                      {task.tags.map((tag) => (
-                        <span key={tag} className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{tag}</span>
-                      ))}
-                    </button>
-                    {isExpanded && (
-                      <div className="space-y-2 border-t px-3 pb-3 pt-2" style={{ borderColor: `${task.color}33` }}>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 space-y-1">
-                            <div className="text-tiny text-text-tertiary">
-                              {hasOverride ? 'Custom title' : `Auto: ${form.symbol || '...'} - suffix`}
-                            </div>
-                            <Input
-                              value={effectiveTitle}
-                              onChange={(e) => updateTask(task.id, { titleOverride: e.target.value })}
-                              placeholder="Task title"
-                            />
-                          </div>
-                          {hasOverride && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => updateTask(task.id, { titleOverride: null })}
-                              title="Reset to auto-generated title"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteTask(task.id)}
-                            disabled={form.taskTemplates.length <= 1}
-                            title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        {!hasOverride && (
-                          <Input
-                            value={task.title}
-                            onChange={(e) => updateTask(task.id, { title: e.target.value })}
-                            placeholder="Suffix (e.g. CONCEPT)"
-                            className="text-caption"
-                          />
-                        )}
-                        <div className="space-y-1">
-                          <div className="text-tiny text-text-tertiary">Story Points</div>
-                          <div className="flex flex-wrap gap-1">
-                            {STORY_POINT_VALUES.map((sp) => {
-                              const isSelected = task.storyPoints === sp;
-                              const colors = SP_COLORS[sp];
-                              return (
-                                <button
-                                  key={sp}
-                                  type="button"
-                                  onClick={() => updateTask(task.id, { storyPoints: isSelected ? null : sp })}
-                                  className={cn(
-                                    'h-7 min-w-[2rem] rounded border px-1.5 text-tiny font-medium transition-colors',
-                                    isSelected
-                                      ? `${colors.bgSelected} text-white border-transparent`
-                                      : `${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`
-                                  )}
-                                >
-                                  {sp}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-tiny text-text-tertiary">
-                            <Tag className="h-3 w-3" />
-                            Tags
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {task.tags.map((tag) => (
-                              <span key={tag} className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-0.5 text-tiny">
-                                {tag}
-                                <button type="button" onClick={() => updateTask(task.id, { tags: task.tags.filter((t) => t !== tag) })}>
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex gap-1">
-                            <Select
-                              value="none"
-                              onValueChange={(value) => {
-                                if (value === 'none') return;
-                                if (!task.tags.includes(value)) {
-                                  updateTask(task.id, { tags: [...task.tags, value] });
-                                }
-                              }}
-                            >
-                              <SelectTrigger className="h-7 flex-1 text-tiny">
-                                <SelectValue placeholder="Add tag" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Add tag...</SelectItem>
-                                {availableTags.filter((t) => !task.tags.includes(t)).map((tag) => (
-                                  <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        {renderImageSelector(task.id, task.featureImage || null)}
-                        <Textarea
-                          placeholder="Task description (optional)"
-                          value={task.description || ''}
-                          onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
-                          rows={2}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {group.tasks.map((task) => renderTaskEditorCard(task, 'CONCEPT'))}
               </div>
             </div>
           ))}
@@ -769,143 +784,7 @@ export default function ModulesSettingsPage() {
             <div className="rounded-md border border-border-subtle bg-background p-2 space-y-2 col-span-full">
               <div className="text-caption font-medium text-text-secondary">Single Tasks</div>
               <div className="grid gap-2 md:grid-cols-2">
-              {groupedTaskData.singles.map((task) => {
-                const effectiveTitle = getEffectiveTitle(task, form.symbol);
-                const hasOverride = task.titleOverride !== null;
-                const isExpanded = expandedTasks.has(task.id);
-                return (
-                  <div key={task.id} className="rounded-md border" style={{ borderColor: `${task.color}66`, backgroundColor: `${task.color}12` }}>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-2 p-3"
-                      onClick={() => toggleTaskExpanded(task.id)}
-                    >
-                      {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary" /> : <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />}
-                      <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: task.color }} />
-                      <span className="flex-1 truncate text-left text-body font-medium">{effectiveTitle || task.title}</span>
-                      {task.storyPoints !== null && (
-                        <span className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{task.storyPoints} SP</span>
-                      )}
-                      {task.tags.map((tag) => (
-                        <span key={tag} className="shrink-0 rounded bg-surface-hover px-1.5 py-0.5 text-tiny text-text-tertiary">{tag}</span>
-                      ))}
-                    </button>
-                    {isExpanded && (
-                      <div className="space-y-2 border-t px-3 pb-3 pt-2" style={{ borderColor: `${task.color}33` }}>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 space-y-1">
-                            <div className="text-tiny text-text-tertiary">
-                              {hasOverride ? 'Custom title' : `Auto: ${form.symbol || '...'} - suffix`}
-                            </div>
-                            <Input
-                              value={effectiveTitle}
-                              onChange={(e) => updateTask(task.id, { titleOverride: e.target.value })}
-                              placeholder="Task title"
-                            />
-                          </div>
-                          {hasOverride && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => updateTask(task.id, { titleOverride: null })}
-                              title="Reset to auto-generated title"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteTask(task.id)}
-                            disabled={form.taskTemplates.length <= 1}
-                            title={form.taskTemplates.length <= 1 ? 'A module needs at least one task' : 'Delete task'}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        {!hasOverride && (
-                          <Input
-                            value={task.title}
-                            onChange={(e) => updateTask(task.id, { title: e.target.value })}
-                            placeholder="Suffix (e.g. TASK)"
-                            className="text-caption"
-                          />
-                        )}
-                        <div className="space-y-1">
-                          <div className="text-tiny text-text-tertiary">Story Points</div>
-                          <div className="flex flex-wrap gap-1">
-                            {STORY_POINT_VALUES.map((sp) => {
-                              const isSelected = task.storyPoints === sp;
-                              const colors = SP_COLORS[sp];
-                              return (
-                                <button
-                                  key={sp}
-                                  type="button"
-                                  onClick={() => updateTask(task.id, { storyPoints: isSelected ? null : sp })}
-                                  className={cn(
-                                    'h-7 min-w-[2rem] rounded border px-1.5 text-tiny font-medium transition-colors',
-                                    isSelected
-                                      ? `${colors.bgSelected} text-white border-transparent`
-                                      : `${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`
-                                  )}
-                                >
-                                  {sp}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-tiny text-text-tertiary">
-                            <Tag className="h-3 w-3" />
-                            Tags
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {task.tags.map((tag) => (
-                              <span key={tag} className="inline-flex items-center gap-1 rounded bg-surface-hover px-2 py-0.5 text-tiny">
-                                {tag}
-                                <button type="button" onClick={() => updateTask(task.id, { tags: task.tags.filter((t) => t !== tag) })}>
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex gap-1">
-                            <Select
-                              value="none"
-                              onValueChange={(value) => {
-                                if (value === 'none') return;
-                                if (!task.tags.includes(value)) {
-                                  updateTask(task.id, { tags: [...task.tags, value] });
-                                }
-                              }}
-                            >
-                              <SelectTrigger className="h-7 flex-1 text-tiny">
-                                <SelectValue placeholder="Add tag" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Add tag...</SelectItem>
-                                {availableTags.filter((t) => !task.tags.includes(t)).map((tag) => (
-                                  <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        {renderImageSelector(task.id, task.featureImage || null)}
-                        <Textarea
-                          placeholder="Task description (optional)"
-                          value={task.description || ''}
-                          onChange={(e) => updateTask(task.id, { description: e.target.value || null })}
-                          rows={2}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {groupedTaskData.singles.map((task) => renderTaskEditorCard(task, 'TASK'))}
               </div>
             </div>
           )}

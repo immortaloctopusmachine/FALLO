@@ -214,7 +214,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   }, [settings.lastTweakOverride, settings.lastDayAnimationTweaks, tweakBlockEndDate]);
 
   const lastStaticAssetsDate = useMemo(() => {
-    const override = parseOptionalDate(settings.lastStaticArtOverride);
+    const override = parseOptionalDate(settings.lastStaticAssetsOverride);
     if (override) return override;
 
     if (lastTweakDate) {
@@ -223,8 +223,8 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
       return calculated;
     }
 
-    return parseOptionalDate(settings.lastDayStaticArt);
-  }, [settings.lastStaticArtOverride, settings.lastDayStaticArt, lastTweakDate]);
+    return parseOptionalDate(settings.lastDayStaticAssets);
+  }, [settings.lastStaticAssetsOverride, settings.lastDayStaticAssets, lastTweakDate]);
 
   const lastStaticAssetsCountdown = useMemo(() => {
     if (!lastStaticAssetsDate) return null;
@@ -264,9 +264,12 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
   }, [lastTweakDate, lastStaticAssetsDate, lastStaticAssetsCountdown]);
 
   const projectLinks = useMemo<SidebarLink[]>(() => {
-    const links: SidebarLink[] = [
-      { label: 'Project Page', url: `/projects/${board.id}`, isInternal: true },
-    ];
+    const links: SidebarLink[] = [];
+
+    // Template boards don't have a project page
+    if (!board.isTemplate) {
+      links.push({ label: 'Project Page', url: `/projects/${board.id}`, isInternal: true });
+    }
 
     if (settings.projectLinks?.oneDrive) {
       links.push({ label: 'OneDrive', url: settings.projectLinks.oneDrive });
@@ -279,7 +282,7 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
     }
 
     return links;
-  }, [board.id, settings.projectLinks]);
+  }, [board.id, board.isTemplate, settings.projectLinks]);
 
   useEffect(() => {
     setIsMounted(true);

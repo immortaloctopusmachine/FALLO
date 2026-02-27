@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getMonday, getFriday, moveBlockDates } from '@/lib/date-utils';
 import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
+import { ensureTimelineBlockIntegrity } from '@/lib/timeline-block-integrity';
 import {
   requireAuth,
   requireAdmin,
@@ -163,6 +164,7 @@ export async function POST(
       },
     });
 
+    await ensureTimelineBlockIntegrity(boardId, { syncToList: syncToList !== false });
     await renumberTimelineBlockPositions(boardId);
 
     const renumberedBlock = await prisma.timelineBlock.findUnique({

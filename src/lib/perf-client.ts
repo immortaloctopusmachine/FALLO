@@ -64,26 +64,7 @@ export function recordClientPerf(
   const summary = buildSummary(values);
 
   // Keep metrics in-memory for low-overhead client profiling.
-  // Read summaries via getClientPerfSummary/getAllClientPerfSummaries.
   void meta;
 
   return summary;
-}
-
-export function getClientPerfSummary(metricName: string): PerfSummary | null {
-  if (typeof window === 'undefined') return null;
-  const values = window.__falloPerfMetrics?.[metricName];
-  if (!values || values.length === 0) return null;
-  return buildSummary(values);
-}
-
-export function getAllClientPerfSummaries(): Record<string, PerfSummary> {
-  if (typeof window === 'undefined') return {};
-  const store = window.__falloPerfMetrics || {};
-  return Object.fromEntries(
-    Object.entries(store).map(([metricName, values]) => [
-      metricName,
-      buildSummary(values),
-    ])
-  );
 }

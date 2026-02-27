@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { formatDisplayDate } from '@/lib/date-utils';
+import { formatDateInput, formatDisplayDate } from '@/lib/date-utils';
 import type { TimelineBlock, BlockType, List as BoardList, User as BaseUser } from '@/types';
 
 type SimpleUser = Pick<BaseUser, 'id' | 'name' | 'email' | 'image'>;
@@ -67,8 +67,8 @@ export function BlockEditModal({
   // Populate form when block changes
   useEffect(() => {
     if (block) {
-      setStartDate(new Date(block.startDate).toISOString().split('T')[0]);
-      setEndDate(new Date(block.endDate).toISOString().split('T')[0]);
+      setStartDate(formatDateInput(new Date(block.startDate)));
+      setEndDate(formatDateInput(new Date(block.endDate)));
       setSelectedBlockTypeId(block.blockType.id);
       setSelectedListId(block.list?.id || null);
     }

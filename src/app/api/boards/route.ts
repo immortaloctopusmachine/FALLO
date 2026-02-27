@@ -5,6 +5,7 @@ import { parseBoardArchivedOnlyAt, parseProjectArchivedAt } from '@/lib/project-
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
 import { getPhaseFromBlockType } from '@/lib/constants';
+import { ensureTimelineBlockIntegrity } from '@/lib/timeline-block-integrity';
 import type { BoardTemplateType, ListViewType, ListPhase, BoardSettings } from '@/types';
 
 const CORE_TEMPLATE_TASK_LISTS = BOARD_TEMPLATES.STANDARD_SLOT.taskLists;
@@ -238,6 +239,7 @@ export async function POST(request: Request) {
       startDate,
       memberIds,
       settings: initialSettings,
+      isTemplate = false,
     } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -247,7 +249,8 @@ export async function POST(request: Request) {
     const templateType = template as BoardTemplateType;
     const templateConfig = BOARD_TEMPLATES[templateType] || BOARD_TEMPLATES.BLANK;
 
-    const coreTemplate = coreTemplateId
+    // Template boards always use STANDARD_SLOT task lists, no planning lists, no timeline
+    const coreTemplate = (coreTemplateId && !isTemplate)
       ? await prisma.coreProjectTemplate.findFirst({
           where: {
             id: coreTemplateId as string,
@@ -266,11 +269,12 @@ export async function POST(request: Request) {
         })
       : null;
 
-    if (coreTemplateId && !coreTemplate) {
+    if (coreTemplateId && !coreTemplate && !isTemplate) {
       return ApiErrors.validation('Invalid core template');
     }
 
     // Build planning sequence either from dynamic core template or legacy hardcoded template.
+    // Template boards skip planning lists entirely.
     const planningRows: {
       name: string;
       viewType: ListViewType;
@@ -282,7 +286,7 @@ export async function POST(request: Request) {
       endDate?: Date | null;
     }[] = [];
 
-    if (coreTemplate) {
+    if (coreTemplate && !isTemplate) {
       const counters = new Map<string, number>();
       const hasDates = Boolean(startDate);
       let cursor = hasDates ? snapToMonday(new Date(startDate as string)) : null;
@@ -310,7 +314,7 @@ export async function POST(request: Request) {
           cursor = addBusinessDays(blockEnd!, 1);
         }
       }
-    } else if (startDate && templateType !== 'BLANK') {
+    } else if (startDate && templateType !== 'BLANK' && !isTemplate) {
       const listDates = calculateListDates(templateConfig, new Date(startDate));
       for (const list of templateConfig.planningLists) {
         const dateEntry = listDates.find((d) => d.listName.toLowerCase() === list.name.toLowerCase());
@@ -325,7 +329,7 @@ export async function POST(request: Request) {
           endDate: dateEntry?.endDate,
         });
       }
-    } else {
+    } else if (!isTemplate) {
       for (const list of templateConfig.planningLists) {
         planningRows.push({
           name: list.name,
@@ -337,7 +341,10 @@ export async function POST(request: Request) {
       }
     }
 
-    const taskRows = coreTemplate ? CORE_TEMPLATE_TASK_LISTS : templateConfig.taskLists;
+    // Template boards use STANDARD_SLOT task lists, regular boards use template config or core template lists
+    const taskRows = isTemplate
+      ? BOARD_TEMPLATES.STANDARD_SLOT.taskLists
+      : (coreTemplate ? CORE_TEMPLATE_TASK_LISTS : templateConfig.taskLists);
 
     const listsToCreate = [
       ...taskRows.map((list) => ({
@@ -409,6 +416,7 @@ export async function POST(request: Request) {
           data: {
             name: name.trim(),
             description: description?.trim() || null,
+            isTemplate,
             settings: settings as object,
             teamId: teamId || null,
             members: {
@@ -432,6 +440,7 @@ export async function POST(request: Request) {
           data: {
             name: name.trim(),
             description: description?.trim() || null,
+            isTemplate,
             settings: settings as object,
             teamId: teamId || null,
             members: {
@@ -467,7 +476,8 @@ export async function POST(request: Request) {
         });
 
     // If start date is provided and we have planning lists with dates, create timeline blocks
-    if (startDate && (coreTemplate || templateType !== 'BLANK')) {
+    // Skip timeline creation for template boards
+    if (!isTemplate && startDate && (coreTemplate || templateType !== 'BLANK')) {
       const planningLists = await prisma.list.findMany({
         where: {
           boardId: board.id,
@@ -515,6 +525,7 @@ export async function POST(request: Request) {
             position: i + 1,
           })),
         });
+        await ensureTimelineBlockIntegrity(board.id, { syncToList: true });
       }
 
       if (coreTemplate && coreTemplate.events.length > 0) {

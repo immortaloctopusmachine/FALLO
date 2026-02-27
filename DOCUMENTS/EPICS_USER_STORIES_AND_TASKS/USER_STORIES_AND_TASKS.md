@@ -17,7 +17,7 @@ what TO DO items the Task inherits:
 | TO DO - CONCEPT | Approved by Lead, Approved by PO |
 | TO DO - FX/ANIMATION | Approved by Lead, Approved by PO, Exported for Desktop, Exported for Mobile |
 | TO DO - STATIC ASSETS | Approved by Lead, Approved by PO, Exported, Implemented |
-| TO DO - STATIC ART | Approved by Lead, Approved by PO, Exported, Implemented |
+| TO DO - STATIC ASSETS | Approved by Lead, Approved by PO, Exported, Implemented |
 | TO DO | *(none — setup/marketing tasks)* |
 | TO DO - GAME SHEET | *(none — setup/marketing tasks)* |
 | TO DO - VIDEO & ANIMATED BANNERS | *(none — setup/marketing tasks)* |
@@ -219,7 +219,7 @@ The checklist item is the name of the Task card it links to.
   - → SPIN BUTTON - FX/ANIMATION (3 pts)
   - → KEYPAD BACKPLATE - FX/ANIMATION (2 pts)
   - → KEYPAD BUTTONS - FX/ANIMATION (2 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → KEYPAD BACKPLATE - STATIC ASSETS (3 pts)
   - → SPIN BUTTON - STATIC ASSETS (5 pts)
   - → KEYPAD - BUTTONS (3 pts)
@@ -295,7 +295,7 @@ The checklist item is the name of the Task card it links to.
 **REELS & FRAME**
 - TO DO - CONCEPTS:
   - → CONCEPT - Reels and Frame (3 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → REELS AND FRAME - BASEGAME : STATIC ASSETS (5 pts)
   - → REELS AND FRAME - FREE SPINS : STATIC ASSETS (5 pts)
 
@@ -361,7 +361,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPTS - Blank (3 pts)
 - TO DO - FX/ANIMATION:
   - → BLANK - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → BLANK - STATIC ASSETS (3 pts)
 
 **SYMBOLS - BN**
@@ -370,7 +370,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - BN (5 pts)
 - TO DO - FX/ANIMATION:
   - → BN - FX/ANIMATION (8 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → BN - STATIC ASSETS (5 pts)
 
 **SYMBOLS - CN**
@@ -381,7 +381,7 @@ The checklist item is the name of the Task card it links to.
 - TO DO - FX/ANIMATION:
   - → CN - FX/ANIMATION (8 pts)
   - → CN JACKPOTS - FX/ANIMATION (13 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → CN - STATIC ASSETS (8 pts)
   - → CN JACKPOTS - STATIC ASSETS (13 pts)
 
@@ -391,7 +391,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - COL (8 pts)
 - TO DO - FX/ANIMATION:
   - → COL - FX/ANIMATION (13 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → COL - STATIC ASSETS (13 pts)
 
 **SYMBOLS - LOW SYMBOLS**
@@ -400,7 +400,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - Low Symbols (8 pts)
 - TO DO - FX/ANIMATION:
   - → LOW SYMBOLS - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → LOW SYMBOLS - STATIC ASSETS (5 pts)
 
 **SYMBOLS - M1**
@@ -409,7 +409,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - M1 (5 pts)
 - TO DO - FX/ANIMATION:
   - → M1 - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → M1 - STATIC ASSETS (5 pts)
 
 **SYMBOLS - M2**
@@ -418,7 +418,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - M2 (3 pts)
 - TO DO - FX/ANIMATION:
   - → M2 - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → M2 - STATIC ASSETS (5 pts)
 
 **SYMBOLS - M3**
@@ -427,7 +427,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - M3 (3 pts)
 - TO DO - FX/ANIMATION:
   - → M3 - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → M3 - STATIC ASSETS (5 pts)
 
 **SYMBOLS - M4**
@@ -436,7 +436,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - M4 (3 pts)
 - TO DO - FX/ANIMATION:
   - → M4 - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → M4 - STATIC ASSETS (5 pts)
 
 **SYMBOLS - M5**
@@ -445,7 +445,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - M5 (3 pts)
 - TO DO - FX/ANIMATION:
   - → M5 - FX/ANIMATION (5 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → M5 - STATIC ASSETS (5 pts)
 
 **SYMBOLS - WR**
@@ -454,7 +454,7 @@ The checklist item is the name of the Task card it links to.
   - → CONCEPT - WR (3 pts)
 - TO DO - FX/ANIMATION:
   - → WR - FX/ANIMATION (8 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → WR - STATIC ASSETS (5 pts)
 
 **TEXTS/LOCALES**
@@ -494,7 +494,7 @@ The checklist item is the name of the Task card it links to.
   - → BIG WINS - CONCEPTS (8 pts)
 - TO DO - FX/ANIMATION:
   - → BIG WINS - FX/ANIMATION (8 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → BIG WINS - STATIC ASSETS (5 pts)
 
 **WIN PRESENTATIONS - SMALL TO EXCELLENT**
@@ -503,7 +503,7 @@ The checklist item is the name of the Task card it links to.
   - → WIN PRESENTATIONS - SMALL TO EXCELLENT - CONCEPT (8 pts)
 - TO DO - FX/ANIMATION:
   - → WIN PRESENTATIONS - SMALL TO EXCELLENT - FX/ANIMATION (8 pts)
-- TO DO - STATIC ART:
+- TO DO - STATIC ASSETS:
   - → WIN PRESENTATIONS - SMALL TO EXCELLENT - STATIC ASSETS (5 pts)
 
 ---
@@ -634,7 +634,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **BIG WINS - STATIC ASSETS** | 5 pts
 - Parent: WIN PRESENTATIONS - BIG WINS
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -652,7 +652,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **BLANK - STATIC ASSETS** | 3 pts
 - Parent: SYMBOLS - BLANK
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -670,7 +670,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **BN - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - BN
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -704,7 +704,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **CN - STATIC ASSETS** | 8 pts
 - Parent: SYMBOLS - CN
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -722,7 +722,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **CN JACKPOTS - STATIC ASSETS** | 13 pts
 - Parent: SYMBOLS - CN
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -756,7 +756,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **COL - STATIC ASSETS** | 13 pts
 - Parent: SYMBOLS - COL
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1215,7 +1215,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **KEYPAD - BUTTONS** | 3 pts
 - Parent: KEYPAD
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1233,7 +1233,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **KEYPAD BACKPLATE - STATIC ASSETS** | 3 pts
 - Parent: KEYPAD
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1309,7 +1309,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **LOW SYMBOLS - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - LOW SYMBOLS
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1327,7 +1327,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **M1 - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - M1
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1345,7 +1345,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **M2 - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - M2
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1363,7 +1363,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **M3 - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - M3
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1381,7 +1381,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **M4 - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - M4
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1399,7 +1399,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **M5 - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - M5
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1544,7 +1544,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **REELS AND FRAME - BASEGAME : STATIC ASSETS** | 5 pts
 - Parent: REELS & FRAME
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1562,7 +1562,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **REELS AND FRAME - FREE SPINS : STATIC ASSETS** | 5 pts
 - Parent: REELS & FRAME
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1580,7 +1580,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **SPIN BUTTON - STATIC ASSETS** | 5 pts
 - Parent: KEYPAD
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1743,7 +1743,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **WIN PRESENTATIONS - SMALL TO EXCELLENT - STATIC ASSETS** | 5 pts
 - Parent: WIN PRESENTATIONS - SMALL TO EXCELLENT
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO
@@ -1761,7 +1761,7 @@ This determines both the category and the TO DO checklist the Task gets.
 
 **WR - STATIC ASSETS** | 5 pts
 - Parent: SYMBOLS - WR
-- Linked via: TO DO - STATIC ART
+- Linked via: TO DO - STATIC ASSETS
 - TO DO:
   - [ ] Approved by Lead
   - [ ] Approved by PO

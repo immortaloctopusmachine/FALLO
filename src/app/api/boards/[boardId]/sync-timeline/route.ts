@@ -6,6 +6,7 @@ import {
   ApiErrors,
 } from '@/lib/api-utils';
 import { PHASE_SEARCH_TERMS } from '@/lib/constants';
+import { ensureTimelineBlockIntegrity } from '@/lib/timeline-block-integrity';
 
 // POST /api/boards/[boardId]/sync-timeline - Create timeline blocks for existing planning lists
 export async function POST(
@@ -150,6 +151,8 @@ export async function POST(
         },
       });
     }
+
+    await ensureTimelineBlockIntegrity(boardId, { syncToList: true });
 
     return apiSuccess({
       message: `Created ${createdBlocks.length} timeline blocks`,

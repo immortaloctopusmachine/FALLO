@@ -209,7 +209,7 @@ export function CreateLinkedTasksModal({
               className="mt-1"
             />
             <p className="mt-1 text-tiny text-text-tertiary">
-              Auto-generates titles like &quot;{baseName || '...'} - CONCEPT&quot;, &quot;{baseName || '...'} - STATIC ART&quot;, etc.
+              Auto-generates titles like &quot;{baseName || '...'} - CONCEPT&quot;, &quot;{baseName || '...'} - STATIC ASSETS&quot;, etc.
             </p>
           </div>
 

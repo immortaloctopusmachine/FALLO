@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { formatShortMonthYear } from '@/lib/date-utils';
 
 interface TimelineDateHeaderProps {
   startDate: Date;
@@ -87,7 +88,7 @@ export function TimelineDateHeader({
     let currentIndex = 0;
 
     columns.forEach((col, index) => {
-      const month = col.date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const month = formatShortMonthYear(col.date);
       if (month !== currentMonth) {
         if (currentMonth) {
           groups[groups.length - 1].count = index - currentIndex;

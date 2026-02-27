@@ -213,6 +213,19 @@ export async function POST(
           },
         });
 
+        // Activate preview assignments when moving from Planning to Tasks list
+        if (sourceList?.viewType === 'PLANNING' && destList?.viewType === 'TASKS') {
+          await tx.cardUser.updateMany({
+            where: {
+              cardId,
+              activatedAt: null, // Only update preview assignments
+            },
+            data: {
+              activatedAt: new Date(), // Activate them
+            },
+          });
+        }
+
         if (sourceList && destList) {
           await handleCardListTransition(tx, {
             cardId,

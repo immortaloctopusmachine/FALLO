@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { moveBlockDates } from '@/lib/date-utils';
 import { renumberTimelineBlockPositions } from '@/lib/timeline-block-position';
+import { ensureTimelineBlockIntegrity } from '@/lib/timeline-block-integrity';
 import {
   requireAuth,
   requireAdmin,
@@ -144,6 +145,7 @@ export async function DELETE(
       await Promise.all(shiftUpdates);
     }
 
+    await ensureTimelineBlockIntegrity(boardId, { syncToList });
     await renumberTimelineBlockPositions(boardId);
 
     return apiSuccess({

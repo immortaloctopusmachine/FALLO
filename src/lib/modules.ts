@@ -73,8 +73,8 @@ export function normalizeModuleTaskTemplates(value: unknown): ModuleTaskTemplate
     const legacyKey = typeof row.key === 'string' ? row.key : '';
     const legacyMap: Record<string, { title: string; color: string; order: number }> = {
       concept: { title: 'CONCEPT', color: '#8b5cf6', order: 0 },
-      static_assets: { title: 'STATIC ART', color: '#22c55e', order: 1 },
-      static_art: { title: 'STATIC ART', color: '#22c55e', order: 1 },
+      static_assets: { title: 'STATIC ASSETS', color: '#22c55e', order: 1 },
+      static_art: { title: 'STATIC ASSETS', color: '#22c55e', order: 1 },
       concept_fx: { title: 'CONCEPT : FX/ANIMATION', color: '#8b5cf6', order: 2 },
       fx_animation: { title: 'FX/ANIMATION', color: '#ec4899', order: 3 },
     };
