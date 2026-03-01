@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { MVP_BADGE_DEFINITIONS } from '../src/lib/rewards/badge-seed-data';
+import { DEFAULT_SENIORITY_CONFIGS } from '../src/lib/rewards/seniority';
 
 const prisma = new PrismaClient();
 
@@ -170,6 +172,8 @@ async function main() {
   const defaultCompanyRoles = [
     { name: 'PO', description: 'Product Owner', color: '#8b5cf6' },
     { name: 'Lead', description: 'Team Lead', color: '#3b82f6' },
+    { name: 'Head of Art', description: 'Head of Art', color: '#0f766e' },
+    { name: 'Head of Animation', description: 'Head of Animation', color: '#0369a1' },
     { name: 'Artist', description: 'Visual Artist', color: '#ec4899' },
     { name: 'Animator', description: 'Spine / 2D Animator', color: '#f97316' },
     { name: 'QA', description: 'Quality Assurance', color: '#14b8a6' },
@@ -271,6 +275,43 @@ async function main() {
   }
 
   console.log('Created default review audience mappings');
+
+  for (const config of DEFAULT_SENIORITY_CONFIGS) {
+    await prisma.seniorityConfig.upsert({
+      where: { seniority: config.seniority },
+      update: config,
+      create: config,
+    });
+  }
+
+  console.log('Created default seniority configs');
+
+  for (const definition of MVP_BADGE_DEFINITIONS) {
+    await prisma.badgeDefinition.upsert({
+      where: { slug: definition.slug },
+      update: {
+        name: definition.name,
+        description: definition.description,
+        category: definition.category,
+        tier: definition.tier ?? null,
+        iconUrl: definition.iconUrl ?? null,
+        isActive: true,
+        conditions: definition.conditions,
+      },
+      create: {
+        slug: definition.slug,
+        name: definition.name,
+        description: definition.description,
+        category: definition.category,
+        tier: definition.tier ?? null,
+        iconUrl: definition.iconUrl ?? null,
+        isActive: true,
+        conditions: definition.conditions,
+      },
+    });
+  }
+
+  console.log(`Created MVP badge definitions: ${MVP_BADGE_DEFINITIONS.length}`);
 
   console.log('Seeding completed!');
 }

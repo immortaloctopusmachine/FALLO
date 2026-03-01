@@ -56,6 +56,7 @@ export async function GET(request: Request) {
         slackDisplayName: true,
         slackAvatarUrl: true,
         permission: true,
+        seniority: true,
         createdAt: true,
         teamMembers: {
           include: {
@@ -134,7 +135,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, password, name, permission, teamIds, skillIds, companyRoleIds, slackUserId } = body;
+    const {
+      email,
+      password,
+      name,
+      permission,
+      seniority,
+      teamIds,
+      skillIds,
+      companyRoleIds,
+      slackUserId,
+    } = body;
 
     // Validate required fields
     if (!email || !password) {
@@ -156,6 +167,11 @@ export async function POST(request: Request) {
     const validRoles = ['VIEWER', 'MEMBER', 'ADMIN', 'SUPER_ADMIN'];
     if (permission && !validRoles.includes(permission)) {
       return ApiErrors.validation('Invalid permission');
+    }
+
+    const validSeniorities = ['JUNIOR', 'MID', 'SENIOR'];
+    if (seniority !== undefined && seniority !== null && !validSeniorities.includes(seniority)) {
+      return ApiErrors.validation('Invalid seniority');
     }
 
     // Check if email already exists
@@ -217,6 +233,7 @@ export async function POST(request: Request) {
         slackAvatarUrl: resolvedSlackAvatarUrl,
         passwordHash,
         permission: permission || 'MEMBER',
+        seniority: seniority || null,
       },
       select: {
         id: true,
@@ -227,6 +244,7 @@ export async function POST(request: Request) {
         slackDisplayName: true,
         slackAvatarUrl: true,
         permission: true,
+        seniority: true,
         createdAt: true,
       },
     });
@@ -277,6 +295,7 @@ export async function POST(request: Request) {
         slackDisplayName: true,
         slackAvatarUrl: true,
         permission: true,
+        seniority: true,
         createdAt: true,
         teamMembers: {
           include: {

@@ -19,6 +19,12 @@ export const USER_PERMISSION_OPTIONS = [
   { value: 'SUPER_ADMIN', label: 'Super Admin', description: 'Full system access' },
 ] as const;
 
+export const USER_SENIORITY_OPTIONS = [
+  { value: 'JUNIOR', label: 'Junior', description: 'Entry-level baseline expectations' },
+  { value: 'MID', label: 'Mid', description: 'Mid-level baseline expectations' },
+  { value: 'SENIOR', label: 'Senior', description: 'Senior baseline expectations' },
+] as const;
+
 export function toggleSelectedId(
   setter: Dispatch<SetStateAction<string[]>>,
   id: string
@@ -59,6 +65,49 @@ export function PermissionSection({
               className={cn(
                 'text-body font-medium',
                 permission === option.value && 'text-success'
+              )}
+            >
+              {option.label}
+            </span>
+            <span className="text-caption text-text-tertiary">
+              {option.description}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface SenioritySectionProps {
+  seniority: string;
+  onSeniorityChange: (seniority: string) => void;
+}
+
+export function SenioritySection({
+  seniority,
+  onSeniorityChange,
+}: SenioritySectionProps) {
+  return (
+    <div className="space-y-2">
+      <Label>Seniority</Label>
+      <div className="grid grid-cols-3 gap-2">
+        {USER_SENIORITY_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSeniorityChange(option.value)}
+            className={cn(
+              'flex flex-col items-start rounded-md border-2 p-2 text-left transition-colors',
+              seniority === option.value
+                ? 'border-success bg-success/10'
+                : 'border-border hover:border-success/50'
+            )}
+          >
+            <span
+              className={cn(
+                'text-body font-medium',
+                seniority === option.value && 'text-success'
               )}
             >
               {option.label}

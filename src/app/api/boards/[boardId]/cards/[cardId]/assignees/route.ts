@@ -23,7 +23,7 @@ export async function GET(
 
     const card = await prisma.card.findFirst({
       where: { id: cardId, list: { boardId } },
-      select: { id: true },
+      select: { id: true, type: true },
     });
 
     if (!card) {
@@ -68,7 +68,7 @@ export async function POST(
 
     const card = await prisma.card.findFirst({
       where: { id: cardId, list: { boardId } },
-      select: { id: true },
+      select: { id: true, type: true },
     });
 
     if (!card) {
@@ -102,6 +102,18 @@ export async function POST(
 
     if (existing) {
       return ApiErrors.conflict('User is already assigned');
+    }
+
+    if (card.type === 'TASK') {
+      const currentAssigneeCount = await prisma.cardUser.count({
+        where: { cardId },
+      });
+
+      if (currentAssigneeCount >= 1) {
+        return ApiErrors.validation(
+          'Task cards can only have one assignee. Remove the current assignee first.'
+        );
+      }
     }
 
     const assignee = await prisma.cardUser.create({

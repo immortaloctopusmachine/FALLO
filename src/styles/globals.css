@@ -144,6 +144,64 @@
     --board-gradient-red: linear-gradient(135deg, #7F1D1D 0%, #B91C1C 50%, #F87171 100%);
   }
 
+  .slate .global-top-header nav a.global-nav-item[data-slate-accent='true'] {
+    border: 1px solid var(--slate-nav-border, rgba(255, 255, 255, 0.12));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 35%),
+      linear-gradient(180deg, var(--slate-nav-fill, rgba(255, 255, 255, 0.08)), rgba(21, 25, 34, 0.08));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: var(--slate-nav-icon, #C9D7FF);
+  }
+
+  .slate .global-top-header nav a.global-nav-item[data-slate-accent='true']:hover {
+    border-color: var(--slate-nav-border-strong, rgba(255, 255, 255, 0.2));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 35%),
+      linear-gradient(180deg, var(--slate-nav-fill-strong, rgba(255, 255, 255, 0.12)), rgba(21, 25, 34, 0.1));
+    color: #F6F4FF;
+    transform: translateY(-1px);
+  }
+
+  .slate .global-top-header nav a.global-nav-item.bg-primary\/10[data-slate-accent='true'] {
+    border-color: var(--slate-nav-border-strong, rgba(255, 255, 255, 0.2));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 30%),
+      linear-gradient(180deg, var(--slate-nav-solid, #5A97F8), var(--slate-nav-solid-deep, #3553A8));
+    color: #FFFDFE;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 8px 18px rgba(0, 0, 0, 0.16);
+  }
+
+  .slate .global-top-header nav a.global-nav-item[data-slate-accent='true'] .sparkle-icon-glyph {
+    color: var(--slate-nav-icon, #C9D7FF);
+  }
+
+  .slate .global-top-header nav a.global-nav-item[data-slate-accent='true'] .sparkle-icon-chip {
+    border-color: var(--slate-nav-border, rgba(255, 255, 255, 0.12));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%),
+      linear-gradient(180deg, var(--slate-nav-fill, rgba(255, 255, 255, 0.08)), rgba(21, 25, 34, 0.22));
+  }
+
+  .slate .global-top-header nav a.global-nav-item[data-slate-accent='true']:hover .sparkle-icon-chip {
+    border-color: var(--slate-nav-border-strong, rgba(255, 255, 255, 0.2));
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 45%),
+      linear-gradient(180deg, var(--slate-nav-fill-strong, rgba(255, 255, 255, 0.12)), rgba(21, 25, 34, 0.18));
+  }
+
+  .slate .global-top-header nav a.global-nav-item.bg-primary\/10[data-slate-accent='true'] .sparkle-icon-glyph {
+    color: #FFFDFE;
+  }
+
+  .slate .global-top-header nav a.global-nav-item.bg-primary\/10[data-slate-accent='true'] .sparkle-icon-chip {
+    border-color: rgba(255, 255, 255, 0.26);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 45%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(0, 0, 0, 0.14));
+  }
+
   .windows95 {
     /* Windows 95: classic desktop chrome with beveled controls */
     --background: #008080;

@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import { parseBoardArchivedOnlyAt, parseProjectArchivedAt } from '@/lib/project-archive';
 import { getQualityAccessContext } from '@/lib/quality-review-api';
+import { listRecentBadgeAwards } from '@/lib/rewards/badges';
+import { getLoginStreakSummary } from '@/lib/rewards/login-tracking';
+import { listSerializedActiveStreaks } from '@/lib/rewards/streaks';
 
 const DUE_SOON_DAYS = 7;
 
@@ -33,7 +36,7 @@ export async function GET() {
     const dueSoonThreshold = new Date(now);
     dueSoonThreshold.setDate(dueSoonThreshold.getDate() + DUE_SOON_DAYS);
 
-    const [access, viewer, boardMemberships, taskAssignments, notifications, unreadNotifications] =
+    const [access, viewer, boardMemberships, taskAssignments, notifications, unreadNotifications, loginStreak, recentBadgeAwards, activeStreaks] =
       await Promise.all([
         getQualityAccessContext(prisma, userId),
         prisma.user.findUnique({
@@ -148,6 +151,9 @@ export async function GET() {
             read: false,
           },
         }),
+        getLoginStreakSummary(prisma, userId),
+        listRecentBadgeAwards(prisma, userId, 4),
+        listSerializedActiveStreaks(prisma, userId),
       ]);
 
     // Fetch all pending review cycles with board settings to filter by project role assignments
@@ -324,7 +330,11 @@ export async function GET() {
 
     const evaluatorRoles = access?.evaluatorRoles ?? [];
     const suggestedRoutes = new Set<string>(['/boards']);
-    if (evaluatorRoles.includes('PO') || evaluatorRoles.includes('HEAD_OF_ART')) {
+    if (
+      evaluatorRoles.includes('PO') ||
+      evaluatorRoles.includes('HEAD_OF_ART') ||
+      evaluatorRoles.includes('HEAD_OF_ANIMATION')
+    ) {
       suggestedRoutes.add('/timeline');
       suggestedRoutes.add('/projects');
     }
@@ -367,6 +377,16 @@ export async function GET() {
         ...notification,
         createdAt: notification.createdAt.toISOString(),
       })),
+      rewards: {
+        loginStreak: {
+          currentStreak: loginStreak.currentStreak,
+          longestStreak: loginStreak.longestStreak,
+          totalLoginDays: loginStreak.totalLoginDays,
+          lastLoginDate: loginStreak.lastLoginDate?.toISOString().slice(0, 10) ?? null,
+        },
+        activeStreaks: activeStreaks.slice(0, 4),
+        recentBadgeAwards: recentBadgeAwards,
+      },
       suggestedRoutes: Array.from(suggestedRoutes),
     });
   } catch (error) {

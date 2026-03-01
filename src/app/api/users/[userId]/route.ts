@@ -31,6 +31,7 @@ export async function GET(
         slackDisplayName: true,
         slackAvatarUrl: true,
         permission: true,
+        seniority: true,
         createdAt: true,
         teamMembers: {
           include: {
@@ -165,7 +166,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, image, permission, teamIds, skillIds, companyRoleIds, slackUserId } = body;
+    const { name, image, permission, seniority, teamIds, skillIds, companyRoleIds, slackUserId } = body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -185,6 +186,17 @@ export async function PATCH(
       // Only Super Admins can assign SUPER_ADMIN permission
       if (permission === 'SUPER_ADMIN' && !isSuperAdmin) {
         return ApiErrors.forbidden('Only Super Admins can assign Super Admin permission');
+      }
+    }
+
+    if (seniority !== undefined) {
+      const validSeniorities = ['JUNIOR', 'MID', 'SENIOR'];
+      const isValid = seniority === null || validSeniorities.includes(seniority);
+      if (!isValid) {
+        return ApiErrors.validation('Invalid seniority');
+      }
+      if (!isAdmin) {
+        return ApiErrors.forbidden('Admin access required to manage seniority');
       }
     }
 
@@ -226,6 +238,7 @@ export async function PATCH(
     }
     // Only Super Admins can change permissions
     if (permission !== undefined && isSuperAdmin) updateData.permission = permission;
+    if (seniority !== undefined && isAdmin) updateData.seniority = seniority || null;
 
     // Update the user
     await prisma.user.update({
@@ -303,6 +316,7 @@ export async function PATCH(
         slackDisplayName: true,
         slackAvatarUrl: true,
         permission: true,
+        seniority: true,
         teamMembers: {
           include: {
             team: {

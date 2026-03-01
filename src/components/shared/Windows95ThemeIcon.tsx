@@ -31,6 +31,7 @@ const WINDOWS95_ICON_MAP: Record<SkinIconName, Win95IconComponent> = {
   'nav-organization': MicrosoftNetwork,
   'nav-teams': User2,
   'nav-users': User,
+  'nav-academy': Globe,
   'nav-settings': Settings,
   'toggle-light': Globe,
   'toggle-windows95': WindowsExplorer,

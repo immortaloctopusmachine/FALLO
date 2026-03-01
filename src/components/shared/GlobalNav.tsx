@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,7 +12,7 @@ import {
   Building2,
   Users,
   User,
-
+  GraduationCap,
   Settings,
   Palette,
   Sun,
@@ -63,18 +63,153 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   iconName: SkinIconName;
+  slateAccent: {
+    fill: string;
+    fillStrong: string;
+    solid: string;
+    solidDeep: string;
+    border: string;
+    borderStrong: string;
+    icon: string;
+  };
 }
 
 const navItems: NavItem[] = [
-  { href: '/home', label: 'Home', icon: Home, iconName: 'nav-home' },
-  { href: '/timeline', label: 'Timeline', icon: Calendar, iconName: 'nav-timeline' },
-  { href: '/projects', label: 'Projects', icon: FolderKanban, iconName: 'nav-projects' },
-  { href: '/boards', label: 'Boards', icon: LayoutGrid, iconName: 'nav-boards' },
-  { href: '/organization', label: 'Organization', icon: Building2, iconName: 'nav-organization' },
-  { href: '/teams', label: 'Teams', icon: Users, iconName: 'nav-teams' },
-  { href: '/users', label: 'Users', icon: User, iconName: 'nav-users' },
-
-  { href: '/settings', label: 'Settings', icon: Settings, iconName: 'nav-settings' },
+  {
+    href: '/home',
+    label: 'Home',
+    icon: Home,
+    iconName: 'nav-home',
+    slateAccent: {
+      fill: 'rgba(90, 151, 248, 0.14)',
+      fillStrong: 'rgba(90, 151, 248, 0.22)',
+      solid: '#4674D7',
+      solidDeep: '#2D53A8',
+      border: 'rgba(90, 151, 248, 0.3)',
+      borderStrong: 'rgba(144, 190, 255, 0.55)',
+      icon: '#9BC4FF',
+    },
+  },
+  {
+    href: '/timeline',
+    label: 'Timeline',
+    icon: Calendar,
+    iconName: 'nav-timeline',
+    slateAccent: {
+      fill: 'rgba(59, 211, 215, 0.14)',
+      fillStrong: 'rgba(59, 211, 215, 0.22)',
+      solid: '#2AAAB0',
+      solidDeep: '#1E7E83',
+      border: 'rgba(59, 211, 215, 0.3)',
+      borderStrong: 'rgba(146, 238, 240, 0.5)',
+      icon: '#8BECEE',
+    },
+  },
+  {
+    href: '/projects',
+    label: 'Projects',
+    icon: FolderKanban,
+    iconName: 'nav-projects',
+    slateAccent: {
+      fill: 'rgba(91, 214, 140, 0.14)',
+      fillStrong: 'rgba(91, 214, 140, 0.22)',
+      solid: '#3FAE6D',
+      solidDeep: '#2B7B4C',
+      border: 'rgba(91, 214, 140, 0.3)',
+      borderStrong: 'rgba(156, 242, 191, 0.5)',
+      icon: '#A4F1BD',
+    },
+  },
+  {
+    href: '/boards',
+    label: 'Boards',
+    icon: LayoutGrid,
+    iconName: 'nav-boards',
+    slateAccent: {
+      fill: 'rgba(244, 186, 82, 0.14)',
+      fillStrong: 'rgba(244, 186, 82, 0.22)',
+      solid: '#D39A3D',
+      solidDeep: '#986A1F',
+      border: 'rgba(244, 186, 82, 0.3)',
+      borderStrong: 'rgba(255, 219, 150, 0.5)',
+      icon: '#FFD58F',
+    },
+  },
+  {
+    href: '/organization',
+    label: 'Organization',
+    icon: Building2,
+    iconName: 'nav-organization',
+    slateAccent: {
+      fill: 'rgba(242, 92, 132, 0.14)',
+      fillStrong: 'rgba(242, 92, 132, 0.22)',
+      solid: '#D25278',
+      solidDeep: '#9A3151',
+      border: 'rgba(242, 92, 132, 0.3)',
+      borderStrong: 'rgba(255, 171, 194, 0.5)',
+      icon: '#FFABC2',
+    },
+  },
+  {
+    href: '/teams',
+    label: 'Teams',
+    icon: Users,
+    iconName: 'nav-teams',
+    slateAccent: {
+      fill: 'rgba(166, 118, 255, 0.14)',
+      fillStrong: 'rgba(166, 118, 255, 0.22)',
+      solid: '#8A63E1',
+      solidDeep: '#623FAD',
+      border: 'rgba(166, 118, 255, 0.3)',
+      borderStrong: 'rgba(212, 184, 255, 0.5)',
+      icon: '#D2B8FF',
+    },
+  },
+  {
+    href: '/users',
+    label: 'Users',
+    icon: User,
+    iconName: 'nav-users',
+    slateAccent: {
+      fill: 'rgba(114, 167, 255, 0.14)',
+      fillStrong: 'rgba(114, 167, 255, 0.22)',
+      solid: '#5689D9',
+      solidDeep: '#375FAA',
+      border: 'rgba(114, 167, 255, 0.3)',
+      borderStrong: 'rgba(180, 212, 255, 0.5)',
+      icon: '#B4D4FF',
+    },
+  },
+  {
+    href: '/academy',
+    label: 'Academy',
+    icon: GraduationCap,
+    iconName: 'nav-academy',
+    slateAccent: {
+      fill: 'rgba(55, 211, 164, 0.14)',
+      fillStrong: 'rgba(55, 211, 164, 0.22)',
+      solid: '#2CA386',
+      solidDeep: '#1E7560',
+      border: 'rgba(55, 211, 164, 0.3)',
+      borderStrong: 'rgba(154, 244, 220, 0.5)',
+      icon: '#9AF4DC',
+    },
+  },
+  {
+    href: '/settings',
+    label: 'Settings',
+    icon: Settings,
+    iconName: 'nav-settings',
+    slateAccent: {
+      fill: 'rgba(154, 150, 166, 0.16)',
+      fillStrong: 'rgba(154, 150, 166, 0.24)',
+      solid: '#797489',
+      solidDeep: '#575363',
+      border: 'rgba(154, 150, 166, 0.3)',
+      borderStrong: 'rgba(210, 206, 223, 0.44)',
+      icon: '#C7C3D4',
+    },
+  },
 ];
 
 const themeToggleIcons: Record<UiTheme, { iconName: SkinIconName; fallback: LucideIcon }> = {
@@ -265,12 +400,25 @@ export function GlobalNav({ userName, userEmail }: GlobalNavProps) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = getIsActive(item.href);
+            const slateAccentStyle = theme === 'slate'
+              ? ({
+                  ['--slate-nav-fill' as string]: item.slateAccent.fill,
+                  ['--slate-nav-fill-strong' as string]: item.slateAccent.fillStrong,
+                  ['--slate-nav-solid' as string]: item.slateAccent.solid,
+                  ['--slate-nav-solid-deep' as string]: item.slateAccent.solidDeep,
+                  ['--slate-nav-border' as string]: item.slateAccent.border,
+                  ['--slate-nav-border-strong' as string]: item.slateAccent.borderStrong,
+                  ['--slate-nav-icon' as string]: item.slateAccent.icon,
+                } as CSSProperties)
+              : undefined;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onMouseEnter={() => prefetch(item.href)}
                 onFocus={() => prefetch(item.href)}
+                data-slate-accent={theme === 'slate' ? 'true' : undefined}
+                style={slateAccentStyle}
                 className={cn(
                   'global-nav-item flex items-center gap-2 px-3 py-1.5 rounded-md text-body transition-colors',
                   isActive

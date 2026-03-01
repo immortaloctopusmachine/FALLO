@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Team } from '@/types';
 import {
+  SenioritySection,
   UserDialogShell,
   type UserCompanyRoleOption,
   UserMetadataFormBlock,
@@ -54,6 +55,7 @@ export function CreateUserDialog({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [permission, setPermission] = useState<string>('MEMBER');
+  const [seniority, setSeniority] = useState<string>('MID');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [selectedCompanyRoleIds, setSelectedCompanyRoleIds] = useState<string[]>([]);
@@ -72,6 +74,7 @@ export function CreateUserDialog({
       setPassword('');
       setShowPassword(false);
       setPermission('MEMBER');
+      setSeniority('MID');
       setSelectedTeamIds([]);
       setSelectedSkillIds([]);
       setSelectedCompanyRoleIds([]);
@@ -141,6 +144,7 @@ export function CreateUserDialog({
           name: name.trim() || undefined,
           password,
           permission,
+          seniority,
           teamIds: selectedTeamIds.length > 0 ? selectedTeamIds : undefined,
           skillIds: selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
           companyRoleIds: selectedCompanyRoleIds.length > 0 ? selectedCompanyRoleIds : undefined,
@@ -302,6 +306,11 @@ export function CreateUserDialog({
         selectionState={metadataSelectionState}
         optionalSelections
         error={error}
+      />
+
+      <SenioritySection
+        seniority={seniority}
+        onSeniorityChange={setSeniority}
       />
 
       <UserFormSubmitActions

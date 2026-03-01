@@ -10,6 +10,7 @@ const DONE_NAME_HINTS = ['done', 'complete', 'completed', 'finished'];
 const LEAD_ROLE_HINTS = ['lead'];
 const PO_ROLE_HINTS = ['po', 'product owner'];
 const HEAD_OF_ART_ROLE_HINTS = ['head of art', 'headofart'];
+const HEAD_OF_ANIMATION_ROLE_HINTS = ['head of animation', 'headofanimation'];
 
 export const REVIEW_TRANSIENT_WINDOW_MS = 2_000;
 
@@ -77,7 +78,9 @@ export interface DivergenceFlag {
 const DIVERGENCE_PAIRS: Array<[EvaluatorRole, EvaluatorRole]> = [
   ['LEAD', 'PO'],
   ['LEAD', 'HEAD_OF_ART'],
+  ['LEAD', 'HEAD_OF_ANIMATION'],
   ['PO', 'HEAD_OF_ART'],
+  ['PO', 'HEAD_OF_ANIMATION'],
 ];
 
 function normalizeRoleName(value: string): string {
@@ -286,11 +289,19 @@ export async function handleCardListTransition(
   }
 
   if (result.movedToDone) {
+    await db.card.update({
+      where: { id: params.cardId },
+      data: { completedAt: now },
+    });
     result.finalCycleId = await markFinalAndLockCardCycles(db, params.cardId, now);
     result.cardLocked = true;
   }
 
   if (result.reopenedFromDone) {
+    await db.card.update({
+      where: { id: params.cardId },
+      data: { completedAt: null },
+    });
     await clearFinalAndUnlockCardCycles(db, params.cardId);
     result.cardUnlocked = true;
   }
@@ -327,6 +338,14 @@ export function resolveEvaluatorRolesFromRoleNames(
       normalized === 'head art'
     ) {
       roles.add('HEAD_OF_ART');
+      continue;
+    }
+
+    if (
+      HEAD_OF_ANIMATION_ROLE_HINTS.some((hint) => normalized.includes(hint)) ||
+      normalized === 'head animation'
+    ) {
+      roles.add('HEAD_OF_ANIMATION');
       continue;
     }
 

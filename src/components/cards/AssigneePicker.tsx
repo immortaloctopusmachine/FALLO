@@ -73,6 +73,7 @@ export function AssigneePicker({
         permission: member.user.permission,
       },
       assignedAt: new Date().toISOString(),
+      activatedAt: new Date().toISOString(),
     };
     onUpdate([...assignees, tempAssignee]);
 

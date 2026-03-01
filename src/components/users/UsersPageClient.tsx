@@ -16,6 +16,7 @@ interface UsersPageUser {
   email: string;
   image: string | null;
   permission: string;
+  seniority?: string | null;
   teamMembers: {
     team: {
       id: string;
@@ -55,6 +56,10 @@ export function UsersPageClient({ isSuperAdmin }: UsersPageClientProps) {
   if (isLoading || !data) return <UsersSkeleton />;
 
   const { users, teams, skills, companyRoles } = data;
+  const formatSeniority = (seniority: string | null | undefined) => {
+    if (!seniority) return null;
+    return seniority.charAt(0) + seniority.slice(1).toLowerCase();
+  };
 
   return (
     <main className="p-6 flex-1">
@@ -84,6 +89,9 @@ export function UsersPageClient({ isSuperAdmin }: UsersPageClientProps) {
               </th>
               <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
                 Permission
+              </th>
+              <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
+                Seniority
               </th>
               <th className="text-left text-caption font-medium text-text-secondary px-4 py-3">
                 Teams
@@ -136,6 +144,15 @@ export function UsersPageClient({ isSuperAdmin }: UsersPageClientProps) {
                   <span className="text-body text-text-secondary capitalize">
                     {user.permission.toLowerCase().replace('_', ' ')}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  {user.seniority ? (
+                    <span className="inline-flex rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-tiny font-medium uppercase tracking-[0.12em] text-success">
+                      {formatSeniority(user.seniority)}
+                    </span>
+                  ) : (
+                    <span className="text-caption text-text-tertiary">Not set</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">

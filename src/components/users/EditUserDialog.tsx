@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Team, User as BaseUser } from '@/types';
 import {
+  SenioritySection,
   type UserCompanyRoleOption,
   UserDialogShell,
   UserMetadataFormBlock,
@@ -31,6 +32,7 @@ interface UserToEdit {
   name: BaseUser['name'];
   email: BaseUser['email'];
   permission: string;
+  seniority?: string | null;
   teamMembers: {
     team: Team;
   }[];
@@ -70,6 +72,7 @@ export function EditUserDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [permission, setPermission] = useState<string>('MEMBER');
+  const [seniority, setSeniority] = useState<string>('MID');
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [selectedCompanyRoleIds, setSelectedCompanyRoleIds] = useState<string[]>([]);
@@ -83,6 +86,7 @@ export function EditUserDialog({
     if (user) {
       setName(user.name || '');
       setPermission(user.permission);
+      setSeniority(user.seniority || 'MID');
       setSelectedTeamIds(user.teamMembers.map(tm => tm.team.id));
       setSelectedSkillIds(user.userSkills.map(us => us.skill.id));
       setSelectedCompanyRoleIds(user.userCompanyRoles?.map(ucr => ucr.companyRole.id) || []);
@@ -126,6 +130,7 @@ export function EditUserDialog({
         body: JSON.stringify({
           name: name.trim() || null,
           permission,
+          seniority,
           teamIds: selectedTeamIds,
           skillIds: selectedSkillIds,
           companyRoleIds: selectedCompanyRoleIds,
@@ -227,6 +232,11 @@ export function EditUserDialog({
           roles={companyRoles}
           selectionState={metadataSelectionState}
           error={error}
+        />
+
+        <SenioritySection
+          seniority={seniority}
+          onSeniorityChange={setSeniority}
         />
 
         <UserFormSubmitActions

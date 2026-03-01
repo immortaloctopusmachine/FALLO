@@ -344,6 +344,9 @@ export async function POST(
 
           // Create user assignments (activated for IMMEDIATE tasks)
           if (override?.previewAssignedUserIds?.length) {
+            if (override.previewAssignedUserIds.length > 1) {
+              throw new Error(`Task templates only support one assigned user for ${template.title}`);
+            }
             const assignmentData = override.previewAssignedUserIds.map((userId) => ({
               cardId: createdTaskId,
               userId,
@@ -417,6 +420,9 @@ export async function POST(
 
         // Create preview user assignments (not activated for STAGED tasks)
         if (override?.previewAssignedUserIds?.length) {
+          if (override.previewAssignedUserIds.length > 1) {
+            throw new Error(`Task templates only support one assigned user for ${template.title}`);
+          }
           const assignmentData = override.previewAssignedUserIds.map((userId) => ({
             cardId: createdTaskId,
             userId,

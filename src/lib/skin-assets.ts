@@ -20,6 +20,7 @@ export const SKIN_ICON_NAMES = [
   'nav-organization',
   'nav-teams',
   'nav-users',
+  'nav-academy',
   'nav-settings',
   'toggle-light',
   'toggle-windows95',

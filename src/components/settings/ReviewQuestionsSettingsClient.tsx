@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,6 +49,19 @@ export function ReviewQuestionsSettingsClient() {
   const [scoringOptions, setScoringOptions] = useState<string[]>([]);
   const [questions, setQuestions] = useState<ReviewQuestion[]>([]);
   const [newQuestion, setNewQuestion] = useState<NewQuestionForm>(DEFAULT_NEW_FORM);
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
+
+  const toggleQuestionExpanded = (questionId: string) => {
+    setExpandedQuestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+      return next;
+    });
+  };
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -301,114 +315,136 @@ export function ReviewQuestionsSettingsClient() {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="max-h-[600px] space-y-3 overflow-y-auto pr-1">
         {questions
           .slice()
           .sort((a, b) => a.position - b.position)
-          .map((question, index, sortedQuestions) => (
-            <div key={question.id} className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="text-caption text-text-tertiary">Position #{question.position}</div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleReorder(question.id, 'up')}
-                    disabled={isSaving || index === 0}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleReorder(question.id, 'down')}
-                    disabled={isSaving || index === sortedQuestions.length - 1}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-error hover:bg-error/10 hover:text-error"
-                    onClick={() => handleDelete(question.id)}
-                    disabled={isSaving}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+          .map((question, index, sortedQuestions) => {
+            const isExpanded = expandedQuestions.has(question.id);
+            return (
+              <div key={question.id} className="rounded-lg border border-border-subtle bg-surface">
+                <div
+                  className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 select-none hover:bg-surface-hover"
+                  onClick={() => toggleQuestionExpanded(question.id)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ChevronDown className={cn('h-4 w-4 shrink-0 text-text-tertiary transition-transform', !isExpanded && '-rotate-90')} />
+                    <span className="text-caption text-text-tertiary shrink-0">#{question.position}</span>
+                    <span className="truncate text-body font-medium text-text-primary">{question.name}</span>
+                    <span className="shrink-0 rounded-full border border-border-subtle px-1.5 py-0.5 text-[10px] text-text-tertiary">
+                      {question.audience}
+                    </span>
+                    {!question.isActive && (
+                      <span className="shrink-0 rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] text-warning">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleReorder(question.id, 'up')}
+                      disabled={isSaving || index === 0}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleReorder(question.id, 'down')}
+                      disabled={isSaving || index === sortedQuestions.length - 1}
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-error hover:bg-error/10 hover:text-error"
+                      onClick={() => handleDelete(question.id)}
+                      disabled={isSaving}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
+
+                {isExpanded && (
+                  <div className="space-y-3 border-t border-border-subtle px-4 py-3">
+                    <Input
+                      value={question.name}
+                      onChange={(event) =>
+                        updateQuestionLocal(question.id, (current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      placeholder="Question name"
+                    />
+
+                    <Textarea
+                      value={question.description || ''}
+                      onChange={(event) =>
+                        updateQuestionLocal(question.id, (current) => ({
+                          ...current,
+                          description: event.target.value || null,
+                        }))
+                      }
+                      rows={2}
+                      placeholder="Description"
+                    />
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="space-y-1">
+                        <div className="text-caption text-text-secondary">Audience</div>
+                        <Select
+                          value={question.audience}
+                          onValueChange={(value: 'LEAD' | 'PO' | 'BOTH') => {
+                            updateQuestionLocal(question.id, (current) => ({
+                              ...current,
+                              audience: value,
+                            }));
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="LEAD">Lead</SelectItem>
+                            <SelectItem value="PO">PO</SelectItem>
+                            <SelectItem value="BOTH">Both</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 text-caption text-text-secondary">
+                      <input
+                        type="checkbox"
+                        checked={question.isActive}
+                        onChange={(event) =>
+                          updateQuestionLocal(question.id, (current) => ({
+                            ...current,
+                            isActive: event.target.checked,
+                          }))
+                        }
+                      />
+                      Active
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleSaveDetails(question)} disabled={isSaving}>
+                        Save Details
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleSaveAudience(question)} disabled={isSaving}>
+                        Save Audience
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              <Input
-                value={question.name}
-                onChange={(event) =>
-                  updateQuestionLocal(question.id, (current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                placeholder="Question name"
-              />
-
-              <Textarea
-                value={question.description || ''}
-                onChange={(event) =>
-                  updateQuestionLocal(question.id, (current) => ({
-                    ...current,
-                    description: event.target.value || null,
-                  }))
-                }
-                rows={2}
-                placeholder="Description"
-              />
-
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="space-y-1">
-                  <div className="text-caption text-text-secondary">Audience</div>
-                  <Select
-                    value={question.audience}
-                    onValueChange={(value: 'LEAD' | 'PO' | 'BOTH') => {
-                      updateQuestionLocal(question.id, (current) => ({
-                        ...current,
-                        audience: value,
-                      }));
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LEAD">Lead</SelectItem>
-                      <SelectItem value="PO">PO</SelectItem>
-                      <SelectItem value="BOTH">Both</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <label className="inline-flex items-center gap-2 text-caption text-text-secondary">
-                <input
-                  type="checkbox"
-                  checked={question.isActive}
-                  onChange={(event) =>
-                    updateQuestionLocal(question.id, (current) => ({
-                      ...current,
-                      isActive: event.target.checked,
-                    }))
-                  }
-                />
-                Active
-              </label>
-
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleSaveDetails(question)} disabled={isSaving}>
-                  Save Details
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleSaveAudience(question)} disabled={isSaving}>
-                  Save Audience
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
       </div>
     </div>
   );

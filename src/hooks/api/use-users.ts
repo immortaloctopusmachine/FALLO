@@ -7,6 +7,7 @@ interface UsersPageUser {
   email: string;
   image: string | null;
   permission: string;
+  seniority?: string | null;
   createdAt: string;
   teamMembers: {
     team: { id: string; name: string; color: string };
@@ -48,6 +49,7 @@ interface UserDetailData {
   slackDisplayName?: string | null;
   slackAvatarUrl?: string | null;
   permission: string;
+  seniority?: string | null;
   createdAt: string;
   teamMembers: {
     team: {

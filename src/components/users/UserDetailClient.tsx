@@ -80,6 +80,60 @@ interface UserQualitySummary {
   }>;
 }
 
+interface UserBadgeCollection {
+  userId: string;
+  totalAwards: number;
+  uniqueBadges: number;
+  trophyCase: Array<{
+    badge: {
+      id: string;
+      slug: string;
+      name: string;
+      description: string;
+      category: string;
+      tier: string | null;
+      iconUrl: string | null;
+    };
+    timesEarned: number;
+    firstAwardedAt: string;
+    lastAwardedAt: string;
+  }>;
+  recentAwards: Array<{
+    id: string;
+    awardedAt: string;
+    badge: {
+      id: string;
+      slug: string;
+      name: string;
+      description: string;
+      category: string;
+      tier: string | null;
+      iconUrl: string | null;
+    };
+  }>;
+}
+
+interface UserStreakSummary {
+  loginStreak: {
+    currentStreak: number;
+    longestStreak: number;
+    totalLoginDays: number;
+    lastLoginDate: string | null;
+    weekendsCounted: boolean;
+  };
+  activeStreaks: Array<{
+    id: string;
+    streakType: string;
+    label: string;
+    description: string;
+    currentCount: number;
+    longestCount: number;
+    lastQualifiedWeek: string | null;
+    graceUsed: boolean;
+    isActive: boolean;
+  }>;
+}
+
 export function UserDetailClient({
   userId,
   isSuperAdmin,
@@ -94,6 +148,24 @@ export function UserDetailClient({
     queryKey: ['metrics', 'users', userId, 'quality-summary'],
     queryFn: () => apiFetch<UserQualitySummary>(`/api/metrics/users/${userId}/quality-summary`),
     enabled: Boolean(userId) && canViewQualitySummaries,
+    retry: false,
+  });
+  const {
+    data: badgeCollection,
+    isLoading: isLoadingBadgeCollection,
+  } = useQuery({
+    queryKey: ['badges', 'users', userId],
+    queryFn: () => apiFetch<UserBadgeCollection>(`/api/badges/user/${userId}`),
+    enabled: Boolean(userId),
+    retry: false,
+  });
+  const {
+    data: streakSummary,
+    isLoading: isLoadingStreakSummary,
+  } = useQuery({
+    queryKey: ['streaks', 'users', userId],
+    queryFn: () => apiFetch<UserStreakSummary>(`/api/streaks/user/${userId}`),
+    enabled: Boolean(userId),
     retry: false,
   });
   const queryClient = useQueryClient();
@@ -313,6 +385,7 @@ export function UserDetailClient({
     name: user.name,
     email: user.email,
     permission: user.permission,
+    seniority: user.seniority,
     teamMembers: user.teamMembers.map(tm => ({
       team: {
         id: tm.team.id,
@@ -367,6 +440,11 @@ export function UserDetailClient({
                 <span className="capitalize px-2 py-0.5 rounded bg-surface-hover">
                   {user.permission.toLowerCase().replace('_', ' ')}
                 </span>
+                {user.seniority && (
+                  <span className="capitalize px-2 py-0.5 rounded bg-surface-hover">
+                    {user.seniority.toLowerCase()}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   Joined {formatDisplayDate(user.createdAt)}
@@ -497,6 +575,99 @@ export function UserDetailClient({
                 </Button>
               </div>
             )}
+
+            {/* Company Roles */}
+            <div className="mb-6 rounded-lg border border-border bg-surface p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-title font-medium text-text-secondary">
+                  Trophy Case
+                </h2>
+                <div className="text-caption text-text-tertiary">
+                  {badgeCollection?.uniqueBadges ?? 0} unique / {badgeCollection?.totalAwards ?? 0} total
+                </div>
+              </div>
+
+              {isLoadingBadgeCollection ? (
+                <div className="text-caption text-text-tertiary">Loading badges...</div>
+              ) : !badgeCollection || badgeCollection.trophyCase.length === 0 ? (
+                <div className="text-caption text-text-tertiary">No badges earned yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {badgeCollection.trophyCase.slice(0, 8).map((entry) => (
+                    <div
+                      key={entry.badge.id}
+                      className="rounded-md border border-border-subtle bg-background px-3 py-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-body font-medium text-text-primary">
+                            {entry.badge.name}
+                          </div>
+                          <div className="truncate text-caption text-text-secondary">
+                            {entry.badge.description}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right text-caption text-text-tertiary">
+                          <div>x{entry.timesEarned}</div>
+                          <div>{formatDisplayDate(entry.lastAwardedAt)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6 rounded-lg border border-border bg-surface p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-title font-medium text-text-secondary">
+                  Active Streaks
+                </h2>
+                <div className="text-caption text-text-tertiary">
+                  {streakSummary?.activeStreaks.length ?? 0} live
+                </div>
+              </div>
+
+              <div className="mb-3 rounded-md border border-border-subtle bg-background px-3 py-3">
+                <div className="text-caption text-text-secondary">Login streak</div>
+                <div className="mt-1 text-title font-semibold text-text-primary">
+                  {streakSummary?.loginStreak.currentStreak ?? 0} days
+                </div>
+                <div className="text-caption text-text-tertiary">
+                  Longest {streakSummary?.loginStreak.longestStreak ?? 0} days
+                </div>
+              </div>
+
+              {isLoadingStreakSummary ? (
+                <div className="text-caption text-text-tertiary">Loading streaks...</div>
+              ) : !streakSummary || streakSummary.activeStreaks.length === 0 ? (
+                <div className="text-caption text-text-tertiary">No active weekly streaks yet.</div>
+              ) : (
+                <div className="space-y-2">
+                  {streakSummary.activeStreaks.slice(0, 8).map((streak) => (
+                    <div
+                      key={streak.id}
+                      className="rounded-md border border-border-subtle bg-background px-3 py-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-body font-medium text-text-primary">
+                            {streak.label}
+                          </div>
+                          <div className="truncate text-caption text-text-secondary">
+                            {streak.description}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right text-caption text-text-tertiary">
+                          <div>{streak.currentCount} weeks</div>
+                          <div>best {streak.longestCount}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Company Roles */}
             {(user.userCompanyRoles || []).length > 0 && (

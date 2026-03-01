@@ -162,7 +162,10 @@ function isDimensionVisibleForEvaluatorRoles(
   dimension: ReviewDimensionWithRelations,
   evaluatorRoles: EvaluatorRole[]
 ): boolean {
-  if (evaluatorRoles.includes('HEAD_OF_ART')) {
+  if (
+    evaluatorRoles.includes('HEAD_OF_ART') ||
+    evaluatorRoles.includes('HEAD_OF_ANIMATION')
+  ) {
     return true;
   }
 
@@ -251,7 +254,7 @@ export async function requireQualitySummaryAccess(
   if (!hasQualitySummaryAccess(access.evaluatorRoles)) {
     return {
       response: ApiErrors.forbidden(
-        'Lead, PO, or Head of Art role required to view quality summaries'
+        'Lead, PO, Head of Art, or Head of Animation role required to view quality summaries'
       ),
     };
   }
@@ -295,7 +298,7 @@ export async function requireEvaluatorAccess(
   if (access.evaluatorRoles.length === 0) {
     return {
       response: ApiErrors.forbidden(
-        'Lead, PO, or Head of Art role required to submit evaluations'
+        'Lead, PO, Head of Art, or Head of Animation role required to submit evaluations'
       ),
     };
   }

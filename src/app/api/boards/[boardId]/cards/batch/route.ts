@@ -96,6 +96,10 @@ export async function POST(
         taskDestination,
       } = def;
 
+      if (Array.isArray(assigneeIds) && assigneeIds.length > 1) {
+        return ApiErrors.validation('Task cards can only have one assignee');
+      }
+
       // Validate title
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
         return ApiErrors.validation('Card title is required');

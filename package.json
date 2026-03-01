@@ -15,6 +15,8 @@
     "test:e2e": "playwright test",
     "cron:release:trigger": "node scripts/trigger-release-cron.mjs",
     "cron:slack:trigger": "node scripts/trigger-slack-summaries-cron.mjs",
+    "cron:rewards:backfill": "node scripts/trigger-rewards-backfill-cron.mjs",
+    "rewards:backfill:slice": "tsx scripts/run-rewards-backfill-slice.ts",
     "bench:board-payload": "tsx scripts/benchmark-board-payload.ts",
     "migrate:mark-board-only-archives": "tsx scripts/mark-board-only-archives.ts",
     "postinstall": "prisma generate",
@@ -22,7 +24,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:rewards": "tsx prisma/seed-rewards.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

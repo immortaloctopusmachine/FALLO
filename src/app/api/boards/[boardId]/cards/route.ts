@@ -86,6 +86,10 @@ export async function POST(
     const cardType: CardType = type || 'TASK';
     let targetListId = listId;
 
+    if (cardType === 'TASK' && Array.isArray(assigneeIds) && assigneeIds.length > 1) {
+      return ApiErrors.validation('Task cards can only have one assignee');
+    }
+
     // Initialize type-specific data with defaults, merged with any provided data
     const typeData: Record<string, unknown> = {};
     if (cardType === 'TASK') {

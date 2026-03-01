@@ -17,6 +17,7 @@ import {
   FileQuestion,
   Images,
   Bone,
+  Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,7 +45,12 @@ export function SettingsSidebarNav({ isSuperAdmin, isAdmin }: SettingsSidebarNav
   const settingsNav = useMemo(
     () => [
       ...baseSettingsNav,
-      ...(isAdmin ? [{ name: 'Spine Modules', href: '/settings/spine-modules', icon: Bone }] : []),
+      ...(isAdmin
+        ? [
+            { name: 'Rewards', href: '/settings/rewards', icon: Trophy },
+            { name: 'Spine Modules', href: '/settings/spine-modules', icon: Bone },
+          ]
+        : []),
       ...(isSuperAdmin
         ? [
             { name: 'Skins', href: '/settings/skins', icon: Palette },

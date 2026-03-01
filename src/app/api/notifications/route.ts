@@ -9,11 +9,13 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const unreadOnly = url.searchParams.get('unreadOnly') === 'true';
+    const type = url.searchParams.get('type');
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '20', 10), 50);
 
     const where = {
       userId: session.user.id,
       ...(unreadOnly ? { read: false } : {}),
+      ...(type ? { type } : {}),
     };
 
     const [notifications, unreadCount] = await Promise.all([

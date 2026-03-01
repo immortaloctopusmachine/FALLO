@@ -25,6 +25,7 @@ import {
   User,
   Users,
   Upload,
+  GraduationCap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -309,6 +310,7 @@ const ICON_FALLBACKS: Record<SkinIconName, LucideIcon> = {
   'nav-organization': Building2,
   'nav-teams': Users,
   'nav-users': User,
+  'nav-academy': GraduationCap,
   'nav-settings': Settings,
   'toggle-light': Sun,
   'toggle-windows95': Monitor,
@@ -679,7 +681,7 @@ export function SkinsSettingsClient() {
             : 'center';
 
           return (
-            <TabsContent key={theme} value={theme} className="space-y-4">
+            <TabsContent key={theme} value={theme} className="max-h-[calc(100vh-280px)] space-y-4 overflow-y-auto pr-1">
               <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
                 <div className="flex flex-col gap-4">
                   <section className="order-1 rounded-md border border-border bg-surface p-4 space-y-3 win95-section">

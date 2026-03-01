@@ -18,6 +18,10 @@ const ALLOWED_FILE_TYPES = [
   'video/mp4',
   'video/quicktime',
   'video/webm',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/webm',
 ];
 
 function generateUniqueFilename(originalName: string): string {

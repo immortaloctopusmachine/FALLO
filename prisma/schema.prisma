@@ -62,6 +62,22 @@ enum EvaluatorRole {
   LEAD
   PO
   HEAD_OF_ART
+  HEAD_OF_ANIMATION
+}
+
+enum Seniority {
+  JUNIOR
+  MID
+  SENIOR
+}
+
+enum BadgeCategory {
+  LOGIN
+  VELOCITY_STREAK
+  VELOCITY_MILESTONE
+  QUALITY_CONSISTENCY
+  QUALITY_VELOCITY_COMBINED
+  REVIEWER
 }
 
 enum ReviewScoreValue {
@@ -69,6 +85,18 @@ enum ReviewScoreValue {
   MEDIUM
   HIGH
   NOT_APPLICABLE
+}
+
+enum AcademyItemStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AcademyDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
 }
 
 // ============== MODELS ==============
@@ -331,6 +359,7 @@ model User {
   slackAvatarUrl   String?
   passwordHash     String? // For credentials auth
   permission       UserPermission @default(MEMBER) @map("role")
+  seniority        Seniority?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   deletedAt        DateTime? // Soft delete - user data preserved on boards
@@ -352,11 +381,22 @@ model User {
 
   // Notifications
   notifications Notification[]
+  dailyLoginRecords DailyLoginRecord[]
+  loginStreak LoginStreak?
+  weeklySnapshots WeeklySnapshot[]
+  badgeAwards BadgeAward[]
+  activeStreaks UserStreak[]
 
   // NextAuth relations
   accounts Account[]
   sessions Session[]
   spineSettings UserSpineSettings?
+
+  // Academy relations
+  academyTutorialsCreated AcademyTutorial[] @relation("TutorialCreator")
+  academyCoursesCreated   AcademyCourse[]   @relation("CourseCreator")
+  academyProgress         AcademyProgress[] @relation("AcademyProgressUser")
+  coinBalance             UserCoinBalance?  @relation("UserCoins")
 
   @@map("users")
 }
@@ -549,6 +589,7 @@ model Card {
   featureImagePosition Int       @default(50) // 0-100 vertical position %
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  completedAt          DateTime?
   archivedAt           DateTime?
 
   // Relations
@@ -950,4 +991,273 @@ model Notification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model SeniorityConfig {
+  id                    String    @id @default(cuid())
+  seniority             Seniority @unique
+  expectedPointsPerWeek Float     @default(10)
+  expectedQualityAvg    Float     @default(1.5)
+  warmUpPoints          Float     @default(1)
+  steadyHandRatio       Float     @default(0.5)
+  inTheFlowRatio        Float     @default(1.0)
+  onARollRatio          Float     @default(1.5)
+  powerhouseRatio       Float     @default(2.0)
+  forceOfNatureRatio    Float     @default(2.5)
+  updatedAt             DateTime  @updatedAt
+
+  @@map("seniority_configs")
+}
+
+model DailyLoginRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@map("daily_login_records")
+}
+
+model LoginStreak {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  totalLoginDays  Int       @default(0)
+  lastLoginDate   DateTime? @db.Date
+  weekendsCounted Boolean   @default(false)
+  updatedAt       DateTime  @updatedAt
+
+  @@map("login_streaks")
+}
+
+model WeeklySnapshot {
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate        DateTime
+  weekEndDate          DateTime
+  seniorityAtSnapshot  Seniority?
+  storyPointsCompleted Float     @default(0)
+  cardsCompleted       Int       @default(0)
+  avgQualityScore      Float?
+  avgTechnicalQuality  Float?
+  avgArtDirection      Float?
+  avgContextFit        Float?
+  avgDelivery          Float?
+  scoredCardCount      Int       @default(0)
+  firstPassCount       Int       @default(0)
+  firstPassRate        Float?
+  avgReviewCycles      Float?
+  evaluationsSubmitted Int       @default(0)
+  evaluationEligible   Int       @default(0)
+  evaluationRate       Float?
+  createdAt            DateTime  @default(now())
+
+  badgeAwards          BadgeAward[]
+
+  @@unique([userId, weekStartDate])
+  @@index([userId])
+  @@index([weekStartDate])
+  @@map("weekly_snapshots")
+}
+
+model BadgeDefinition {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String
+  description String
+  category    BadgeCategory
+  tier        String?
+  iconUrl     String?
+  isActive    Boolean       @default(true)
+  conditions  Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  awards      BadgeAward[]
+
+  // Academy rewards
+  tutorialRewards AcademyTutorial[] @relation("TutorialBadge")
+  courseRewards    AcademyCourse[]   @relation("CourseBadge")
+
+  @@map("badge_definitions")
+}
+
+model BadgeAward {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeDefinitionId String
+  badgeDefinition   BadgeDefinition @relation(fields: [badgeDefinitionId], references: [id])
+  awardedAt         DateTime        @default(now())
+  triggerSnapshotId String?
+  triggerSnapshot   WeeklySnapshot? @relation(fields: [triggerSnapshotId], references: [id])
+  metadata          Json?
+
+  @@index([userId])
+  @@index([badgeDefinitionId])
+  @@index([triggerSnapshotId])
+  @@map("badge_awards")
+}
+
+model UserStreak {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streakType        String
+  currentCount      Int       @default(0)
+  longestCount      Int       @default(0)
+  lastQualifiedWeek DateTime?
+  graceUsed         Boolean   @default(false)
+  isActive          Boolean   @default(true)
+
+  @@unique([userId, streakType])
+  @@index([userId])
+  @@map("user_streaks")
+}
+
+// ============== ACADEMY ==============
+
+model AcademyCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String?
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tutorials AcademyTutorial[]
+  courses   AcademyCourse[]
+
+  @@index([position])
+  @@map("academy_categories")
+}
+
+model AcademyTutorial {
+  id               String             @id @default(cuid())
+  title            String
+  description      String?
+  coverImage       String?
+  creatorName      String?
+  creatorAvatar    String?
+  status           AcademyItemStatus  @default(DRAFT)
+  difficulty       AcademyDifficulty?
+  estimatedMinutes Int?
+  passingScore     Int                @default(70)
+  coinsReward      Int                @default(0)
+  position         Int                @default(0)
+  contentBlocks    Json               @default("[]")
+  quiz             Json               @default("[]")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  categoryId        String?
+  category          AcademyCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  badgeDefinitionId String?
+  badgeDefinition   BadgeDefinition?  @relation("TutorialBadge", fields: [badgeDefinitionId], references: [id], onDelete: SetNull)
+  createdById       String
+  createdBy         User              @relation("TutorialCreator", fields: [createdById], references: [id])
+
+  progress AcademyProgress[]
+
+  @@index([status, position])
+  @@index([categoryId])
+  @@map("academy_tutorials")
+}
+
+model AcademyCourse {
+  id               String             @id @default(cuid())
+  title            String
+  description      String?
+  coverImage       String?
+  creatorName      String?
+  creatorAvatar    String?
+  status           AcademyItemStatus  @default(DRAFT)
+  difficulty       AcademyDifficulty?
+  estimatedMinutes Int?
+  passingScore     Int                @default(70)
+  coinsReward      Int                @default(0)
+  position         Int                @default(0)
+  finalQuiz        Json               @default("[]")
+  enforceOrder     Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  categoryId        String?
+  category          AcademyCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  badgeDefinitionId String?
+  badgeDefinition   BadgeDefinition?  @relation("CourseBadge", fields: [badgeDefinitionId], references: [id], onDelete: SetNull)
+  createdById       String
+  createdBy         User              @relation("CourseCreator", fields: [createdById], references: [id])
+
+  lessons  AcademyLesson[]
+  progress AcademyProgress[]
+
+  @@index([status, position])
+  @@index([categoryId])
+  @@map("academy_courses")
+}
+
+model AcademyLesson {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  position      Int      @default(0)
+  passingScore  Int      @default(70)
+  contentBlocks Json     @default("[]")
+  quiz          Json     @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courseId String
+  course  AcademyCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  progress AcademyProgress[]
+
+  @@index([courseId, position])
+  @@map("academy_lessons")
+}
+
+model AcademyProgress {
+  id            String    @id @default(cuid())
+  quizScore     Float?
+  passed        Boolean   @default(false)
+  attempts      Int       @default(0)
+  coinsEarned   Int       @default(0)
+  completedAt   DateTime?
+  lastAttemptAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  userId     String
+  user       User              @relation("AcademyProgressUser", fields: [userId], references: [id], onDelete: Cascade)
+  tutorialId String?
+  tutorial   AcademyTutorial?  @relation(fields: [tutorialId], references: [id], onDelete: Cascade)
+  courseId   String?
+  course     AcademyCourse?    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessonId   String?
+  lesson     AcademyLesson?    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tutorialId])
+  @@unique([userId, courseId])
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@map("academy_progress")
+}
+
+model UserCoinBalance {
+  id        String   @id @default(cuid())
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation("UserCoins", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_coin_balances")
 }

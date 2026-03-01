@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  Award,
   Bell,
   Calendar,
   CheckCheck,
@@ -15,12 +16,16 @@ import {
   FolderKanban,
   LayoutGrid,
   ListChecks,
+  SkipForward,
+  Trash2,
   X,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { formatShortDate } from '@/lib/date-utils';
 import { HomeSkeleton } from '@/components/home/HomeSkeleton';
+import { BadgeMedallion } from '@/components/rewards/BadgeMedallion';
+import type { BadgeDisplayDefinition } from '@/lib/rewards/presentation';
 
 interface HomeNotification {
   id: string;
@@ -86,6 +91,32 @@ interface PendingEvaluation {
   boardName: string;
 }
 
+interface HomeRewardBadge {
+  id: string;
+  awardedAt: string;
+  badge: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string;
+    category: BadgeDisplayDefinition['category'];
+    tier: string | null;
+    iconUrl: string | null;
+  };
+}
+
+interface HomeActiveStreak {
+  id: string;
+  streakType: string;
+  label: string;
+  description: string;
+  currentCount: number;
+  longestCount: number;
+  lastQualifiedWeek: string | null;
+  graceUsed: boolean;
+  isActive: boolean;
+}
+
 interface HomeData {
   user: {
     id: string;
@@ -109,6 +140,16 @@ interface HomeData {
   myProjects: HomeProject[];
   pendingEvaluations: PendingEvaluation[];
   notifications: HomeNotification[];
+  rewards: {
+    loginStreak: {
+      currentStreak: number;
+      longestStreak: number;
+      totalLoginDays: number;
+      lastLoginDate: string | null;
+    };
+    activeStreaks: HomeActiveStreak[];
+    recentBadgeAwards: HomeRewardBadge[];
+  };
   suggestedRoutes: string[];
 }
 
@@ -140,6 +181,25 @@ export function HomePageClient() {
   const [notificationsCollapsed, setNotificationsCollapsed] = useState(
     () => typeof window !== 'undefined' && localStorage.getItem('home-notifications-collapsed') === 'true'
   );
+  const [skippedReviews, setSkippedReviews] = useState<Set<string>>(
+    () => {
+      if (typeof window === 'undefined') return new Set();
+      try {
+        const stored = localStorage.getItem('home-skipped-reviews');
+        return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+      } catch { return new Set(); }
+    }
+  );
+  const [deletedReviews, setDeletedReviews] = useState<Set<string>>(
+    () => {
+      if (typeof window === 'undefined') return new Set();
+      try {
+        const stored = localStorage.getItem('home-deleted-reviews');
+        return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+      } catch { return new Set(); }
+    }
+  );
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const toggleReviews = () => {
     setReviewsCollapsed((prev) => {
@@ -153,6 +213,37 @@ export function HomePageClient() {
       localStorage.setItem('home-notifications-collapsed', String(!prev));
       return !prev;
     });
+  };
+
+  const skipReview = (cycleId: string) => {
+    setSkippedReviews((prev) => {
+      const next = new Set(prev);
+      next.add(cycleId);
+      localStorage.setItem('home-skipped-reviews', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const confirmDeleteReview = (cycleId: string) => {
+    setDeleteConfirmId(cycleId);
+  };
+
+  const executeDeleteReview = () => {
+    if (!deleteConfirmId) return;
+    setDeletedReviews((prev) => {
+      const next = new Set(prev);
+      next.add(deleteConfirmId);
+      localStorage.setItem('home-deleted-reviews', JSON.stringify([...next]));
+      return next;
+    });
+    // Also remove from skipped if it was there
+    setSkippedReviews((prev) => {
+      const next = new Set(prev);
+      next.delete(deleteConfirmId);
+      localStorage.setItem('home-skipped-reviews', JSON.stringify([...next]));
+      return next;
+    });
+    setDeleteConfirmId(null);
   };
 
   const { data, isLoading } = useQuery({
@@ -169,6 +260,7 @@ export function HomePageClient() {
       const routes = new Set(data.suggestedRoutes);
       routes.add('/boards');
       routes.add('/projects');
+      routes.add('/badges');
 
       for (const route of Array.from(routes).slice(0, 4)) {
         router.prefetch(route);
@@ -259,100 +351,208 @@ export function HomePageClient() {
 
   const viewerName = displayName(data.user.name, data.user.email);
   const hasEvaluatorRole = data.user.evaluatorRoles.length > 0;
+  const visibleEvaluations = data.pendingEvaluations.filter((item) => !deletedReviews.has(item.id));
+  const pendingReviewCount = visibleEvaluations.filter((item) => !skippedReviews.has(item.id)).length;
+  const latestHeaderBadges = data.rewards.recentBadgeAwards.slice(0, 3);
+  const statCards = [
+    {
+      key: 'tasks',
+      label: 'My Open Tasks',
+      value: data.stats.myTaskCount,
+      detail: `${data.stats.dueSoonCount} due soon`,
+      icon: ListChecks,
+      accent: {
+        fill: 'rgba(90, 151, 248, 0.16)',
+        border: 'rgba(90, 151, 248, 0.3)',
+        iconBg: 'rgba(90, 151, 248, 0.18)',
+        iconColor: '#83B5FF',
+      },
+    },
+    {
+      key: 'boards',
+      label: 'My Boards',
+      value: data.stats.myBoardCount,
+      detail: `${data.stats.myProjectCount} active projects`,
+      icon: LayoutGrid,
+      accent: {
+        fill: 'rgba(46, 203, 178, 0.16)',
+        border: 'rgba(46, 203, 178, 0.28)',
+        iconBg: 'rgba(46, 203, 178, 0.18)',
+        iconColor: '#64E3CD',
+      },
+    },
+    {
+      key: 'reviews',
+      label: 'Pending Reviews',
+      value: pendingReviewCount,
+      detail: hasEvaluatorRole ? 'Needs your input' : 'No evaluator role',
+      icon: CheckCircle2,
+      accent: {
+        fill: 'rgba(244, 186, 82, 0.16)',
+        border: 'rgba(244, 186, 82, 0.28)',
+        iconBg: 'rgba(244, 186, 82, 0.18)',
+        iconColor: '#FFD06E',
+      },
+    },
+    {
+      key: 'notifications',
+      label: 'Unread Notifications',
+      value: data.stats.unreadNotifications,
+      detail: `${data.stats.overdueCount} overdue tasks`,
+      icon: Bell,
+      accent: {
+        fill: 'rgba(242, 92, 132, 0.16)',
+        border: 'rgba(242, 92, 132, 0.28)',
+        iconBg: 'rgba(242, 92, 132, 0.18)',
+        iconColor: '#FF90AD',
+      },
+    },
+  ] as const;
 
   return (
     <div className="home-page flex-1 overflow-auto p-6">
       <div className="home-shell mx-auto w-full max-w-7xl space-y-6">
         <div className="home-hero rounded-lg border border-border bg-surface p-5">
-          <div className="flex items-start gap-5">
-            {/* Avatar — large to accommodate future badge/coin overlays */}
-            <div className="home-avatar relative shrink-0">
-              {data.user.image ? (
-                <img
-                  src={data.user.image}
-                  alt={viewerName}
-                  className="h-20 w-20 rounded-full border-2 border-border object-cover"
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-border bg-primary/10 text-2xl font-bold text-primary">
-                  {(data.user.name?.[0] || data.user.email[0] || '?').toUpperCase()}
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-5">
+              <div className="home-avatar relative shrink-0">
+                {data.user.image ? (
+                  <img
+                    src={data.user.image}
+                    alt={viewerName}
+                    className="h-20 w-20 rounded-full border-2 border-border object-cover"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-border bg-primary/10 text-2xl font-bold text-primary">
+                    {(data.user.name?.[0] || data.user.email[0] || '?').toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="home-hero-title text-heading font-semibold">Welcome back, {viewerName}</h1>
+                <p className="home-hero-subtitle mt-1 text-body text-text-secondary">
+                  Personalized overview of your tasks, boards, reviews, notifications, and rewards.
+                </p>
+                <div className="home-hero-actions mt-4 flex flex-wrap items-center gap-2">
+                  <Link
+                    href="/boards"
+                    className="home-cta home-cta-primary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    Open Boards
+                  </Link>
+                  {hasEvaluatorRole && (
+                    <Link
+                      href="/timeline"
+                      className="home-cta home-cta-secondary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Open Timeline
+                    </Link>
+                  )}
+                  <Link
+                    href="/projects"
+                    className="home-cta home-cta-secondary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+                  >
+                    <FolderKanban className="h-4 w-4" />
+                    Open Projects
+                  </Link>
                 </div>
-              )}
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="home-hero-title text-heading font-semibold">Welcome back, {viewerName}</h1>
-              <p className="home-hero-subtitle mt-1 text-body text-text-secondary">
-                Personalized overview of your tasks, boards, reviews, and notifications.
-              </p>
-              <div className="home-hero-actions mt-4 flex flex-wrap items-center gap-2">
+
             <Link
-              href="/boards"
-              className="home-cta home-cta-primary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
+              href="/badges"
+              className="group self-end rounded-2xl border border-border-subtle bg-background/70 px-4 py-3 transition-colors hover:bg-background lg:self-start"
             >
-              <LayoutGrid className="h-4 w-4" />
-              Open Boards
+              <div className="flex items-start justify-end">
+                {latestHeaderBadges.length > 0 ? (
+                  latestHeaderBadges.map((award, index) => (
+                    <div
+                      key={award.id}
+                      className={cn(index > 0 && '-ml-5')}
+                      style={{
+                        zIndex: latestHeaderBadges.length - index,
+                        transform: `translateY(${index * 7}px)`,
+                      }}
+                    >
+                      <BadgeMedallion
+                        badge={award.badge}
+                        size="lg"
+                        className="transition-transform duration-200 group-hover:-translate-y-1"
+                      />
+                    </div>
+                  ))
+                ) : (
+                  [0, 1, 2].map((index) => (
+                    <div
+                      key={`placeholder-${index}`}
+                      className={cn('relative', index > 0 && '-ml-5')}
+                      style={{
+                        zIndex: 3 - index,
+                        transform: `translateY(${index * 7}px)`,
+                      }}
+                    >
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-border-subtle bg-background/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                        <Award className="h-7 w-7 text-text-tertiary" />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-4 text-right">
+                <div className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+                  Latest badges
+                </div>
+                <div className="mt-1 text-sm font-medium text-text-primary">
+                  {latestHeaderBadges.length > 0 ? 'View your collection' : 'Earn your first badge'}
+                </div>
+              </div>
             </Link>
-            {hasEvaluatorRole && (
-              <Link
-                href="/timeline"
-                className="home-cta home-cta-secondary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
-              >
-                <Calendar className="h-4 w-4" />
-                Open Timeline
-              </Link>
-            )}
-            <Link
-              href="/projects"
-              className="home-cta home-cta-secondary inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-body hover:bg-surface-hover"
-            >
-              <FolderKanban className="h-4 w-4" />
-              Open Projects
-            </Link>
-          </div>
-            </div>
           </div>
         </div>
 
         <div className="home-stats-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="home-stat-card home-stat-card-tasks rounded-lg border border-border bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-caption text-text-secondary">My Open Tasks</span>
-              <ListChecks className="h-4 w-4 text-text-tertiary" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{data.stats.myTaskCount}</div>
-            <div className="mt-1 text-caption text-text-tertiary">{data.stats.dueSoonCount} due soon</div>
-          </div>
+          {statCards.map((card) => {
+            const Icon = card.icon;
 
-          <div className="home-stat-card home-stat-card-boards rounded-lg border border-border bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-caption text-text-secondary">My Boards</span>
-              <LayoutGrid className="h-4 w-4 text-text-tertiary" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{data.stats.myBoardCount}</div>
-            <div className="mt-1 text-caption text-text-tertiary">{data.stats.myProjectCount} active projects</div>
-          </div>
-
-          <div className="home-stat-card home-stat-card-reviews rounded-lg border border-border bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-caption text-text-secondary">Pending Reviews</span>
-              <CheckCircle2 className="h-4 w-4 text-text-tertiary" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{data.stats.pendingEvaluations}</div>
-            <div className="mt-1 text-caption text-text-tertiary">
-              {hasEvaluatorRole ? 'Needs your input' : 'No evaluator role'}
-            </div>
-          </div>
-
-          <div className="home-stat-card home-stat-card-notifications rounded-lg border border-border bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-caption text-text-secondary">Unread Notifications</span>
-              <Bell className="h-4 w-4 text-text-tertiary" />
-            </div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{data.stats.unreadNotifications}</div>
-            <div className="mt-1 text-caption text-text-tertiary">
-              {data.stats.overdueCount} overdue tasks
-            </div>
-          </div>
+            return (
+              <div
+                key={card.key}
+                className="home-stat-card relative overflow-hidden rounded-xl border bg-surface px-4 py-4"
+                style={{
+                  borderColor: card.accent.border,
+                }}
+              >
+                <div
+                  className="absolute -right-5 -top-5 h-16 w-16 rounded-full blur-2xl"
+                  style={{ backgroundColor: card.accent.fill }}
+                  aria-hidden="true"
+                />
+                <div className="relative z-10">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                        {card.label}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="text-xl font-semibold leading-none text-text-primary">
+                        {card.value}
+                      </div>
+                      <Icon
+                        className="h-4 w-4"
+                        style={{ color: card.accent.iconColor }}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-caption text-text-secondary">
+                    {card.detail}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="home-content-grid grid gap-6 xl:grid-cols-[1.2fr_1fr]">
@@ -413,6 +613,108 @@ export function HomePageClient() {
           </section>
 
           <div className="home-side-stack space-y-6">
+            <section className="home-panel home-panel-rewards rounded-lg border border-border bg-surface">
+              <header className="home-panel-header flex items-center justify-between border-b border-border px-4 py-3">
+                <h2 className="font-medium">Rewards</h2>
+                <Link
+                  href="/badges"
+                  className="home-panel-count text-caption text-text-tertiary hover:text-text-primary"
+                >
+                  View all badges
+                </Link>
+              </header>
+              <div className="space-y-4 px-4 py-4">
+                <div className="rounded-md border border-border bg-background px-3 py-3">
+                  <div className="text-caption text-text-secondary">Current Login Streak</div>
+                  <div className="mt-1 text-2xl font-semibold text-text-primary">
+                    {data.rewards.loginStreak.currentStreak}
+                  </div>
+                  <div className="mt-1 text-caption text-text-tertiary">
+                    Longest: {data.rewards.loginStreak.longestStreak} days
+                  </div>
+                  <div className="text-caption text-text-tertiary">
+                    Total login days: {data.rewards.loginStreak.totalLoginDays}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-caption font-medium text-text-secondary">
+                    Active Weekly Streaks
+                  </div>
+                  {data.rewards.activeStreaks.length === 0 ? (
+                    <div className="text-caption text-text-tertiary">
+                      No active weekly streaks yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {data.rewards.activeStreaks.map((streak) => (
+                        <div
+                          key={streak.id}
+                          className="rounded-md border border-border bg-background px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-body font-medium text-text-primary">
+                                {streak.label}
+                              </div>
+                              <div className="truncate text-caption text-text-secondary">
+                                {streak.description}
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="text-body font-medium text-text-primary">
+                                {streak.currentCount}w
+                              </div>
+                              <div className="text-caption text-text-tertiary">
+                                best {streak.longestCount}w
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-2 text-caption font-medium text-text-secondary">
+                    Latest Badges
+                  </div>
+                  {data.rewards.recentBadgeAwards.length === 0 ? (
+                    <div className="text-caption text-text-tertiary">
+                      No badges earned yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {data.rewards.recentBadgeAwards.map((award) => (
+                        <div
+                          key={award.id}
+                          className="rounded-md border border-border bg-background px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <BadgeMedallion badge={award.badge} size="sm" />
+                              <div className="min-w-0">
+                                <div className="truncate text-body font-medium text-text-primary">
+                                  {award.badge.name}
+                                </div>
+                                <div className="truncate text-caption text-text-secondary">
+                                  {award.badge.description}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-caption text-text-tertiary">
+                              {relativeTimeLabel(award.awardedAt)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
             {hasEvaluatorRole && (
               <section className="home-panel home-panel-reviews rounded-lg border border-border bg-surface">
                 <header
@@ -422,33 +724,89 @@ export function HomePageClient() {
                   <div className="flex items-center gap-2">
                     <ChevronDown className={cn('h-4 w-4 text-text-tertiary transition-transform', reviewsCollapsed && '-rotate-90')} />
                     <h2 className="font-medium">Pending Reviews</h2>
-                    <span className="home-panel-count text-caption text-text-tertiary">{data.pendingEvaluations.length}</span>
+                    <span className="home-panel-count text-caption text-text-tertiary">{pendingReviewCount}</span>
                   </div>
                 </header>
                 {!reviewsCollapsed && (
-                  data.pendingEvaluations.length === 0 ? (
+                  visibleEvaluations.length === 0 ? (
                     <div className="px-4 py-6 text-caption text-text-secondary">
                       No pending review cycles.
                     </div>
                   ) : (
                     <div className="divide-y divide-border">
-                      {data.pendingEvaluations.map((item) => (
-                        <Link
-                          key={item.id}
-                          href={`/boards/${item.boardId}`}
-                          onMouseEnter={() => prefetchBoard(item.boardId)}
-                          className="home-list-row block px-4 py-3 hover:bg-surface-hover"
-                        >
-                          <div className="truncate text-body font-medium text-text-primary">{item.cardTitle}</div>
-                          <div className="mt-0.5 text-caption text-text-secondary">
-                            {item.boardName} - Cycle {item.cycleNumber}
+                      {visibleEvaluations.map((item) => {
+                        const isSkipped = skippedReviews.has(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              'home-list-row group flex items-start gap-2 px-4 py-3',
+                              isSkipped && 'opacity-50'
+                            )}
+                          >
+                            <Link
+                              href={`/boards/${item.boardId}`}
+                              onMouseEnter={() => prefetchBoard(item.boardId)}
+                              className="min-w-0 flex-1 hover:underline"
+                            >
+                              <div className={cn('truncate text-body font-medium text-text-primary', isSkipped && 'line-through')}>
+                                {item.cardTitle}
+                              </div>
+                              <div className="mt-0.5 text-caption text-text-secondary">
+                                {item.boardName} - Cycle {item.cycleNumber}
+                                {isSkipped && <span className="ml-1.5 text-text-tertiary">(skipped)</span>}
+                              </div>
+                            </Link>
+                            <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              {!isSkipped && (
+                                <button
+                                  onClick={() => skipReview(item.id)}
+                                  className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary"
+                                  title="Skip this review"
+                                >
+                                  <SkipForward className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => confirmDeleteReview(item.id)}
+                                className="rounded p-1 text-text-tertiary hover:bg-error/10 hover:text-error"
+                                title="Remove this review"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        </Link>
-                      ))}
+                        );
+                      })}
                     </div>
                   )
                 )}
               </section>
+            )}
+
+            {deleteConfirmId && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-lg">
+                  <h3 className="font-semibold text-text-primary">Remove review?</h3>
+                  <p className="mt-2 text-body text-text-secondary">
+                    This will permanently hide this review from your dashboard. It will reappear if a new cycle opens.
+                  </p>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="rounded-md border border-border px-3 py-1.5 text-body text-text-secondary hover:bg-surface-hover"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={executeDeleteReview}
+                      className="rounded-md bg-error px-3 py-1.5 text-body text-white hover:bg-error/90"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             <section className="home-panel home-panel-notifications rounded-lg border border-border bg-surface">

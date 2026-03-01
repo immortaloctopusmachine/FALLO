@@ -1,4 +1,4 @@
-import type { ReviewScoreValue } from '@prisma/client';
+import type { EvaluatorRole, ReviewScoreValue } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, apiSuccess, ApiErrors } from '@/lib/api-utils';
 import {
@@ -71,7 +71,7 @@ function parseScoresPayload(rawScores: unknown): {
 
 async function getCycleAndEligibleDimensions(
   cycleId: string,
-  evaluatorRoles: Array<'LEAD' | 'PO' | 'HEAD_OF_ART'>
+  evaluatorRoles: EvaluatorRole[]
 ) {
   const cycle = await prisma.reviewCycle.findUnique({
     where: {

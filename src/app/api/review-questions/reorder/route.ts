@@ -13,7 +13,7 @@ function serializeDimension(
     description: string | null;
     position: number;
     isActive: boolean;
-    dimensionRoles: Array<{ role: 'LEAD' | 'PO' | 'HEAD_OF_ART' }>;
+    dimensionRoles: Array<{ role: 'LEAD' | 'PO' | 'HEAD_OF_ART' | 'HEAD_OF_ANIMATION' }>;
   }
 ) {
   return {
