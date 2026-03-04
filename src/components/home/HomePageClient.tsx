@@ -11,6 +11,7 @@ import {
   Calendar,
   CheckCheck,
   CheckCircle2,
+  CheckSquare,
   ChevronDown,
   Clock,
   FolderKanban,
@@ -44,6 +45,7 @@ interface HomeTask {
   listId: string;
   listName: string;
   listPhase: string | null;
+  listColor: string | null;
   updatedAt: string;
   assignedAt: string;
   deadline: string | null;
@@ -566,46 +568,53 @@ export function HomePageClient() {
                 No open tasks assigned right now.
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="flex flex-col gap-2 p-3">
                 {data.myTasks.slice(0, 10).map((task) => (
                   <Link
                     key={task.id}
-                    href={`/boards/${task.boardId}`}
+                    href={`/boards/${task.boardId}?card=${task.id}`}
                     onMouseEnter={() => prefetchBoard(task.boardId)}
-                    className="home-list-row block px-4 py-3 hover:bg-surface-hover"
+                    className="home-list-row block rounded-md border border-border-subtle bg-surface p-2.5 transition-shadow hover:shadow-sm"
+                    style={task.listColor ? { backgroundColor: `${task.listColor}18` } : undefined}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-body font-medium text-text-primary">{task.title}</div>
-                        <div className="mt-0.5 text-caption text-text-secondary">
-                          {task.boardName} - {task.listName}
+                    <div className="flex items-start gap-2">
+                      <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-card-task" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-body font-medium text-text-primary">{task.title}</div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {task.overdue && (
+                              <span className="inline-flex items-center gap-1 rounded bg-error/10 px-2 py-0.5 text-caption text-error">
+                                <AlertTriangle className="h-3 w-3" />
+                                Overdue
+                              </span>
+                            )}
+                            {!task.overdue && task.dueSoon && (
+                              <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-2 py-0.5 text-caption text-warning">
+                                <Clock className="h-3 w-3" />
+                                Due Soon
+                              </span>
+                            )}
+                            {task.storyPoints !== null && (
+                              <span className="home-task-sp-badge rounded bg-card-task/10 px-1.5 py-0.5 text-tiny font-medium text-card-task">
+                                {task.storyPoints} SP
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-caption text-text-secondary">
+                          <span>{task.boardName} - {task.listName}</span>
+                          {task.deadline && (
+                            <>
+                              <span className="text-text-tertiary">&middot;</span>
+                              <span className="text-text-tertiary">{formatShortDate(task.deadline)}</span>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {task.overdue && (
-                          <span className="inline-flex items-center gap-1 rounded bg-error/10 px-2 py-0.5 text-caption text-error">
-                            <AlertTriangle className="h-3 w-3" />
-                            Overdue
-                          </span>
-                        )}
-                        {!task.overdue && task.dueSoon && (
-                          <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-2 py-0.5 text-caption text-warning">
-                            <Clock className="h-3 w-3" />
-                            Due Soon
-                          </span>
-                        )}
-                        {task.storyPoints !== null && (
-                          <span className="home-badge-inline rounded bg-surface-hover px-2 py-0.5 text-caption text-text-tertiary">
-                            {task.storyPoints} SP
-                          </span>
-                        )}
-                      </div>
                     </div>
-                    {task.deadline && (
-                      <div className="mt-1 text-caption text-text-tertiary">
-                        Deadline: {formatShortDate(task.deadline)}
-                      </div>
-                    )}
                   </Link>
                 ))}
               </div>

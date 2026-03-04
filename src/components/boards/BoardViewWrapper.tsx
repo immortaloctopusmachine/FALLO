@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { BoardHeader } from './BoardHeader';
 import { BoardView } from './BoardView';
 import { BoardSettingsModal } from './BoardSettingsModal';
@@ -44,6 +45,9 @@ export function BoardViewWrapper({
   isLoadingFullData = false,
   onLoadFullData,
 }: BoardViewWrapperProps) {
+  const searchParams = useSearchParams();
+  const initialCardId = searchParams.get('card') ?? undefined;
+
   const [board, setBoard] = useState(initialBoard);
   const [viewMode, setViewMode] = useState<BoardViewMode>('tasks');
   const [hasMountedSpineTracker, setHasMountedSpineTracker] = useState(false);
@@ -173,6 +177,7 @@ export function BoardViewWrapper({
               currentUserId={currentUserId}
               weeklyProgress={weeklyProgress}
               canViewQualitySummaries={canViewQualitySummaries}
+              initialCardId={initialCardId}
             />
           ) : viewMode === 'planning' ? (
             isLoadingFullData && !hasFullData ? (
@@ -186,6 +191,7 @@ export function BoardViewWrapper({
                 weeklyProgress={weeklyProgress}
                 isAdmin={isAdmin}
                 canViewQualitySummaries={canViewQualitySummaries}
+                initialCardId={initialCardId}
               />
             )
           ) : viewMode === 'spine' ? null : (

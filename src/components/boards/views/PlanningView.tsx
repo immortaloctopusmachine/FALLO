@@ -67,6 +67,7 @@ interface PlanningViewProps {
   weeklyProgress?: WeeklyProgress[];
   isAdmin?: boolean;
   canViewQualitySummaries?: boolean;
+  initialCardId?: string;
 }
 
 // Epic health status
@@ -198,6 +199,7 @@ export function PlanningView({
   weeklyProgress = [],
   isAdmin: _isAdmin = false,
   canViewQualitySummaries = false,
+  initialCardId,
 }: PlanningViewProps) {
   const [localBoard, setLocalBoard] = useState(initialBoard);
   const syncingFromPropRef = useRef(false);
@@ -414,6 +416,17 @@ export function PlanningView({
         : card
     )
   ), [board.lists]);
+
+  // Auto-open card from URL query param (e.g., ?card=<cardId>)
+  const didAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (!initialCardId || didAutoOpenRef.current) return;
+    const card = allCards.find((c) => c.id === initialCardId);
+    if (card) {
+      didAutoOpenRef.current = true;
+      setSelectedCard(card);
+    }
+  }, [initialCardId, allCards]);
 
   const tasksByUserStory = useMemo(() => {
     const map = new Map<string, TaskCard[]>();

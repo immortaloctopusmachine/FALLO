@@ -113,6 +113,7 @@ export async function GET() {
                     name: true,
                     phase: true,
                     viewType: true,
+                    color: true,
                     boardId: true,
                     board: {
                       select: {
@@ -304,6 +305,7 @@ export async function GET() {
           listId: assignment.card.list.id,
           listName: assignment.card.list.name,
           listPhase: assignment.card.list.phase,
+          listColor: assignment.card.list.color ?? null,
           updatedAt: assignment.card.updatedAt.toISOString(),
           assignedAt: assignment.assignedAt.toISOString(),
           deadline: deadline ? deadline.toISOString() : null,

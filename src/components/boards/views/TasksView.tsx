@@ -43,6 +43,7 @@ interface TasksViewProps {
   currentUserId?: string;
   weeklyProgress?: WeeklyProgress[];
   canViewQualitySummaries?: boolean;
+  initialCardId?: string;
 }
 
 interface QuickFilter {
@@ -69,7 +70,7 @@ function parseOptionalDate(value: string | undefined): Date | null {
   return parsed;
 }
 
-export function TasksView({ board: initialBoard, currentUserId, weeklyProgress = [], canViewQualitySummaries = false }: TasksViewProps) {
+export function TasksView({ board: initialBoard, currentUserId, weeklyProgress = [], canViewQualitySummaries = false, initialCardId }: TasksViewProps) {
   const [localBoard, setLocalBoard] = useState(initialBoard);
   const syncingFromPropRef = useRef(false);
   const mutations = useBoardMutations(initialBoard.id);
@@ -167,6 +168,17 @@ export function TasksView({ board: initialBoard, currentUserId, weeklyProgress =
         : card
     )
   ), [board.lists]);
+
+  // Auto-open card from URL query param (e.g., ?card=<cardId>)
+  const didAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (!initialCardId || didAutoOpenRef.current) return;
+    const card = allCards.find((c) => c.id === initialCardId);
+    if (card) {
+      didAutoOpenRef.current = true;
+      setSelectedCard(card);
+    }
+  }, [initialCardId, allCards]);
 
   // Apply quick filters
   const filteredLists = useMemo(() => {

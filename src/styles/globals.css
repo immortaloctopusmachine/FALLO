@@ -1199,7 +1199,8 @@
     background: rgba(231, 45, 45, 0.14);
   }
 
-  .douala .home-badge-inline {
+  .douala .home-badge-inline,
+  .douala .home-task-sp-badge {
     border: 1px solid rgba(255, 210, 74, 0.3);
     background: rgba(8, 22, 56, 0.52);
     color: #FFE9B0;
@@ -2581,7 +2582,9 @@
     position: relative;
     border-top: 1px solid rgba(255, 255, 255, 0.5);
     border-bottom: 1px solid rgba(5, 7, 13, 0.2);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(230, 236, 255, 0.95) 100%);
+    border-radius: 6px;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(230, 236, 255, 0.95) 100%) !important;
     transition: transform 0.08s ease, background 0.1s ease;
   }
 
@@ -2592,6 +2595,7 @@
     top: 0;
     bottom: 0;
     width: 6px;
+    border-radius: 6px 0 0 6px;
     background: var(--colordore-blue);
     opacity: 0.95;
   }
@@ -2626,7 +2630,8 @@
     background: var(--colordore-black);
   }
 
-  .colordore .home-badge-inline {
+  .colordore .home-badge-inline,
+  .colordore .home-task-sp-badge {
     border: 2px solid var(--colordore-black);
     border-radius: 0;
     background: linear-gradient(180deg, #5A6EF6 0%, #2D3EC9 100%) !important;
@@ -3060,9 +3065,10 @@
   }
 
   .windows95 .home-list-row {
-    background: #D8D4CB;
+    background: #D8D4CB !important;
     border-top: 1px solid #E6E3DC;
     border-bottom: 1px solid #A5A29A;
+    border-radius: 0;
   }
 
   .windows95 .home-list-row:hover {
@@ -3080,6 +3086,7 @@
   }
 
   .windows95 .home-badge-inline,
+  .windows95 .home-task-sp-badge,
   .windows95 .home-list-row span[class*='bg-error/10'],
   .windows95 .home-list-row span[class*='bg-warning/10'] {
     border: 1px solid;
@@ -4186,9 +4193,10 @@
 
   /* List rows: alternating gray beveled rows */
   .pc98 .home-list-row {
-    background: linear-gradient(180deg, #E0D6E8 0%, #D6CCD8 100%);
+    background: linear-gradient(180deg, #E0D6E8 0%, #D6CCD8 100%) !important;
     border-top: 1px solid rgba(255, 255, 255, 0.4);
     border-bottom: 1px solid rgba(80, 50, 100, 0.15);
+    border-radius: 2px;
     padding: 0.5rem 0.65rem;
   }
 
@@ -4218,7 +4226,8 @@
   }
 
   /* Badges: small indicator chips */
-  .pc98 .home-badge-inline {
+  .pc98 .home-badge-inline,
+  .pc98 .home-task-sp-badge {
     border: 2px solid;
     border-radius: 2px;
     border-top-color: #060E3A;
@@ -4903,7 +4912,8 @@
   }
 
   /* Inline badges — pink pills */
-  .sparkle .home-badge-inline {
+  .sparkle .home-badge-inline,
+  .sparkle .home-task-sp-badge {
     border: 1px solid #f0a0c4;
     border-radius: 999px;
     background: linear-gradient(180deg, #fff5fb, #ffe4f0) !important;
@@ -5555,7 +5565,8 @@
     background: rgba(167, 255, 106, 0.16) !important;
   }
 
-  .anime90s .home-badge-inline {
+  .anime90s .home-badge-inline,
+  .anime90s .home-task-sp-badge {
     border: var(--anime90s-border-size) solid rgba(255, 122, 66, 0.78);
     border-radius: 999px;
     background: rgba(33, 12, 17, 0.9) !important;
@@ -6524,7 +6535,8 @@
     box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.16);
   }
 
-  .nova .home-badge-inline {
+  .nova .home-badge-inline,
+  .nova .home-task-sp-badge {
     border: var(--nova-border-size) solid transparent;
     border-radius: 999px;
     background:
