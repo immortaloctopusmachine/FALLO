@@ -11,6 +11,24 @@ import { cn } from '@/lib/utils';
 import { getContrastColor } from '@/lib/color-utils';
 import type { TimelineEvent as TimelineEventType } from '@/types';
 
+function parseDateOnly(value: Date | string): Date {
+  if (typeof value === 'string') {
+    const datePart = value.includes('T') ? value.slice(0, 10) : value;
+    const [year, month, day] = datePart.split('-').map((part) => Number.parseInt(part, 10));
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return new Date(year, month - 1, day);
+    }
+
+    const fallback = new Date(value);
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  }
+
+  const normalized = new Date(value);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
 interface TimelineEventProps {
   event: TimelineEventType;
   startDate: Date;
@@ -37,13 +55,14 @@ export function TimelineEvent({
   dragOffset = 0,
 }: TimelineEventProps) {
   const { left, width, isSingleDay } = useMemo(() => {
-    const eventStart = new Date(event.startDate);
-    const eventEnd = new Date(event.endDate);
-    const sameDay = eventStart.toDateString() === eventEnd.toDateString();
+    // Timeline events are day-level data; normalize to date-only to avoid timezone-time shifts.
+    const eventStart = parseDateOnly(event.startDate);
+    const eventEnd = parseDateOnly(event.endDate);
+    const sameDay = eventStart.getTime() === eventEnd.getTime();
 
     // Calculate business days from start
     let daysFromStart = 0;
-    const current = new Date(startDate);
+    const current = parseDateOnly(startDate);
     while (current < eventStart) {
       const dayOfWeek = current.getDay();
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {

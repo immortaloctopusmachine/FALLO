@@ -2236,7 +2236,9 @@ function EventDateRow({
   const color = event?.eventType.color || eventType?.color || '#71717a';
 
   if (event) {
-    const dateStr = formatLocalDateKey(new Date(event.startDate));
+    const dateStr = event.startDate.includes('T')
+      ? event.startDate.slice(0, 10)
+      : formatLocalDateKey(new Date(event.startDate));
 
     // Editing mode — show date input
     if (isEditing && isAdmin) {
